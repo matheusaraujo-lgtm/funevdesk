@@ -16,6 +16,8 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   const [textInput, setTextInput] = useState("");
   const lastSignalAtRef = useRef("");
   const pollingRef = useRef(false);
+  const stoppedRef = useRef(false);
+  const [ended, setEnded] = useState("");
   const videoSizeRef = useRef({ w: 1920, h: 1080 });
 
   const sendControl = useCallback((msg) => {
@@ -25,7 +27,7 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   }, []);
 
   const pollAgentSignals = useCallback(async (pc) => {
-    if (pollingRef.current) return;
+    if (pollingRef.current || stoppedRef.current) return;
     pollingRef.current = true;
     try {
       const query = lastSignalAtRef.current ? `?since=${encodeURIComponent(lastSignalAtRef.current)}` : "";
@@ -41,6 +43,12 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
           setStatus("Transmitindo");
         } else if (payload.type === "ice" && payload.candidate) {
           try { await pc.addIceCandidate(payload.candidate); } catch { /* ignore */ }
+        } else if (payload.type === "denied" || payload.type === "ended") {
+          // O colaborador recusou (ou encerrou) — para o polling e mostra o aviso no console.
+          setEnded(payload.reason || (payload.type === "denied" ? "O colaborador recusou o acesso remoto." : "Sessão encerrada."));
+          setStatus(payload.type === "denied" ? "Recusado" : "Encerrado");
+          stoppedRef.current = true;
+          try { pcRef.current?.close(); } catch { /* ignore */ }
         }
       }
     } finally {
@@ -151,6 +159,8 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   useEffect(() => {
     let stopped = false;
     let pollTimer;
+    stoppedRef.current = false;
+    setEnded("");
 
     async function start() {
       try {
@@ -269,6 +279,13 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
           onContextMenu={(e) => e.preventDefault()}
           className={`rounded-md ${isFullscreen ? "max-h-full max-w-full" : "max-h-[480px] max-w-full"} ${controlMode === "mouse" ? "cursor-none" : ""}`}
         />
+        {ended && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-red-500/15 text-red-400"><X className="size-6" /></span>
+            <p className="text-sm font-medium text-white">{ended}</p>
+            {onClose && <Button type="button" variant="outline" size="sm" className="mt-1 border-zinc-700 text-zinc-200" onClick={onClose}>Fechar</Button>}
+          </div>
+        )}
       </div>
 
       {/* Control toolbar */}

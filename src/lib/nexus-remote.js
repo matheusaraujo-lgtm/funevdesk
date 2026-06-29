@@ -83,6 +83,6 @@ export function getActiveRemoteSession(db, sessionId) {
     FROM remote_sessions rs
     JOIN assets a ON a.id = rs.asset_id
     WHERE rs.id=? AND (rs.expires_at IS NULL OR rs.expires_at > ?)
-      AND rs.status IN ('REQUESTED', 'ACKNOWLEDGED', 'ACTIVE')
+      AND rs.status IN ('REQUESTED', 'ACKNOWLEDGED', 'ACTIVE', 'DENIED')
   `).get(sessionId, now);
 }

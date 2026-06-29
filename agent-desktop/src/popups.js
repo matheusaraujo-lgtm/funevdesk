@@ -26,8 +26,16 @@ function registerPopupIpc(dependencies) {
   });
 
   ipcMain.handle("popup:remote-decline", async (_event, sessionId) => {
-    deps?.appendLog(`Acesso remoto recusado via popup: sessão ${sessionId}`);
-    return { ok: true };
+    try {
+      await deps.ensureAgentReady();
+      // Avisa o servidor para marcar a sessão como recusada e notificar o técnico solicitante.
+      await deps.api.post("/api/agent/remote/deny", { sessionId });
+      deps.appendLog(`Acesso remoto recusado via popup: sessão ${sessionId}`);
+      return { ok: true };
+    } catch (error) {
+      deps.appendLog(`Erro ao recusar acesso remoto via popup: ${error.message}`);
+      return { ok: false, error: error.message };
+    }
   });
 
   ipcMain.handle("popup:reply-send", async (_event, { ticketId, body }) => {
