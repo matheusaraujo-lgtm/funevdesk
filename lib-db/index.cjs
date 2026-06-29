@@ -1254,7 +1254,7 @@ function ensureExtendedCatalogTables(db) {
   }
 
   const invCount = db.prepare("SELECT COUNT(*) total FROM inventory_items WHERE organization_id=?").get(org.id).total;
-  if (!invCount) {
+  if (demoSeedEnabled() && !invCount) {
     const branch = db.prepare("SELECT id FROM branches WHERE organization_id=? LIMIT 1").get(org.id);
     const insertItem = db.prepare(`INSERT INTO inventory_items
       (id, organization_id, branch_id, name, sku, category, quantity, min_quantity, unit, active, created_at, updated_at)
@@ -1373,6 +1373,9 @@ function ensureAccessDemo(db) {
 function ensureTicketCatalog(db) {
   const organization = db.prepare("SELECT id FROM organizations LIMIT 1").get();
   if (!organization) return;
+  // Tipos de chamado de exemplo são demonstração: só semear com NEXUS_SEED_DEMO=true.
+  // Em produção o admin cria os próprios tipos.
+  if (!demoSeedEnabled()) return;
   const count = db.prepare("SELECT COUNT(*) total FROM ticket_types").get().total;
   if (count) return;
   const now = new Date().toISOString();
