@@ -71,8 +71,11 @@ export async function POST(request) {
   const originBranchId = branchId;
   const handlingBranchId = resolveHandlingBranchId(db, ticketType, originBranchId, branch.organization_id);
   const handlingBranch = db.prepare("SELECT id, name FROM branches WHERE id=?").get(handlingBranchId);
+  // Prioriza o equipamento detectado/enviado no formulário (auto-detecção pelo agente local).
+  // Só cai para o asset fixo do colaborador quando nada foi detectado. A validação abaixo
+  // garante que o ativo pertence à organização e à unidade do chamado.
   let assetId = parsed.data.assetId || null;
-  if (currentUser.role === "EMPLOYEE") assetId = currentUser.asset_id || null;
+  if (!assetId && currentUser.role === "EMPLOYEE") assetId = currentUser.asset_id || null;
   if (assetId) {
     const asset = db.prepare("SELECT branch_id FROM assets WHERE id=? AND organization_id=?").get(assetId, currentUser.organization_id);
     if (!asset || asset.branch_id !== branchId) return Response.json({ error: "O equipamento não pertence à unidade selecionada." }, { status: 403 });

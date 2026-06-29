@@ -193,7 +193,14 @@ export function TicketCreateView({
             const currentAssets = assetsRef.current;
             const match = currentAssets.find((asset) => asset.id === data.assetId)
               || (data.hostname && currentAssets.find((asset) => asset.hostname?.toLowerCase() === data.hostname.toLowerCase()));
-            if (match) {
+            if (data.assetId) {
+              // A ponte já devolve o assetId/branchId resolvidos pelo servidor — vincula direto,
+              // inclusive quando o usuário não tem a lista de ativos (perfil EMPLOYEE) e não há match local.
+              setAssetId(data.assetId);
+              if (data.branchId) setBranchId(data.branchId);
+              setAgentMachine(data.hostname || match?.hostname || "");
+              detected = true;
+            } else if (match) {
               setAssetId(match.id);
               setBranchId(match.branch_id);
               setAgentMachine(data.hostname || match.hostname);
