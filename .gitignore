@@ -41,8 +41,9 @@ dev-server.*.log
 # intermediários de build do instalador (wix/stage) não vão pro git
 /public/downloads/agent/stage/
 
-# env files (can opt-in for committing if needed)
+# env files (segredos) — mas versiona os templates *.example
 .env*
+!.env*.example
 
 # vercel
 .vercel
