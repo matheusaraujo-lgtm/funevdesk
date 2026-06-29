@@ -1,0 +1,9 @@
+# Scripts shell SEMPRE em LF — CRLF quebra o interpretador no Linux/Docker
+# (afeta scripts/docker-merge-db-deps.sh usado no build e scripts/deploy.sh).
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Scripts do Windows mantêm CRLF
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
