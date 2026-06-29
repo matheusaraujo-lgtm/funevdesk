@@ -86,6 +86,8 @@ function normalizeSql(sql) {
   if (isInsertOrIgnore && /^INSERT\s+INTO/i.test(normalized) && !/ON CONFLICT DO NOTHING/i.test(normalized)) {
     normalized += " ON CONFLICT DO NOTHING";
   }
+  // SQLite AUTOINCREMENT -> PostgreSQL SERIAL (coluna inteira auto-incrementada).
+  normalized = normalized.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, "SERIAL PRIMARY KEY");
   normalized = translateSqliteFunctions(normalized);
   return normalized;
 }
@@ -119,10 +121,13 @@ class PgStatement {
     this.sql = normalizeSql(sql);
     const pragmaMatch = sql.match(/PRAGMA\s+table_info\((\w+)\)/i);
     this.pragmaTable = pragmaMatch?.[1] || null;
+    // PRAGMA index_list/index_info não têm equivalente direto e só alimentam migrações
+    // SQLite-only. No PostgreSQL o schema já nasce correto, então tratamos como vazios.
+    this.pragmaEmpty = /PRAGMA\s+index_(list|info)/i.test(sql);
   }
 
   run(...params) {
-    if (this.pragmaTable) return { changes: 0, lastInsertRowid: 0 };
+    if (this.pragmaTable || this.pragmaEmpty) return { changes: 0, lastInsertRowid: 0 };
     if (!this.sql) return { changes: 0, lastInsertRowid: 0 };
     const query = convertPlaceholders(this.sql, params);
     const result = pgQuery(query.text, query.values);
@@ -134,6 +139,7 @@ class PgStatement {
       const rows = this.all(...params);
       return rows[0];
     }
+    if (this.pragmaEmpty) return undefined;
     if (!this.sql) return undefined;
     const query = convertPlaceholders(this.sql, params);
     const result = pgQuery(query.text, query.values);
@@ -155,6 +161,7 @@ class PgStatement {
       );
       return result.rows.map(normalizeRow);
     }
+    if (this.pragmaEmpty) return [];
     if (!this.sql) return [];
     const query = convertPlaceholders(this.sql, params);
     const result = pgQuery(query.text, query.values);
