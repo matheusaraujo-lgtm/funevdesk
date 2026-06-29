@@ -1023,6 +1023,15 @@ function ensureAgentEnhancementTables(db) {
       created_at TEXT NOT NULL,
       FOREIGN KEY (session_id) REFERENCES remote_sessions(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS software_packages (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      winget_id TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    );
   `);
 
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();

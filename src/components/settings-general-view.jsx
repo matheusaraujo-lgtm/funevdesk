@@ -16,8 +16,10 @@ import {
   Monitor,
   Package,
   PanelLeft,
+  Plus,
   RefreshCw,
   Save,
+  Trash2,
   Settings,
   SlidersHorizontal,
   Timer,
@@ -112,6 +114,10 @@ export function SettingsGeneralView({ settings, onSave }) {
   const [downloading, setDownloading] = useState("");
   const [enrollmentKey, setEnrollmentKey] = useState("");
   const [generatingKey, setGeneratingKey] = useState(false);
+  const [softwarePackages, setSoftwarePackages] = useState([]);
+  const [swName, setSwName] = useState("");
+  const [swId, setSwId] = useState("");
+  const [swBusy, setSwBusy] = useState(false);
   const [tab, setTab] = useState("marca");
   const logoInputRef = useRef(null);
 
@@ -143,6 +149,53 @@ export function SettingsGeneralView({ settings, onSave }) {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
+
+  // Catálogo de software (apps que aparecem no diálogo de instalação dos ativos).
+  useEffect(() => {
+    fetch("/api/software", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { packages: [] }))
+      .then((data) => setSoftwarePackages(data.packages || []))
+      .catch(() => setSoftwarePackages([]));
+  }, []);
+
+  async function addSoftwarePackage() {
+    const name = swName.trim();
+    const wingetId = swId.trim();
+    if (!name || !wingetId) return toast.error("Informe o nome e o ID winget do aplicativo.");
+    setSwBusy(true);
+    try {
+      const response = await fetch("/api/software", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, wingetId }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível adicionar o aplicativo.");
+      setSoftwarePackages(result.packages || []);
+      setSwName("");
+      setSwId("");
+      toast.success("Aplicativo adicionado ao catálogo.");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSwBusy(false);
+    }
+  }
+
+  async function removeSoftwarePackage(id) {
+    setSwBusy(true);
+    try {
+      const response = await fetch(`/api/software/${id}`, { method: "DELETE" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível remover o aplicativo.");
+      setSoftwarePackages(result.packages || []);
+      toast.success("Aplicativo removido do catálogo.");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSwBusy(false);
+    }
+  }
 
   const serverUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -446,6 +499,36 @@ export function SettingsGeneralView({ settings, onSave }) {
                   </div>
                 )}
                 <Button type="button" variant="outline" disabled={generatingKey} onClick={regenerateEnrollmentKey}><RefreshCw className="size-4" /> {generatingKey ? "Gerando..." : "Gerar nova chave"}</Button>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-dashed p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Package className="size-[18px]" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Catálogo de software</p>
+                    <p className="text-xs text-muted-foreground">Apps que aparecem para instalar nos ativos. Cadastre os que sua empresa usa (nome + ID winget).</p>
+                  </div>
+                </div>
+                {softwarePackages.length > 0 ? (
+                  <div className="space-y-1">
+                    {softwarePackages.map((pkg) => (
+                      <div key={pkg.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
+                        <Package className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate font-medium">{pkg.name}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{pkg.wingetId}</span>
+                        <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0 text-muted-foreground hover:text-destructive" disabled={swBusy} onClick={() => removeSoftwarePackage(pkg.id)} aria-label={`Remover ${pkg.name}`}><Trash2 className="size-4" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-lg bg-muted/40 px-3 py-3 text-center text-xs text-muted-foreground">Catálogo vazio. Adicione abaixo os aplicativos que poderão ser instalados nos equipamentos.</p>
+                )}
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <Input value={swName} onChange={(event) => setSwName(event.target.value)} placeholder="Nome (ex.: Google Chrome)" disabled={swBusy} />
+                  <Input value={swId} onChange={(event) => setSwId(event.target.value)} placeholder="ID winget (ex.: Google.Chrome)" disabled={swBusy} onKeyDown={(event) => { if (event.key === "Enter") addSoftwarePackage(); }} />
+                  <Button type="button" variant="outline" disabled={swBusy || !swName.trim() || !swId.trim()} onClick={addSoftwarePackage}><Plus className="size-4" /> Adicionar</Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">O ID winget é o identificador exato do pacote (ex.: <span className="font-mono">Google.Chrome</span>). Encontre com <span className="font-mono">winget search</span> no Windows.</p>
               </div>
             </CardContent>
           </Card>

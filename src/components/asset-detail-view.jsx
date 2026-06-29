@@ -22,27 +22,6 @@ function AssetGlyph({ type, className }) {
   return <Icon className={className} />;
 }
 
-// Catálogo de apps comuns (IDs winget / App Installer). O técnico distribui em 1 clique;
-// o agente instala em silêncio no endpoint. Também aceita um ID personalizado.
-const WINGET_CATALOG = [
-  { id: "Google.Chrome", name: "Google Chrome" },
-  { id: "Mozilla.Firefox", name: "Mozilla Firefox" },
-  { id: "Microsoft.Edge", name: "Microsoft Edge" },
-  { id: "7zip.7zip", name: "7-Zip" },
-  { id: "RARLab.WinRAR", name: "WinRAR" },
-  { id: "Adobe.Acrobat.Reader.64-bit", name: "Adobe Acrobat Reader" },
-  { id: "VideoLAN.VLC", name: "VLC Media Player" },
-  { id: "Zoom.Zoom", name: "Zoom" },
-  { id: "AnyDeskSoftwareGmbH.AnyDesk", name: "AnyDesk" },
-  { id: "Notepad++.Notepad++", name: "Notepad++" },
-  { id: "Microsoft.Teams", name: "Microsoft Teams" },
-  { id: "TheDocumentFoundation.LibreOffice", name: "LibreOffice" },
-  { id: "Microsoft.VisualStudioCode", name: "Visual Studio Code" },
-  { id: "Microsoft.PowerToys", name: "Microsoft PowerToys" },
-  { id: "Git.Git", name: "Git" },
-  { id: "Spotify.Spotify", name: "Spotify" },
-];
-
 const DEPLOY_STATUS = {
   PENDING: { label: "Na fila", variant: "secondary" },
   SENT: { label: "Instalando…", variant: "warning" },
@@ -56,7 +35,16 @@ function SoftwareDeployCard({ asset }) {
   const [sending, setSending] = useState(false);
   const [customId, setCustomId] = useState("");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState([]); // [{ id, name }]
+  const [selected, setSelected] = useState([]); // [{ id, name, wingetId }]
+  const [catalog, setCatalog] = useState([]);
+
+  // Catálogo de software curado pelo admin em Configurações → Agente Windows.
+  useEffect(() => {
+    fetch("/api/software", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { packages: [] }))
+      .then((data) => setCatalog(data.packages || []))
+      .catch(() => setCatalog([]));
+  }, []);
 
   const fetcher = useCallback(() => {
     return fetch(`/api/assets/${asset.id}/install`, { cache: "no-store" })
@@ -88,7 +76,7 @@ function SoftwareDeployCard({ asset }) {
         const response = await fetch(`/api/assets/${asset.id}/install`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "INSTALL_APP", packageId: app.id, name: app.name }),
+          body: JSON.stringify({ action: "INSTALL_APP", packageId: app.wingetId, name: app.name }),
         });
         if (response.ok) okCount += 1;
       } catch { /* falha em um app não interrompe os demais */ }
@@ -103,7 +91,7 @@ function SoftwareDeployCard({ asset }) {
     reload();
   }
 
-  const filtered = WINGET_CATALOG.filter((app) => app.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = catalog.filter((app) => app.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
@@ -149,7 +137,7 @@ function SoftwareDeployCard({ asset }) {
             </div>
             <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
               {filtered.length === 0 ? (
-                <p className="px-1 py-4 text-center text-xs text-muted-foreground">Nenhum app no catálogo com esse nome. Use o ID winget abaixo.</p>
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">{catalog.length === 0 ? "Catálogo vazio. Cadastre aplicativos em Configurações → Agente Windows, ou use o ID winget abaixo." : "Nenhum app no catálogo com esse nome. Use o ID winget abaixo."}</p>
               ) : filtered.map((app) => {
                 const isSel = selected.some((a) => a.id === app.id);
                 return (
@@ -163,7 +151,7 @@ function SoftwareDeployCard({ asset }) {
                     <span className={`flex size-4 shrink-0 items-center justify-center rounded border ${isSel ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>{isSel && <Check className="size-3" />}</span>
                     <Package className="size-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{app.name}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{app.id}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{app.wingetId}</span>
                   </button>
                 );
               })}
@@ -175,7 +163,7 @@ function SoftwareDeployCard({ asset }) {
               <Label htmlFor="custom-winget">ID winget personalizado</Label>
               <div className="flex gap-2">
                 <Input id="custom-winget" value={customId} onChange={(event) => setCustomId(event.target.value)} placeholder="Ex.: Microsoft.PowerToys" disabled={sending} />
-                <Button type="button" variant="outline" disabled={!customId.trim() || sending} onClick={() => deployList([{ id: customId.trim(), name: customId.trim() }])}>
+                <Button type="button" variant="outline" disabled={!customId.trim() || sending} onClick={() => deployList([{ id: customId.trim(), name: customId.trim(), wingetId: customId.trim() }])}>
                   {sending ? <LoaderCircle className="animate-spin" /> : <Search />}
                 </Button>
               </div>
