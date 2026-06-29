@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Acesso remoto</title>
+  <style>
+    :root {
+      --brand: #0B2A4A;
+      --brand-light: #12426F;
+      --accent: #1570EF;
+      --bg: #F5F7FB;
+      --card: #ffffff;
+      --text: #101828;
+      --text2: #475467;
+      --border: #E7E9EF;
+      --green: #079455;
+      --green-hover: #067647;
+      --red: #D92D20;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, "Segoe UI", -apple-system, sans-serif;
+      background: var(--card);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .popup-bar {
+      -webkit-app-region: drag;
+      background: var(--brand);
+      color: #fff;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .popup-bar .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); flex-shrink: 0;
+    }
+    .popup-body { padding: 16px 18px 6px; flex: 1; }
+    .popup-body p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text2);
+    }
+    .popup-actions {
+      display: flex;
+      gap: 10px;
+      padding: 12px 18px 16px;
+    }
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 9px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    .btn-accept { background: var(--green); color: #fff; }
+    .btn-accept:hover { background: var(--green-hover); }
+    .btn-decline { background: #eef0f4; color: var(--text); }
+    .btn-decline:hover { background: #e2e5ec; }
+    button:disabled { opacity: .6; cursor: wait; }
+  </style>
+</head>
+<body>
+  <div class="popup-bar"><span class="dot"></span><span id="popup-title">Solicitação de acesso remoto</span></div>
+  <div class="popup-body">
+    <p id="popup-message">Carregando…</p>
+  </div>
+  <div class="popup-actions">
+    <button type="button" class="btn-decline" id="btn-decline">Recusar</button>
+    <button type="button" class="btn-accept" id="btn-accept">Aceitar</button>
+  </div>
+  <script src="consent.js"></script>
+</body>
+</html>

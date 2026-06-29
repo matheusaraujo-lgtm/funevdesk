@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="FunevDesk Agente"
+    Language="1046"
+    Version="{{PRODUCT_VERSION}}"
+    Manufacturer="FunevDesk"
+    UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+    <Package
+      InstallerVersion="500"
+      Compressed="yes"
+      InstallScope="perMachine"
+      Description="Agente de telemetria e suporte FunevDesk"
+      Comments="Distribuicao via GPO" />
+
+    <MajorUpgrade DowngradeErrorMessage="Uma versao mais recente ja esta instalada." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="SERVERURL" Secure="yes" />
+    <Property Id="AGENTTOKEN" Secure="yes" />
+    <Property Id="MESHNODEID" Secure="yes" />
+    <Property Id="MESHINSTALLERURL" Secure="yes" />
+
+    <Feature Id="MainFeature" Title="FunevDesk Agente" Level="1">
+      <ComponentGroupRef Id="AgentFiles" />
+      <ComponentRef Id="InstallTasksComponent" />
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="NexusDesk" />
+      </Directory>
+    </Directory>
+
+    <ComponentGroup Id="AgentFiles" Directory="INSTALLFOLDER">
+      <Component Id="NexusAgentComponent" Guid="11111111-1111-1111-1111-111111111111">
+        <File Id="NexusAgentPs1" Source="NexusAgent.ps1" KeyPath="yes" />
+      </Component>
+      <Component Id="NexusChatComponent" Guid="22222222-2222-2222-2222-222222222222">
+        <File Id="NexusChatPs1" Source="NexusChat.ps1" />
+      </Component>
+      <Component Id="ConfigComponent" Guid="33333333-3333-3333-3333-333333333333">
+        <File Id="ConfigJson" Source="config.json" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="InstallTasksComponent" Directory="INSTALLFOLDER" Guid="44444444-4444-4444-4444-444444444444">
+      <File Id="InstallGpoPs1" Source="Install-GPO.ps1" Vital="no" />
+    </Component>
+
+    <CustomAction
+      Id="RunInstallGpo"
+      Directory="INSTALLFOLDER"
+      ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[INSTALLFOLDER]Install-GPO.ps1&quot; -ServerUrl &quot;[SERVERURL]&quot; -AgentToken &quot;[AGENTTOKEN]&quot; -MeshNodeId &quot;[MESHNODEID]&quot; -MeshInstallerUrl &quot;[MESHINSTALLERURL]&quot; -Silent"
+      Execute="commit"
+      Impersonate="no"
+      Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="RunInstallGpo" After="InstallFiles">NOT REMOVE</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

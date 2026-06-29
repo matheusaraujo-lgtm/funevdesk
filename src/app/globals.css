@@ -1,49 +1,210 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Tema claro minimalista: superfícies quase brancas, bordas sutis, alto respiro. */
+  --background: oklch(0.987 0.002 247);
+  --foreground: oklch(0.205 0.012 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.012 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.012 250);
+  --primary: oklch(0.28 0.045 248);
+  --primary-foreground: oklch(0.99 0.004 240);
+  --secondary: oklch(0.93 0.045 178);
+  --secondary-foreground: oklch(0.24 0.035 210);
+  --muted: oklch(0.969 0.003 247);
+  --muted-foreground: oklch(0.51 0.014 250);
+  --accent: oklch(0.94 0.045 86);
+  --accent-foreground: oklch(0.25 0.03 65);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.62 0.14 158);
+  --warning: oklch(0.74 0.15 78);
+  --border: oklch(0.928 0.004 247);
+  --input: oklch(0.928 0.004 247);
+  --ring: oklch(0.62 0.06 248);
+  --chart-1: oklch(0.62 0.14 248);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.62 0.14 158);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.646 0.222 41.116);
+  --radius: 0.75rem;
+  /* Sombras suaves e em camadas — minimalista usa elevação leve, não pesada. */
+  --shadow-soft: 0 1px 2px oklch(0.2 0.02 250 / 0.04), 0 1px 3px oklch(0.2 0.02 250 / 0.06);
+  --shadow-card: 0 1px 3px oklch(0.2 0.02 250 / 0.05), 0 8px 24px -12px oklch(0.2 0.02 250 / 0.10);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-heading: var(--font-manrope);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply font-sans; }
+  body { @apply min-h-screen bg-background text-foreground antialiased; }
+  h1, h2, h3 { @apply font-heading; }
+
+  :where(
+    a[href],
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [role="menuitem"]:not([data-disabled]),
+    [data-slot="button"]:not(:disabled),
+    [data-slot="select-trigger"]:not(:disabled),
+    [data-slot="select-item"]:not([data-disabled]),
+    [data-slot="dropdown-menu-item"]:not([data-disabled]),
+    [data-slot="dropdown-menu-sub-trigger"]:not([data-disabled]),
+    [data-slot="dropdown-menu-checkbox-item"]:not([data-disabled]),
+    [data-slot="dropdown-menu-radio-item"]:not([data-disabled]),
+    [data-slot="tabs-trigger"]:not(:disabled):not([aria-disabled="true"]),
+    [data-slot="navigation-menu-trigger"]:not(:disabled),
+    [data-slot="navigation-menu-link"],
+    [data-slot="sheet-trigger"],
+    label[for],
+    summary,
+    .cursor-pointer
+  ) {
+    cursor: pointer;
+    transition-duration: 160ms;
+    transition-property: background-color, border-color, box-shadow, color, filter, opacity, transform;
+    transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  :where(
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [data-slot="button"]:not(:disabled),
+    [data-slot="select-trigger"]:not(:disabled),
+    [data-slot="tabs-trigger"]:not(:disabled):not([aria-disabled="true"]),
+    [data-slot="navigation-menu-trigger"]:not(:disabled),
+    [data-slot="sheet-trigger"]
+  ):hover {
+    transform: translateY(-1px);
+  }
+
+  :where(
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [data-slot="button"]:not(:disabled),
+    [data-slot="select-trigger"]:not(:disabled),
+    [data-slot="dropdown-menu-item"]:not([data-disabled]),
+    [data-slot="dropdown-menu-sub-trigger"]:not([data-disabled]),
+    [data-slot="dropdown-menu-checkbox-item"]:not([data-disabled]),
+    [data-slot="dropdown-menu-radio-item"]:not([data-disabled]),
+    [data-slot="tabs-trigger"]:not(:disabled):not([aria-disabled="true"]),
+    [data-slot="navigation-menu-trigger"]:not(:disabled),
+    [data-slot="navigation-menu-link"],
+    [data-slot="sheet-trigger"]
+  ):active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  :where(button:disabled, [aria-disabled="true"], [data-disabled], [data-disabled=""]) {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(
+      a[href],
+      button,
+      [role="button"],
+      [role="menuitem"],
+      [data-slot],
+      label[for],
+      summary,
+      .cursor-pointer
+    ) {
+      transition-duration: 1ms;
+    }
+
+    :where(
+      button,
+      [role="button"],
+      [role="menuitem"],
+      [data-slot],
+      .cursor-pointer
+    ):hover,
+    :where(
+      button,
+      [role="button"],
+      [role="menuitem"],
+      [data-slot],
+      .cursor-pointer
+    ):active {
+      transform: none;
+    }
   }
 }
 
-html {
-  height: 100%;
-}
+@layer utilities {
+  .app-container { @apply mx-auto w-full max-w-[1640px] px-4 md:px-7 lg:px-9; }
+  .page-title { @apply font-heading text-2xl font-bold tracking-tight md:text-[28px]; }
+  .page-copy { @apply mt-1 text-sm text-muted-foreground; }
+  /* Superfície padrão do tema minimalista: borda sutil + elevação leve em camadas. */
+  .surface-card { @apply rounded-xl border bg-card; box-shadow: var(--shadow-soft); }
+  .surface-card-elevated { @apply rounded-xl border bg-card; box-shadow: var(--shadow-card); }
+  /* Fundo do app com um leve degradê neutro para dar profundidade sem poluir. */
+  .app-bg { background:
+      radial-gradient(1200px 600px at 100% -10%, oklch(0.93 0.03 248 / 0.35), transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, oklch(0.95 0.02 178 / 0.30), transparent 55%),
+      var(--background); }
+  .ticket-shell { @apply rounded-2xl bg-card ring-1 ring-foreground/10; }
+  /* Layout em 2 colunas: conversa (principal) + coluna lateral recolhível. */
+  .ticket-grid { @apply grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]; }
+  .ticket-grid[data-aside="collapsed"] { @apply lg:grid-cols-1; }
+  .ticket-column { @apply flex max-h-[calc(100vh-12rem)] min-h-[480px] flex-col overflow-hidden; }
+  /* Coluna lateral: flui com a página (sem scroll aninhado próprio). */
+  .ticket-aside { @apply flex flex-col gap-4; }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+  .rich-text-content h1,
+  .rich-text-content h2,
+  .rich-text-content h3 { @apply mb-3 mt-4 font-heading font-bold leading-snug; }
+  .rich-text-content h2 { @apply text-xl; }
+  .rich-text-content h3 { @apply text-lg; }
+  .rich-text-content p { @apply mb-3; }
+  .rich-text-content ul { @apply mb-3 list-disc space-y-1 pl-6; }
+  .rich-text-content ol { @apply mb-3 list-decimal space-y-1 pl-6; }
+  .rich-text-content a { @apply text-primary underline underline-offset-2; }
+  .rich-text-content blockquote { @apply my-3 border-l-4 border-border pl-4 italic text-muted-foreground; }
+  .rich-text-content strong { @apply font-semibold; }
+  .rich-text-content img.rich-media-image,
+  .rich-text-content .rich-media-image { @apply my-4 h-auto max-w-full rounded-lg border; }
+  .rich-text-content .rich-media-video { @apply my-4 overflow-hidden rounded-lg border bg-black/5; }
+  .rich-text-content .rich-media-video iframe,
+  .rich-text-content .rich-media-video video,
+  .rich-text-content video.rich-media-video-file { @apply aspect-video w-full max-w-full; }
+  .rich-text-content a.rich-media-attachment { @apply my-2 inline-flex max-w-full items-center rounded-lg border bg-muted/40 px-3 py-2 text-sm font-medium no-underline hover:bg-muted/60; }
 }

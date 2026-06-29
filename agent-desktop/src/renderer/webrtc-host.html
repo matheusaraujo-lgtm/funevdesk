@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebRTC Host</title>
+</head>
+<body>
+<script>
+async function runHost(sessionId, sourceId) {
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  });
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: sourceId,
+          minWidth: 1280,
+          maxWidth: 4096,
+        },
+      },
+    });
+  } catch (e) {
+    console.error("getUserMedia falhou:", e.message);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
+      });
+    } catch (e2) {
+      console.error("getUserMedia fallback falhou:", e2.message);
+      throw e2;
+    }
+  }
+
+  const tracks = stream.getTracks();
+  console.log("Tracks capturadas:", tracks.length, tracks.map(t => t.kind));
+  tracks.forEach((track) => pc.addTrack(track, stream));
+
+  // DataChannel de controle (mouse, teclado, arquivos): o VIEWER (offerer) cria o canal
+  // e o host (answerer) apenas ESCUTA — padrão canônico e confiável de WebRTC.
+  pc.ondatachannel = (event) => {
+    const controlChannel = event.channel;
+    controlChannel.onopen = () => console.log("DataChannel 'control' aberto");
+    controlChannel.onclose = () => console.log("DataChannel 'control' fechado");
+    controlChannel.onmessage = (msg) => handleControlMessage(msg.data);
+  };
+
+  function handleControlMessage(raw) {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.type === "mouse_move") {
+        window.webrtcBridge.simulateInput("mouse_move", { x: msg.x, y: msg.y, screenW: msg.screenW, screenH: msg.screenH });
+      } else if (msg.type === "mouse_down") {
+        window.webrtcBridge.simulateInput("mouse_down", { button: msg.button });
+      } else if (msg.type === "mouse_up") {
+        window.webrtcBridge.simulateInput("mouse_up", { button: msg.button });
+      } else if (msg.type === "mouse_wheel") {
+        window.webrtcBridge.simulateInput("mouse_wheel", { delta: msg.delta });
+      } else if (msg.type === "key_down") {
+        window.webrtcBridge.simulateInput("key_down", { key: msg.key, code: msg.code });
+      } else if (msg.type === "key_up") {
+        window.webrtcBridge.simulateInput("key_up", { key: msg.key, code: msg.code });
+      } else if (msg.type === "type_text") {
+        window.webrtcBridge.simulateInput("type_text", { text: msg.text });
+      } else if (msg.type === "file_upload") {
+        window.webrtcBridge.saveFile(msg.name, msg.data)
+          .then(() => console.log("Arquivo salvo:", msg.name))
+          .catch((e) => console.error("Falha ao salvar arquivo:", e));
+      }
+    } catch { /* ignore malformed */ }
+  }
+
+  let lastSignalAt = "";
+  let polling = false;
+  let offerReceived = false;
+
+  pc.onicecandidate = async (event) => {
+    if (!event.candidate) return;
+    await window.webrtcBridge.postSignal(sessionId, { type: "ice", candidate: event.candidate });
+  };
+
+  async function pollViewer() {
+    if (polling) return;
+    polling = true;
+    try {
+      const signals = await window.webrtcBridge.pollSignals(sessionId, lastSignalAt);
+      for (const signal of signals || []) {
+        lastSignalAt = signal.createdAt;
+        const payload = signal.payload || {};
+        if (payload.type === "offer" && payload.sdp) {
+          if (offerReceived || pc.signalingState !== "stable") continue;
+          offerReceived = true;
+          console.log("Oferta recebida, criando resposta...");
+          await pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await window.webrtcBridge.postSignal(sessionId, { type: "answer", sdp: answer.sdp });
+          console.log("Resposta enviada, aguardando ICE...");
+        } else if (payload.type === "ice" && payload.candidate) {
+          try { await pc.addIceCandidate(payload.candidate); } catch { /* ignore */ }
+        }
+      }
+    } finally {
+      polling = false;
+    }
+  }
+
+  setInterval(pollViewer, 1200);
+  await pollViewer();
+}
+
+window.webrtcBridge.onConfig((config) => {
+  runHost(config.sessionId, config.sourceId).catch(console.error);
+});
+</script>
+</body>
+</html>

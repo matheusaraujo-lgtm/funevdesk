@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FunevDesk
 
-## Getting Started
+Plataforma full-stack de chamados, monitoramento e suporte para matriz e filiais.
 
-First, run the development server:
+## Stack
 
-```bash
+- Next.js 16 com App Router e Route Handlers.
+- React 19 em JavaScript.
+- shadcn/ui v4 com Tailwind CSS v4 e componentes Base UI.
+- SQLite com `better-sqlite3` no desenvolvimento.
+- Agente Windows em Electron (telemetria, inventário, chamados, acesso remoto no navegador).
+- Agente PowerShell legado ainda disponível como fallback GPO.
+
+## Executar
+
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra `http://localhost:3000`. O banco e os dados demonstrativos são criados automaticamente em `data/nexus-desk.db`.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Recursos implementados
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Organização com matriz e múltiplas filiais.
+- Filtro operacional por unidade.
+- Perfis graduados de administrador, técnico e usuário.
+- Administrador com visão de todas as unidades.
+- Técnico limitado aos chamados, ativos, conversa e acesso remoto de sua filial.
+- Usuário limitado aos próprios chamados, conversa e máquina associada.
+- Chamados vinculados à filial e ao ativo.
+- Página de detalhes com descrição, origem, solicitante, telemetria e histórico.
+- Catálogo administrável de tipos de chamado.
+- Formulários dinâmicos com texto curto, texto longo, lista, data, arquivo e captura de tela.
+- Campos obrigatórios validados novamente no servidor.
+- Respostas personalizadas e anexos exibidos nos detalhes.
+- Inventário e telemetria de CPU, memória, disco, usuário e IP.
+- API autenticada por token individual do agente.
+- Alertas básicos gerados pela telemetria.
+- Chat persistido por chamado entre técnico e colaborador.
+- Agente com abertura de chamado e janela de conversa.
+- Instalador PowerShell para distribuição por GPO.
 
-## Learn More
+## Instalação do agente Windows (Electron)
 
-To learn more about Next.js, take a look at the following resources:
+1. Em **Configurações > Agente Windows**, selecione a chave de enrollment ou token do ativo.
+2. Baixe o **Instalador Electron (EXE)** ou **MSI (GPO)**.
+3. Execute como Administrador (ou use `/S` / `msiexec /qn` para instalação silenciosa).
+4. O agente aparece na bandeja do sistema; use-o para abrir chamados e conversar com o suporte.
+5. O técnico inicia o acesso remoto no portal; o colaborador aceita no agente e a sessão abre no navegador (WebRTC).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Artefatos pré-compilados: `npm run build:agent` (requer Windows).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Instalação legada (PowerShell / GPO)
 
-## Deploy on Vercel
+1. Copie a pasta `agent` para um compartilhamento somente leitura.
+2. Gere no servidor um token individual para cada ativo.
+3. Execute `Install-GPO.ps1` por script de inicialização da máquina:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```powershell
+.\Install-GPO.ps1 `
+  -ServerUrl "https://suporte.suaempresa.com" `
+  -AgentToken "TOKEN_DO_ATIVO"
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+O agente de telemetria roda como `SYSTEM` no início da máquina. A interface de chat roda no logon do colaborador.
+
+## Segurança antes de produção
+
+- Trocar SQLite por PostgreSQL.
+- Adicionar login corporativo OIDC/SAML, MFA e RBAC.
+- Armazenar tokens dos agentes como hash e implementar rotação/revogação.
+- Migrar anexos de `public/uploads` para armazenamento privado S3/MinIO com links temporários.
+- Aplicar antivírus, verificação de conteúdo e política de retenção aos anexos.
+- Usar TLS válido e restringir CORS/origens.
+- Assinar scripts, binários e pacote MSI.
+- Não expor RDP diretamente. Use o acesso remoto integrado (WebRTC com consentimento no agente) e mantenha auditoria nos logs.
+- Adicionar retenção de logs, trilha de auditoria e política LGPD.
+
+## Próximas camadas
+
+- WebSocket/Redis para chat em múltiplas instâncias.
+- Catálogo de serviços e formulários configuráveis.
+- SLA, filas, equipes, escalonamento e notificações.
+- Descoberta SNMP, ICMP, Prometheus e Zabbix.
+- Empacotamento MSI do agente e atualização automática assinada.

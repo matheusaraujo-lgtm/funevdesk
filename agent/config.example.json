@@ -1,0 +1,6 @@
+{
+  "serverUrl": "https://suporte.suaempresa.com",
+  "agentToken": "TOKEN_GERADO_PARA_O_ATIVO",
+  "heartbeatSeconds": 60,
+  "chatPollSeconds": 5
+}

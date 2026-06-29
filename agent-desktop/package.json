@@ -1,0 +1,96 @@
+{
+  "name": "funevdesk-agent",
+  "version": "1.2.6",
+  "description": "FunevDesk Agente - telemetria, inventário e chamados",
+  "main": "src/main.js",
+  "author": "FunevDesk",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis msi",
+    "build:dir": "electron-builder --win dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "systeminformation": "^5.27.7"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.funev.funevdesk.agent",
+    "productName": "FunevDesk Agente",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://localhost:3000/downloads/agent/updates",
+        "channel": "latest"
+      }
+    ],
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build-config.json",
+        "to": "build-config.json"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "build/install-service.ps1",
+        "to": "install-service.ps1"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signtoolOptions": {
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
+    },
+    "artifactName": "FunevDeskAgenteSetup-${version}.${ext}",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FunevDesk Agente",
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "msi": {
+      "oneClick": true,
+      "runAfterFinish": true,
+      "artifactName": "FunevDeskAgente-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules
+agent-desktop/node_modules
+agent-desktop/dist
+
+# Build output
+.next
+out
+build
+
+# Local data
+data
+*.db
+
+# Git / IDE
+.git
+.gitignore
+.cursor
+.vscode
+
+# Env (injected at runtime)
+.env
+.env.*
+
+# Agent artifacts
+agent/dist
+
+# Docs and infra-only files not needed in image
+README.md
+infrastructure

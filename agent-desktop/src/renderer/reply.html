@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Responder chamado</title>
+  <style>
+    :root {
+      --brand: #0B2A4A;
+      --accent: #1570EF;
+      --accent-hover: #1763D8;
+      --accent-light: #EFF5FF;
+      --card: #ffffff;
+      --text: #101828;
+      --text2: #475467;
+      --text3: #98A2B3;
+      --border: #E7E9EF;
+      --border-strong: #D5D9E2;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, "Segoe UI", -apple-system, sans-serif;
+      background: var(--card);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .popup-bar {
+      -webkit-app-region: drag;
+      background: var(--brand);
+      color: #fff;
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .popup-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+    .popup-body { padding: 12px 16px 4px; flex: 1; display: flex; flex-direction: column; }
+    .popup-preview {
+      margin: 0 0 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--text3);
+      max-height: 34px;
+      overflow: hidden;
+    }
+    textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 60px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      resize: none;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    textarea::placeholder { color: var(--text3); }
+    .popup-actions { display: flex; gap: 10px; padding: 10px 16px 14px; }
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 9px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    .btn-send { background: var(--accent); color: #fff; }
+    .btn-send:hover { background: var(--accent-hover); }
+    .btn-cancel { background: #eef0f4; color: var(--text); flex: 0 0 92px; }
+    .btn-cancel:hover { background: #e2e5ec; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .error { padding: 0 16px 8px; font-size: 12px; color: #D92D20; min-height: 0; }
+  </style>
+</head>
+<body>
+  <div class="popup-bar"><span class="dot"></span><span id="popup-title">Nova mensagem no chamado</span></div>
+  <div class="popup-body">
+    <p class="popup-preview" id="popup-preview"></p>
+    <textarea id="reply-input" placeholder="Digite sua resposta…" autofocus></textarea>
+  </div>
+  <div class="error" id="reply-error"></div>
+  <div class="popup-actions">
+    <button type="button" class="btn-cancel" id="btn-cancel">Cancelar</button>
+    <button type="button" class="btn-send" id="btn-send">Enviar</button>
+  </div>
+  <script src="reply.js"></script>
+</body>
+</html>

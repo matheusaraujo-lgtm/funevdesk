@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurar FunevDesk Agente</title>
+  <style>
+    :root {
+      --brand: #0B2A4A;
+      --brand-light: #12426F;
+      --accent: #1570EF;
+      --accent-hover: #1763D8;
+      --accent-light: #EFF5FF;
+      --bg: #F5F7FB;
+      --card: #ffffff;
+      --text: #101828;
+      --text2: #475467;
+      --text3: #98A2B3;
+      --border: #E7E9EF;
+      --border-strong: #D5D9E2;
+      --yellow: #B54708;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, "Segoe UI", -apple-system, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    main {
+      width: 100%;
+      max-width: 540px;
+      margin: 48px 24px;
+      padding: 32px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(16,32,51,.05), 0 18px 48px -18px rgba(16,32,51,.18);
+    }
+    .setup-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .setup-logo {
+      width: 44px; height: 44px;
+      border-radius: 11px;
+      object-fit: contain;
+      flex-shrink: 0;
+      box-shadow: 0 1px 2px rgba(16,32,51,.12);
+    }
+    .setup-brand span { font-size: 15px; font-weight: 600; color: var(--text2); }
+    h1 { margin: 0 0 8px; font-size: 23px; font-weight: 700; letter-spacing: -.01em; color: var(--text); }
+    .lead { color: var(--text2); font-size: 14px; line-height: 1.55; margin: 0; }
+    .lead strong { color: var(--text); font-weight: 600; }
+    label { display: block; margin: 22px 0 7px; font-size: 13px; font-weight: 600; color: var(--text); }
+    input, textarea {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      font: inherit;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--card);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input::placeholder, textarea::placeholder { color: var(--text3); }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+    textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
+    button {
+      margin-top: 24px;
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover { background: var(--brand-light); }
+    button:active { background: #0B2A4A; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .error { margin-top: 14px; color: var(--yellow); font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .hint { font-size: 12px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="setup-brand">
+      <img class="setup-logo" src="app-icon.ico" alt="FunevDesk" />
+      <span>FunevDesk — Agente de Suporte</span>
+    </div>
+    <h1>Configurar agente</h1>
+    <p class="lead">Cole a URL do servidor FunevDesk e a chave de enrollment ou token do ativo. Você encontra em <strong>Configurações → Agente Windows</strong>.</p>
+    <form id="setup-form">
+      <label for="serverUrl">URL do servidor</label>
+      <input id="serverUrl" type="url" required placeholder="http://localhost:3000" />
+      <label for="agentToken">Chave de enrollment ou token</label>
+      <textarea id="agentToken" required placeholder="nxen_… ou nxd_…"></textarea>
+      <p class="hint">Use a chave de enrollment para máquinas novas. O agente se registra automaticamente.</p>
+      <button type="submit" id="save-btn">Salvar e conectar</button>
+      <div id="error" class="error"></div>
+    </form>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>

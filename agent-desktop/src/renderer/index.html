@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: http: https:" />
+  <title>FunevDesk — Agente de Suporte</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- TITLE BAR -->
+  <div class="titlebar" id="titlebar">
+    <img class="titlebar-brand" src="app-icon.ico" alt="FunevDesk" />
+    <span class="titlebar-text">FunevDesk — Agente de Suporte</span>
+    <div class="titlebar-controls">
+      <button type="button" class="titlebar-btn" id="win-minimize" title="Minimizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="4" y="11" width="16" height="2" rx="1"/></svg>
+      </button>
+      <button type="button" class="titlebar-btn" id="win-maximize" title="Maximizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+      <button type="button" class="titlebar-btn titlebar-btn-close" id="win-close" title="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <img id="brand-logo" class="brand-logo" src="app-icon.ico" alt="FunevDesk" />
+        <span id="app-name" class="hidden"></span>
+      </div>
+
+      <div class="sidebar-status" id="status-line">
+        <span class="status-dot"></span>
+        <span class="status-text">Conectando…</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button type="button" class="nav-item active" data-view="tickets">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          <div class="nav-text">
+            <span class="nav-label">Acompanhamento</span>
+            <span class="nav-desc">Chamados vinculados</span>
+          </div>
+        </button>
+        <button type="button" class="nav-item" data-view="inventory">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M6 21h12M12 17v4"/></svg>
+          <div class="nav-text">
+            <span class="nav-label">Inventário</span>
+            <span class="nav-desc">Informações da máquina</span>
+          </div>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="agent-status">
+          <span class="status-dot online"></span>
+          <span class="status-label">Agente ativo</span>
+        </div>
+        <span class="agent-status-desc" id="agent-status-desc">Conectado ao servidor</span>
+        <button type="button" class="btn-update" id="btn-check-update" title="Buscar atualização do agente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          <span id="btn-update-label">Buscar atualização</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- VIEW: ACOMPANHAMENTO -->
+      <section class="view view-tickets" id="view-tickets">
+        <div class="tickets-layout">
+
+          <!-- Ticket list sidebar -->
+          <div class="tickets-sidebar">
+            <div class="tickets-sidebar-header">
+              <h2>Chamados</h2>
+              <a href="#" class="link-sm" id="ticket-count-link">Ver todos (0)</a>
+            </div>
+            <div class="ticket-cards" id="ticket-cards"></div>
+          </div>
+
+          <!-- Chat area -->
+          <div class="chat-area" id="chat-area">
+            <!-- Empty state: no ticket selected -->
+            <div class="chat-empty" id="chat-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="56" height="56" class="chat-empty-icon"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              <p class="chat-empty-title">Selecione um chamado</p>
+              <p class="chat-empty-desc">Escolha um chamado ao lado para ver a conversa com o técnico.</p>
+            </div>
+
+            <!-- Chat view: shown when ticket selected -->
+            <div class="chat-view hidden" id="chat-view">
+              <div class="chat-header" id="chat-header">
+                <div class="chat-header-info">
+                  <span class="chat-ticket-number" id="chat-ticket-number">#0</span>
+                  <span class="chat-ticket-title" id="chat-ticket-title">—</span>
+                </div>
+                <button type="button" class="btn-close-chat" id="btn-close-chat" title="Fechar conversa">&times;</button>
+              </div>
+              <div class="chat-messages" id="chat-messages"></div>
+              <div class="chat-composer" id="chat-composer">
+                <textarea id="message-input" class="chat-textarea" placeholder="Digite sua mensagem..." rows="2"></textarea>
+                <div class="chat-composer-actions">
+                  <button type="button" class="btn-clear-reply" id="btn-clear-reply">Limpar</button>
+                  <button type="button" class="btn-send-reply" id="btn-send-reply">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9"/></svg>
+                    Enviar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW: INVENTÁRIO (detalhe) -->
+      <section class="view view-inventory hidden" id="view-inventory">
+        <div class="inventory-columns">
+
+          <!-- COL 1: Hardware e Sistema -->
+          <div class="inv-col inv-col-hw">
+            <div class="inv-col-header">
+              <h2>Inventário da máquina</h2>
+              <p class="inv-col-subtitle">Hardware, software, antivírus e segurança.</p>
+              <button type="button" class="btn-refresh-inv" id="refresh-inventory">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Atualizar inventário
+              </button>
+            </div>
+
+            <!-- Hardware Card -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+                <h3>Hardware</h3>
+              </div>
+              <div class="inv-card-body" id="inv-hw-content">
+                <div class="inv-field"><span class="inv-label">Fabricante</span><span class="inv-value" id="inv-detail-manufacturer">—</span></div>
+                <div class="inv-field"><span class="inv-label">Modelo</span><span class="inv-value" id="inv-detail-model">—</span></div>
+                <div class="inv-field"><span class="inv-label">Processador</span><span class="inv-value" id="inv-detail-cpu">—</span></div>
+                <div class="inv-field"><span class="inv-label">Núcleos</span><span class="inv-value" id="inv-detail-cores">—</span></div>
+                <div class="inv-field"><span class="inv-label">Memória</span><span class="inv-value" id="inv-detail-ram">—</span></div>
+                <div class="inv-field"><span class="inv-label">Disco C:</span><span class="inv-value" id="inv-detail-disk">—</span></div>
+              </div>
+            </div>
+
+            <!-- Sistema Card -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <h3>Sistema</h3>
+              </div>
+              <div class="inv-card-body">
+                <div class="inv-field"><span class="inv-label">Hostname</span><span class="inv-value" id="inv-detail-hostname">—</span></div>
+                <div class="inv-field"><span class="inv-label">Usuário</span><span class="inv-value" id="inv-detail-user">—</span></div>
+                <div class="inv-field"><span class="inv-label">IP</span><span class="inv-value" id="inv-detail-ip">—</span></div>
+                <div class="inv-field"><span class="inv-label">SO</span><span class="inv-value" id="inv-detail-os">—</span></div>
+                <div class="inv-field"><span class="inv-label">Uptime</span><span class="inv-value" id="inv-detail-uptime">—</span></div>
+                <div class="inv-field"><span class="inv-label">Versão do agente</span><span class="inv-value" id="inv-detail-version">—</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COL 2: Saúde, Segurança e Antivírus -->
+          <div class="inv-col inv-col-health">
+            <!-- System Health -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <h3>Saúde do sistema</h3>
+              </div>
+              <div class="inv-card-body">
+                <div class="health-item">
+                  <div class="health-header"><span class="health-name">CPU</span><span class="health-pct" id="inv-health-cpu-pct">0%</span></div>
+                  <div class="health-track"><div class="health-fill blue" id="inv-health-cpu-bar" style="width:0%"></div></div>
+                </div>
+                <div class="health-item">
+                  <div class="health-header"><span class="health-name">Memória</span><span class="health-pct" id="inv-health-mem-pct">0%</span></div>
+                  <div class="health-track"><div class="health-fill blue" id="inv-health-mem-bar" style="width:0%"></div></div>
+                </div>
+                <div class="health-item">
+                  <div class="health-header"><span class="health-name">Disco (C:)</span><span class="health-pct" id="inv-health-disk-pct">0%</span></div>
+                  <div class="health-track"><div class="health-fill blue" id="inv-health-disk-bar" style="width:0%"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Antivírus -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <h3>Antivírus</h3>
+              </div>
+              <div class="inv-card-body">
+                <div id="inv-detail-antivirus">
+                  <div class="inv-tags"><span class="inv-tag warn">Não detectado</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Segurança -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <h3>Segurança</h3>
+              </div>
+              <div class="inv-card-body" id="inv-detail-security">
+                <div class="inv-field"><span class="inv-label">Firewall</span><span class="inv-value" id="inv-detail-firewall">—</span></div>
+                <div class="inv-field"><span class="inv-label">BitLocker</span><span class="inv-value" id="inv-detail-bitlocker">—</span></div>
+                <div class="inv-field"><span class="inv-label">Updates pendentes</span><span class="inv-value" id="inv-detail-updates">0</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COL 3: Software e Rede -->
+          <div class="inv-col inv-col-sw">
+            <!-- Software -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                <h3>Software instalado</h3>
+                <span class="inv-count" id="inv-sw-count">0</span>
+              </div>
+              <div class="inv-card-body inv-sw-list" id="inv-detail-software">
+                <p class="inv-empty-text">Nenhum software coletado ainda.</p>
+              </div>
+            </div>
+
+            <!-- Rede -->
+            <div class="inv-card">
+              <div class="inv-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+                <h3>Rede</h3>
+              </div>
+              <div class="inv-card-body" id="inv-detail-network">
+                <p class="inv-empty-text">Nenhum adaptador coletado.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- TOAST -->
+  <div id="agent-toast" class="agent-toast hidden" role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -29,6 +29,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
+dev-server.*.log
+
+# dados locais sensíveis (banco com hashes/segredos) e conteúdo de usuário
+/data/
+/public/uploads/
+/public/downloads/
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -36,6 +43,10 @@ yarn-error.log*
 # vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# agent build artifacts
+/agent/dist/
+/agent/wix/tools/
+/agent/stub/NexusDeskSetupStub.exe
+/agent-desktop/node_modules/
+/agent-desktop/dist/
+
