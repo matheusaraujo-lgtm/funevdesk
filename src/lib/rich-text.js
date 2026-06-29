@@ -1,8 +1,11 @@
 const HTML_TAG = /<\/?(?:p|div|h[1-6]|ul|ol|li|br|blockquote|strong|em|u|a|span|img|video|iframe|source)[^>]*>/i;
+// Entidades HTML (&nbsp;, &amp;, &#39;, &#x27;...). Conteúdo do editor pode vir só com
+// entidade e sem tag (ex.: espaço final vira &nbsp;); sem detectar isso, era exibido cru.
+const HTML_ENTITY = /&(?:[a-z]+|#\d+|#x[0-9a-f]+);/i;
 
 export function isHtmlContent(value) {
   if (!value) return false;
-  return HTML_TAG.test(value);
+  return HTML_TAG.test(value) || HTML_ENTITY.test(value);
 }
 
 export function plainTextPreview(value, maxLength = 120) {

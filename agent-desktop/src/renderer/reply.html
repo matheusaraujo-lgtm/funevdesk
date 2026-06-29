@@ -11,6 +11,7 @@
       --accent-hover: #1763D8;
       --accent-light: #EFF5FF;
       --card: #ffffff;
+      --bg: #F8FAFC;
       --text: #101828;
       --text2: #475467;
       --text3: #98A2B3;
@@ -35,8 +36,8 @@
       -webkit-app-region: drag;
       background: var(--brand);
       color: #fff;
-      padding: 9px 14px;
-      font-size: 12px;
+      padding: 10px 14px;
+      font-size: 12.5px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -44,19 +45,32 @@
       user-select: none;
     }
     .popup-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-    .popup-body { padding: 12px 16px 4px; flex: 1; display: flex; flex-direction: column; }
-    .popup-preview {
-      margin: 0 0 8px;
-      font-size: 12px;
-      line-height: 1.4;
-      color: var(--text3);
-      max-height: 34px;
-      overflow: hidden;
+    .popup-body { padding: 14px 16px 6px; flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+    /* Card da mensagem recebida (citação) */
+    .msg-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 9px 11px;
+      max-height: 84px;
+      overflow-y: auto;
     }
+    .msg-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 3px;
+    }
+    .msg-text { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text2); white-space: pre-wrap; word-break: break-word; }
+    .field-label { font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: -4px; }
     textarea {
       width: 100%;
       flex: 1;
-      min-height: 60px;
+      min-height: 64px;
       padding: 10px 12px;
       border: 1px solid var(--border-strong);
       border-radius: 9px;
@@ -69,7 +83,8 @@
     }
     textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
     textarea::placeholder { color: var(--text3); }
-    .popup-actions { display: flex; gap: 10px; padding: 10px 16px 14px; }
+    .hint { font-size: 10.5px; color: var(--text3); }
+    .popup-actions { display: flex; gap: 10px; padding: 8px 16px 14px; }
     button {
       flex: 1;
       padding: 10px;
@@ -83,22 +98,27 @@
     }
     .btn-send { background: var(--accent); color: #fff; }
     .btn-send:hover { background: var(--accent-hover); }
-    .btn-cancel { background: #eef0f4; color: var(--text); flex: 0 0 92px; }
+    .btn-cancel { background: #eef0f4; color: var(--text); flex: 0 0 96px; }
     .btn-cancel:hover { background: #e2e5ec; }
     button:disabled { opacity: .6; cursor: wait; }
-    .error { padding: 0 16px 8px; font-size: 12px; color: #D92D20; min-height: 0; }
+    .error { padding: 0 16px 6px; font-size: 12px; color: #D92D20; min-height: 0; }
   </style>
 </head>
 <body>
   <div class="popup-bar"><span class="dot"></span><span id="popup-title">Nova mensagem no chamado</span></div>
   <div class="popup-body">
-    <p class="popup-preview" id="popup-preview"></p>
+    <div class="msg-card">
+      <span class="msg-label">Mensagem do suporte</span>
+      <p class="msg-text" id="popup-preview"></p>
+    </div>
+    <label class="field-label" for="reply-input">Sua resposta</label>
     <textarea id="reply-input" placeholder="Digite sua resposta…" autofocus></textarea>
+    <span class="hint">Enter envia · Shift+Enter quebra linha · Esc fecha</span>
   </div>
   <div class="error" id="reply-error"></div>
   <div class="popup-actions">
     <button type="button" class="btn-cancel" id="btn-cancel">Cancelar</button>
-    <button type="button" class="btn-send" id="btn-send">Enviar</button>
+    <button type="button" class="btn-send" id="btn-send">Enviar resposta</button>
   </div>
   <script src="reply.js"></script>
 </body>

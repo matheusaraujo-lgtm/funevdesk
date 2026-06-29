@@ -116,6 +116,24 @@ function openConsentPopup(session) {
   });
 }
 
+// Converte o corpo da mensagem (HTML do editor rich text) em texto limpo para o preview:
+// remove tags E decodifica entidades (&nbsp;, &amp;...) — antes o &nbsp; aparecia cru.
+function htmlToPlainText(html) {
+  return String(html || "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/(?:p|div|li|h[1-6])>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;|&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Abre o popup de resposta rápida de chat.
 function openReplyPopup(notification) {
   if (!notification?.ticketId) return;
@@ -123,12 +141,12 @@ function openReplyPopup(notification) {
     replyWindow.focus();
     return;
   }
-  replyWindow = createPopupWindow("reply.html", 420, 220);
+  replyWindow = createPopupWindow("reply.html", 440, 300);
   replyWindow.on("closed", () => { replyWindow = null; });
   const data = {
     ticketId: notification.ticketId,
     title: notification.title || "Nova mensagem no chamado",
-    body: (notification.body || "").replace(/<[^>]+>/g, " ").slice(0, 180),
+    body: htmlToPlainText(notification.body).slice(0, 280),
   };
   replyWindow.webContents.once("did-finish-load", () => {
     if (replyWindow && !replyWindow.isDestroyed()) {

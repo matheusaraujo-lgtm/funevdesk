@@ -32,13 +32,13 @@ async function send() {
       errEl.textContent = result?.error || "Falha ao enviar.";
       sendBtn.disabled = false;
       cancelBtn.disabled = false;
-      sendBtn.textContent = "Enviar";
+      sendBtn.textContent = "Enviar resposta";
     }
   } catch (e) {
     errEl.textContent = e.message || "Falha ao enviar.";
     sendBtn.disabled = false;
     cancelBtn.disabled = false;
-    sendBtn.textContent = "Enviar";
+    sendBtn.textContent = "Enviar resposta";
   }
 }
 
