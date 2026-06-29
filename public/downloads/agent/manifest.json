@@ -1,12 +1,12 @@
 {
   "serverUrl": "http://localhost:3000",
-  "agentVersion": "1.2.6",
+  "agentVersion": "1.2.7",
   "type": "electron",
   "exe": "FunevDeskAgenteSetup.exe",
   "msi": "FunevDeskAgente.msi",
-  "downloadExe": "FunevDeskAgenteSetup-1.2.6.exe",
-  "downloadMsi": "FunevDeskAgente-1.2.6.msi",
+  "downloadExe": "FunevDeskAgenteSetup-1.2.7.exe",
+  "downloadMsi": "FunevDeskAgente-1.2.7.msi",
   "installExe": "FunevDeskAgenteSetup.exe /S",
   "installMsi": "msiexec /i FunevDeskAgente.msi /qn",
-  "generatedAt": "2026-06-28T17:41:59.000Z"
+  "generatedAt": "2026-06-29T20:16:21.429Z"
 }

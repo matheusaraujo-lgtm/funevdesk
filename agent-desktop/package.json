@@ -1,6 +1,6 @@
 {
   "name": "funevdesk-agent",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "FunevDesk Agente - telemetria, inventário e chamados",
   "main": "src/main.js",
   "author": "FunevDesk",

@@ -32,7 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const AGENT_VERSION = "1.2.6";
+const AGENT_VERSION = "1.2.7";
 
 const DEFAULT_SLA_POLICY = {
   CRITICA: { firstResponseMinutes: 15, resolutionHours: 2 },

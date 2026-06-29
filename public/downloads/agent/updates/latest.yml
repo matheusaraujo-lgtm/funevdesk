@@ -1,8 +1,8 @@
-version: 1.2.6
+version: 1.2.7
 files:
-  - url: FunevDeskAgente-1.2.6.exe
-    sha512: CZekPe4LCHLpUs/phCVjvGL97i0meMTn9y3x9PIl+OL4hZMr1SlkOfSZN6LsEk/boQHhIxOSmMwP7xEQtJS/Yg==
-    size: 86475255
-path: FunevDeskAgente-1.2.6.exe
-sha512: CZekPe4LCHLpUs/phCVjvGL97i0meMTn9y3x9PIl+OL4hZMr1SlkOfSZN6LsEk/boQHhIxOSmMwP7xEQtJS/Yg==
-releaseDate: '2026-06-28T20:30:39.187Z'
+  - url: FunevDeskAgente-1.2.7.exe
+    sha512: ae9drMn8S5IN5sJaFpAO5u2ka+jlGvYe+eKzsULXvIhXNf8gRUyjQr8vMAapMkgmZO/z/HTSn97b7OkyryL3CA==
+    size: 86475773
+path: FunevDeskAgente-1.2.7.exe
+sha512: ae9drMn8S5IN5sJaFpAO5u2ka+jlGvYe+eKzsULXvIhXNf8gRUyjQr8vMAapMkgmZO/z/HTSn97b7OkyryL3CA==
+releaseDate: '2026-06-29T20:16:21.322Z'
