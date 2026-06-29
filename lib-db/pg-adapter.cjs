@@ -88,6 +88,8 @@ function normalizeSql(sql) {
   }
   // SQLite AUTOINCREMENT -> PostgreSQL SERIAL (coluna inteira auto-incrementada).
   normalized = normalized.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, "SERIAL PRIMARY KEY");
+  // COLLATE NOCASE não existe no PostgreSQL; remove (ordenação fica case-sensitive).
+  normalized = normalized.replace(/\s+COLLATE\s+NOCASE/gi, "");
   normalized = translateSqliteFunctions(normalized);
   return normalized;
 }

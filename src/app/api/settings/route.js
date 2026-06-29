@@ -121,12 +121,12 @@ export async function PATCH(request) {
         primary_color=excluded.primary_color,
         secondary_color=excluded.secondary_color,
         navigation_mode=excluded.navigation_mode,
-        notifications_enabled=COALESCE(excluded.notifications_enabled, notifications_enabled),
-        escalation_enabled=COALESCE(excluded.escalation_enabled, escalation_enabled),
-        business_hours_json=COALESCE(excluded.business_hours_json, business_hours_json),
-        sso_provider=COALESCE(excluded.sso_provider, sso_provider),
-        reorder_ticket_type_id=COALESCE(excluded.reorder_ticket_type_id, reorder_ticket_type_id),
-        sla_policy_json=COALESCE(excluded.sla_policy_json, sla_policy_json),
+        notifications_enabled=COALESCE(excluded.notifications_enabled, system_settings.notifications_enabled),
+        escalation_enabled=COALESCE(excluded.escalation_enabled, system_settings.escalation_enabled),
+        business_hours_json=COALESCE(excluded.business_hours_json, system_settings.business_hours_json),
+        sso_provider=COALESCE(excluded.sso_provider, system_settings.sso_provider),
+        reorder_ticket_type_id=COALESCE(excluded.reorder_ticket_type_id, system_settings.reorder_ticket_type_id),
+        sla_policy_json=COALESCE(excluded.sla_policy_json, system_settings.sla_policy_json),
         remote_provider='NEXUS_WEBRTC',
         updated_at=excluded.updated_at`)
       .run(
