@@ -7,13 +7,16 @@ import {
   Bot,
   Building2,
   Clock3,
+  Copy,
   Download,
   HardDriveDownload,
   Image as ImageIcon,
+  KeyRound,
   LayoutPanelTop,
   Monitor,
   Package,
   PanelLeft,
+  RefreshCw,
   Save,
   Settings,
   SlidersHorizontal,
@@ -27,7 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const AGENT_VERSION = "1.2.0";
+const AGENT_VERSION = "1.2.6";
 
 const DEFAULT_SLA_POLICY = {
   CRITICA: { firstResponseMinutes: 15, resolutionHours: 2 },
@@ -107,6 +110,8 @@ export function SettingsGeneralView({ settings, onSave }) {
   const [businessEnd, setBusinessEnd] = useState(() => settings?.businessHours?.end || "18:00");
   const [slaPolicy, setSlaPolicy] = useState(() => settings?.slaPolicy || DEFAULT_SLA_POLICY);
   const [downloading, setDownloading] = useState("");
+  const [enrollmentKey, setEnrollmentKey] = useState("");
+  const [generatingKey, setGeneratingKey] = useState(false);
   const [tab, setTab] = useState("marca");
   const logoInputRef = useRef(null);
 
@@ -198,6 +203,30 @@ export function SettingsGeneralView({ settings, onSave }) {
       toast.error(error.message);
     } finally {
       setDownloading("");
+    }
+  }
+
+  // Gera/rotaciona a chave de enrollment manualmente (caso precise instalar o agente por
+  // outro meio que não os downloads acima). Gerar uma nova invalida a anterior. O servidor
+  // guarda só o hash — a chave em texto puro aparece UMA vez, aqui.
+  async function regenerateEnrollmentKey() {
+    setGeneratingKey(true);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ regenerateAgentEnrollmentKey: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.agentEnrollmentKey) {
+        throw new Error(result.error || "Não foi possível gerar a chave de enrollment.");
+      }
+      setEnrollmentKey(result.agentEnrollmentKey);
+      toast.success("Nova chave gerada. Copie agora — ela não será exibida novamente.");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setGeneratingKey(false);
     }
   }
 
@@ -393,6 +422,30 @@ export function SettingsGeneralView({ settings, onSave }) {
                 <Button type="button" variant="outline" className="h-auto justify-start gap-4 p-4 text-left" disabled={downloading === "exe"} onClick={() => handleDownload("exe", `FunevDeskAgenteSetup-${AGENT_VERSION}.exe`)}><HardDriveDownload className="size-5" /><div><p className="font-medium">{downloading === "exe" ? "Gerando..." : `Instalador EXE v${AGENT_VERSION}`}</p><p className="text-xs font-normal text-muted-foreground">Agente completo — arquivo .exe, não ZIP.</p></div></Button>
                 <Button type="button" variant="outline" className="h-auto justify-start gap-4 p-4 text-left" disabled={downloading === "installer"} onClick={() => handleDownload("installer", "Install-FunevDeskAgente.ps1")}><Download className="size-5" /><div><p className="font-medium">{downloading === "installer" ? "Baixando..." : "Script PowerShell"}</p><p className="text-xs font-normal text-muted-foreground">Fallback para instalação manual.</p></div></Button>
                 <Button type="button" variant="outline" className="h-auto justify-start gap-4 p-4 text-left" disabled={downloading === "gpo-msi"} onClick={() => handleDownload("gpo-msi", `FunevDeskAgente-${AGENT_VERSION}.msi`)}><Package className="size-5" /><div><p className="font-medium">{downloading === "gpo-msi" ? "Gerando..." : `Pacote MSI v${AGENT_VERSION} (GPO)`}</p><p className="text-xs font-normal text-muted-foreground">Implantação por política de grupo.</p></div></Button>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-dashed p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><KeyRound className="size-[18px]" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Chave de enrollment</p>
+                    <p className="text-xs text-muted-foreground">Já é embutida automaticamente nos downloads acima. Gere manualmente só se precisar instalar o agente por outro meio. Gerar uma nova invalida a anterior.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Chave atual:</span>
+                  <code className="rounded bg-muted px-2 py-1 font-mono">{settings.agentEnrollmentKeyPrefix || "nenhuma gerada"}</code>
+                </div>
+                {enrollmentKey && (
+                  <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-950/40">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Copie agora — esta chave não será exibida novamente.</p>
+                    <div className="flex items-center gap-2">
+                      <Input readOnly value={enrollmentKey} className="font-mono text-xs" onFocus={(event) => event.target.select()} />
+                      <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard?.writeText(enrollmentKey); toast.success("Chave copiada."); }}><Copy className="size-4" /></Button>
+                    </div>
+                  </div>
+                )}
+                <Button type="button" variant="outline" disabled={generatingKey} onClick={regenerateEnrollmentKey}><RefreshCw className="size-4" /> {generatingKey ? "Gerando..." : "Gerar nova chave"}</Button>
               </div>
             </CardContent>
           </Card>
