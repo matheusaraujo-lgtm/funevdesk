@@ -35,7 +35,11 @@ dev-server.*.log
 # dados locais sensíveis (banco com hashes/segredos) e conteúdo de usuário
 /data/
 /public/uploads/
-/public/downloads/
+# downloads: ignora tudo, EXCETO os instaladores do agente (servidos pelo site, via Git LFS)
+/public/downloads/*
+!/public/downloads/agent/
+# intermediários de build do instalador (wix/stage) não vão pro git
+/public/downloads/agent/stage/
 
 # env files (can opt-in for committing if needed)
 .env*
