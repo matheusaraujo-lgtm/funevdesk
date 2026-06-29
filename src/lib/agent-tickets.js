@@ -335,8 +335,10 @@ export function listAgentTicketMessages(db, ticket) {
   `).all(ticket.id);
 
   const responses = db.prepare(`
-    SELECT field_label, field_type, value_text
-    FROM ticket_responses WHERE ticket_id=? ORDER BY rowid
+    SELECT tr.field_label, tr.field_type, tr.value_text
+    FROM ticket_responses tr
+    LEFT JOIN ticket_fields tf ON tf.id = tr.field_id
+    WHERE tr.ticket_id=? ORDER BY COALESCE(tf.position, 999), tr.id
   `).all(ticket.id);
 
   const authorName = ticket.source === "AGENT" || ticket.source === "MONITOR"

@@ -66,7 +66,7 @@ export async function GET(request, { params }) {
     FROM ticket_responses tr
     LEFT JOIN ticket_fields tf ON tf.id = tr.field_id
     WHERE tr.ticket_id=?
-    ORDER BY COALESCE(tf.position, 999), tr.rowid
+    ORDER BY COALESCE(tf.position, 999), tr.id
   `).all(id);
   const attachments = db.prepare("SELECT * FROM attachments WHERE ticket_id=? ORDER BY created_at").all(id);
   const events = db.prepare("SELECT * FROM ticket_events WHERE ticket_id=? ORDER BY created_at DESC").all(id);
