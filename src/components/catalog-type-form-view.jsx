@@ -60,8 +60,6 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
   const [form, setForm] = useState(() => mapTypeToForm(ticketType));
   const [termTemplates, setTermTemplates] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [newCategory, setNewCategory] = useState("");
-  const [creatingCategory, setCreatingCategory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const approvers = users.filter((u) => u.active && u.role !== "EMPLOYEE");
 
@@ -78,24 +76,6 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
-  async function createCategory() {
-    const name = newCategory.trim();
-    if (name.length < 2) return toast.error("Informe o nome da categoria.");
-    setCreatingCategory(true);
-    const response = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const result = await response.json().catch(() => ({}));
-    setCreatingCategory(false);
-    if (!response.ok) return toast.error(result.error || "Não foi possível criar a categoria.");
-    const created = { id: result.id, name, active: true };
-    setCategories((current) => [...current, created]);
-    setForm((current) => ({ ...current, categoryId: result.id, category: name }));
-    setNewCategory("");
-    toast.success("Categoria criada.");
-  }
   const toggleBranch = (branchId) => setForm((current) => ({
     ...current,
     branchIds: current.branchIds.includes(branchId)
@@ -110,11 +90,14 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
 
   async function submit(event) {
     event.preventDefault();
+    if (!form.categoryId || form.categoryId === "none") {
+      return toast.error("Selecione uma categoria. Cadastre-as em Configurações → Categorias.");
+    }
     setSubmitting(true);
     const payload = {
       ...form,
-      categoryId: form.categoryId !== "none" ? form.categoryId : null,
-      category: form.categoryId === "none" ? form.category : categories.find((c) => c.id === form.categoryId)?.name || form.category,
+      categoryId: form.categoryId,
+      category: categories.find((c) => c.id === form.categoryId)?.name || form.category,
       defaultApproverId: form.approvalMode === "FIXED" && form.defaultApproverId !== "none" ? form.defaultApproverId : null,
       termTemplateId: form.requiresTerm && form.termTemplateId !== "none" ? form.termTemplateId : null,
       scopeMode: form.scopeMode,
@@ -152,30 +135,17 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
         <Label htmlFor="catalog-category" className="mb-2 block">Categoria</Label>
         <Select value={form.categoryId} onValueChange={(value) => {
           update("categoryId", value);
-          if (value !== "none") {
-            const cat = categories.find((c) => c.id === value);
-            if (cat) update("category", cat.name);
-          }
+          const cat = categories.find((c) => c.id === value);
+          if (cat) update("category", cat.name);
         }}>
-          <SelectTrigger id="catalog-category" aria-label="Categoria"><SelectValue placeholder="Selecione a categoria">{(value) => value === "none" ? "Texto livre abaixo" : categories.find((c) => c.id === value)?.name}</SelectValue></SelectTrigger>
+          <SelectTrigger id="catalog-category" aria-label="Categoria"><SelectValue placeholder="Selecione a categoria">{(value) => value === "none" ? "Selecione a categoria" : categories.find((c) => c.id === value)?.name}</SelectValue></SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Texto livre</SelectItem>
-            {categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+            {categories.length === 0
+              ? <SelectItem value="none" disabled>Nenhuma categoria cadastrada</SelectItem>
+              : categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        {form.categoryId === "none" && (
-          <Input className="mt-2" required aria-label="Categoria (texto livre)" value={form.category} onChange={(event) => update("category", event.target.value)} placeholder="Ex.: Compras" />
-        )}
-        <div className="mt-2 flex gap-2">
-          <Input
-            value={newCategory}
-            aria-label="Cadastrar nova categoria"
-            onChange={(event) => setNewCategory(event.target.value)}
-            placeholder="Cadastrar nova categoria"
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); createCategory(); } }}
-          />
-          <Button type="button" variant="outline" disabled={creatingCategory} onClick={createCategory}><Plus className="size-4" /> Criar</Button>
-        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">Gerencie as categorias em Configurações → Categorias.</p>
       </div>
       <div><Label htmlFor="catalog-kind" className="mb-2 block">Natureza</Label><Select value={form.kind} onValueChange={(value) => update("kind", value)}><SelectTrigger id="catalog-kind" aria-label="Natureza"><SelectValue placeholder="Natureza">{(value) => ({ INCIDENTE: "Incidente", REQUISICAO: "Requisição" }[value])}</SelectValue></SelectTrigger><SelectContent><SelectItem value="INCIDENTE">Incidente</SelectItem><SelectItem value="REQUISICAO">Requisição</SelectItem></SelectContent></Select></div>
       <div><Label htmlFor="catalog-priority" className="mb-2 block">Prioridade padrão</Label><Select value={form.defaultPriority} onValueChange={(value) => update("defaultPriority", value)}><SelectTrigger id="catalog-priority" aria-label="Prioridade padrão"><SelectValue placeholder="Prioridade">{(value) => ({ BAIXA: "Baixa", MEDIA: "Média", ALTA: "Alta", CRITICA: "Crítica" }[value])}</SelectValue></SelectTrigger><SelectContent>{["BAIXA", "MEDIA", "ALTA", "CRITICA"].map((value) => <SelectItem key={value} value={value}>{{ BAIXA: "Baixa", MEDIA: "Média", ALTA: "Alta", CRITICA: "Crítica" }[value]}</SelectItem>)}</SelectContent></Select></div>

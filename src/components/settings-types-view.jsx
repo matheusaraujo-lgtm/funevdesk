@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileCheck2, FileText, MoreVertical, Pencil, Plus, Search, Settings2, Ticket } from "lucide-react";
+import { FileCheck2, FileText, MoreVertical, Pencil, Plus, Search, Ticket } from "lucide-react";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,7 @@ function workflowBadges(type) {
   return badges.length ? badges : <Badge variant="muted">Padrão</Badge>;
 }
 
-export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onConfigureWorkflow, onImported }) {
+export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onImported }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => catalog.filter((type) => `${type.name} ${type.category} ${type.description}`.toLowerCase().includes(search.toLowerCase())), [catalog, search]);
   const activeCount = catalog.filter((type) => type.active).length;
@@ -64,7 +64,7 @@ export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onConf
           onAction={!search ? onNew : undefined}
         />
       ) : (
-      <div className="overflow-x-auto"><Table className="min-w-[820px] table-fixed"><TableHeader><TableRow className="bg-muted/10"><TableHead className="w-[24%]">Nome</TableHead><TableHead className="w-[12%]">Categoria</TableHead><TableHead className="w-[8%]">Campos</TableHead><TableHead className="w-[16%]">Unidades</TableHead><TableHead className="w-[16%]">Fluxo</TableHead><TableHead className="w-[10%]">Status</TableHead><TableHead className="w-[14%]" /></TableRow></TableHeader><TableBody>{filtered.map((type) => <TableRow key={type.id}><TableCell><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-accent text-accent-foreground"><FileText className="size-4" /></div><div className="min-w-0"><p className="truncate font-medium">{type.name}</p><p className="line-clamp-1 text-xs text-muted-foreground">{type.description}</p></div></div></TableCell><TableCell><Badge variant="outline">{type.category}</Badge></TableCell><TableCell>{type.fields.length}</TableCell><TableCell><div className="flex flex-wrap gap-1">{distributionBadges(type)}</div></TableCell><TableCell><div className="flex flex-wrap gap-1">{workflowBadges(type)}</div></TableCell><TableCell><Badge variant={type.active ? "success" : "muted"}>{type.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell><div className="flex gap-1"><Button variant="outline" size="sm" onClick={() => onConfigureWorkflow(type)}><Settings2 className="size-3.5" /> Fluxo</Button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-8" aria-label={`Ações de ${type.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(type)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => onConfigureWorkflow(type)}><Settings2 /> Fluxo</DropdownMenuItem><DropdownMenuItem onClick={() => onToggleType(type.id, !type.active)}>{type.active ? "Desativar" : "Ativar"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></TableCell></TableRow>)}</TableBody></Table></div>
+      <div className="overflow-x-auto"><Table className="min-w-[820px] table-fixed"><TableHeader><TableRow className="bg-muted/10"><TableHead className="w-[24%]">Nome</TableHead><TableHead className="w-[12%]">Categoria</TableHead><TableHead className="w-[8%]">Campos</TableHead><TableHead className="w-[16%]">Unidades</TableHead><TableHead className="w-[16%]">Fluxo</TableHead><TableHead className="w-[10%]">Status</TableHead><TableHead className="w-[14%]" /></TableRow></TableHeader><TableBody>{filtered.map((type) => <TableRow key={type.id}><TableCell><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-accent text-accent-foreground"><FileText className="size-4" /></div><div className="min-w-0"><p className="truncate font-medium">{type.name}</p><p className="line-clamp-1 text-xs text-muted-foreground">{type.description}</p></div></div></TableCell><TableCell><Badge variant="outline">{type.category}</Badge></TableCell><TableCell>{type.fields.length}</TableCell><TableCell><div className="flex flex-wrap gap-1">{distributionBadges(type)}</div></TableCell><TableCell><div className="flex flex-wrap gap-1">{workflowBadges(type)}</div></TableCell><TableCell><Badge variant={type.active ? "success" : "muted"}>{type.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell><div className="flex justify-end"><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-8" aria-label={`Ações de ${type.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(type)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => onToggleType(type.id, !type.active)}>{type.active ? "Desativar" : "Ativar"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></TableCell></TableRow>)}</TableBody></Table></div>
       )}
     </Card>
   </div>;
