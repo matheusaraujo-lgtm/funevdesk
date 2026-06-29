@@ -181,7 +181,9 @@ export function TicketCreateView({
       let detected = false;
       try {
         const controller = new AbortController();
-        const abortTimer = window.setTimeout(() => controller.abort(), 800);
+        // A ponte local coleta dados do sistema antes de responder (pode levar ~1-2,5s).
+        // Timeout generoso para não abortar antes de a máquina ser detectada.
+        const abortTimer = window.setTimeout(() => controller.abort(), 4000);
         const response = await fetch("http://127.0.0.1:47832/api/local", { signal: controller.signal, cache: "no-store" });
         window.clearTimeout(abortTimer);
         if (response.ok) {

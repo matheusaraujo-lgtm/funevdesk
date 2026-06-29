@@ -1,6 +1,6 @@
 const http = require("node:http");
+const os = require("node:os");
 const { loadConfig } = require("./config");
-const { collectTelemetry } = require("./inventory");
 
 const PORT = 47832;
 let server = null;
@@ -49,7 +49,10 @@ function startLocalBridge(getAssetInfo) {
     if (req.method === "GET" && (req.url === "/api/local" || req.url === "/api/local/")) {
       const config = loadConfig();
       try {
-        const telemetry = await collectTelemetry();
+        // Hostname via os.hostname() (instantâneo). NÃO chamamos collectTelemetry aqui:
+        // a coleta de sistema (CPU/disco/rede) levava 1-2,5s e fazia a auto-detecção
+        // do formulário de chamado abortar por timeout. Este endpoint só precisa identificar a máquina.
+        const hostname = os.hostname();
 
         // Try cached first (fast path), then fetch from server
         let assetId = cachedAssetId;
@@ -80,7 +83,7 @@ function startLocalBridge(getAssetInfo) {
         res.end(JSON.stringify({
           ok: true,
           serverUrl: config.serverUrl,
-          hostname: telemetry.hostname,
+          hostname,
           assetId,
           branchId,
         }));
