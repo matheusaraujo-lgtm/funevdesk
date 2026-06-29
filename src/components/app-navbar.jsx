@@ -69,6 +69,7 @@ const configGroups = [
     { id: "settings-statuses", label: "Situações", description: "Status e pausa de SLA", icon: Tags, module: "statuses" },
     { id: "settings-categories", label: "Categorias", description: "Grupos de tipos de chamado", icon: Layers, module: "categories" },
     { id: "term-templates", label: "Modelos de termo", description: "Textos para assinatura", icon: FileCheck2, module: "term_templates" },
+    { id: "settings-document-types", label: "Tipos de documento", description: "Para a Documentação", icon: FileText, requires: (permissions) => permissions.canConfigure },
   ] },
   { label: "Automação e integrações", links: [
     { id: "automations", label: "Automações", description: "Regras de roteamento", icon: Workflow, requires: (permissions) => permissions.canConfigure },

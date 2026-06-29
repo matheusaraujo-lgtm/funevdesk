@@ -987,6 +987,18 @@ function migrateXdrAlertsUnique(db) {
   db.pragma("foreign_keys = ON");
 }
 
+// Tipos de documento (para a Documentação) — lista gerenciável em Configurações.
+// Semeia padrões úteis na 1ª vez (configuração base, não dado de demonstração).
+function ensureDocumentTypeSeeds(db) {
+  for (const org of db.prepare("SELECT id FROM organizations").all()) {
+    const has = db.prepare("SELECT COUNT(*) AS total FROM document_types WHERE organization_id=?").get(org.id).total;
+    if (has) continue;
+    const now = new Date().toISOString();
+    const insert = db.prepare("INSERT INTO document_types (id, organization_id, name, active, created_at) VALUES (?, ?, ?, 1, ?)");
+    for (const name of ["Operacional", "Inventário", "Procedimento", "Contatos", "Rede"]) insert.run(makeId("doctype"), org.id, name, now);
+  }
+}
+
 function ensureAgentEnhancementTables(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS ticket_statuses (
@@ -1032,7 +1044,16 @@ function ensureAgentEnhancementTables(db) {
       created_at TEXT NOT NULL,
       FOREIGN KEY (organization_id) REFERENCES organizations(id)
     );
+    CREATE TABLE IF NOT EXISTS document_types (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    );
   `);
+  ensureDocumentTypeSeeds(db);
 
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
   if (!ticketColumns.some((c) => c.name === "location_id")) db.exec("ALTER TABLE tickets ADD COLUMN location_id TEXT");

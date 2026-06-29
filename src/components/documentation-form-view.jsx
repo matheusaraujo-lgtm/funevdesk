@@ -2,7 +2,7 @@
 
 
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Building2, FileText } from "lucide-react";
 
@@ -33,8 +33,20 @@ export function DocumentationFormView({ item, branches, permissions, onCancel, o
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState([]);
 
+  useEffect(() => {
+    fetch("/api/document-types", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { documentTypes: [] }))
+      .then((data) => setDocumentTypes(data.documentTypes || []))
+      .catch(() => setDocumentTypes([]));
+  }, []);
 
+  // Inclui o valor atual mesmo que não esteja na lista (docs antigos com tipo livre).
+  const typeOptions = documentTypes.map((type) => type.name);
+  const allTypeOptions = form.documentType && !typeOptions.includes(form.documentType)
+    ? [form.documentType, ...typeOptions]
+    : typeOptions;
 
   async function submit(event) {
 
@@ -90,7 +102,16 @@ export function DocumentationFormView({ item, branches, permissions, onCancel, o
 
       <div className="sm:col-span-2"><p className="mb-2 text-sm font-medium">Unidade</p><Select value={form.branchId} onValueChange={(branchId) => setForm((current) => ({ ...current, branchId }))}><SelectTrigger><Building2 className="size-4 text-muted-foreground" /><SelectValue>{(value) => branches.find((branch) => branch.id === value)?.name}</SelectValue></SelectTrigger><SelectContent>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select></div>
 
-      <div><p className="mb-2 text-sm font-medium">Tipo</p><Input value={form.documentType} onChange={(event) => setForm((current) => ({ ...current, documentType: event.target.value }))} /></div>
+      <div><p className="mb-2 text-sm font-medium">Tipo</p>
+        <Select value={form.documentType} onValueChange={(value) => setForm((current) => ({ ...current, documentType: value }))}>
+          <SelectTrigger aria-label="Tipo de documento"><SelectValue placeholder="Selecione o tipo">{(value) => value || "Selecione o tipo"}</SelectValue></SelectTrigger>
+          <SelectContent>
+            {allTypeOptions.length === 0
+              ? <SelectItem value="Operacional">Operacional</SelectItem>
+              : allTypeOptions.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="sm:col-span-2"><p className="mb-2 text-sm font-medium">Título</p><Input required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ex.: Links e contatos da filial" /></div>
 

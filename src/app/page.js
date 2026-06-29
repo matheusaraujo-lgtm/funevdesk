@@ -39,6 +39,7 @@ import { NetworkView } from "@/components/network-view";
 import { SettingsGeneralView } from "@/components/settings-general-view";
 import { SettingsStatusesView } from "@/components/settings-statuses-view";
 import { SettingsCategoriesView } from "@/components/settings-categories-view";
+import { SettingsDocumentTypesView } from "@/components/settings-document-types-view";
 import { SettingsLocationsView } from "@/components/settings-locations-view";
 import { InventoryView } from "@/components/inventory-view";
 import { SettingsTypesView } from "@/components/settings-types-view";
@@ -658,6 +659,7 @@ export default function Home() {
       {view === "settings-types-workflow" && can("ticket_types", "update") && formDraft && <CatalogTypeWorkflowView ticketType={formDraft} users={users} termTemplates={termTemplates} onCancel={() => closeDraftForm("settings-types")} onSaved={refreshLists} />}
       {view === "settings-statuses" && can("statuses", "read") && <SettingsStatusesView />}
       {view === "settings-categories" && can("categories", "read") && <SettingsCategoriesView />}
+      {view === "settings-document-types" && data.permissions.canConfigure && <SettingsDocumentTypesView />}
       {view === "settings-locations" && can("locations", "read") && <SettingsLocationsView branches={branches.length ? branches : data.branches} />}
       {view === "inventory" && can("inventory", "read") && <InventoryView key={`inventory-${branchId}`} branches={branches.length ? branches : data.branches} defaultBranchId={branchId} canConfigure={can("inventory", "create") || can("inventory", "update")} />}
       {view === "new-ticket" && <TicketCreateView branches={data.branches} assets={data.assets} users={users} defaultBranchId={branchId || data.currentUser.branchId} onCreate={createTicket} onCancel={() => setView("tickets")} currentUser={data.currentUser} permissions={data.permissions} catalog={catalog} />}
