@@ -6,6 +6,7 @@ set -euo pipefail
 echo "==> Atualizando código do git"
 git fetch --all
 git reset --hard origin/main
+git lfs pull
 
 echo "==> Reconstruindo e subindo os containers"
 docker compose up -d --build --remove-orphans
