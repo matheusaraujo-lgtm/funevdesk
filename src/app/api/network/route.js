@@ -54,6 +54,28 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!can(currentUser, "network", "read")) return Response.json({ error: "Acesso negado." }, { status: 403 });
+
+  if (new URL(request.url).searchParams.get("mode") === "template") {
+    const branches = db.prepare("SELECT id, name FROM branches WHERE organization_id=? ORDER BY name").all(currentUser.organization_id);
+    return Response.json({
+      columns: ["name", "branchId", "deviceType", "ipAddress", "monitorType", "vendor", "checkPorts", "snmpCommunity", "smbShare", "notes"],
+      example: {
+        name: "Impressora Recepção",
+        branchId: branches[0]?.id || "ID_DA_UNIDADE",
+        deviceType: "Impressora",
+        ipAddress: "10.0.0.50",
+        monitorType: "PRINTER",
+        vendor: "HP",
+        checkPorts: "9100,161",
+        snmpCommunity: "public",
+        smbShare: "",
+        notes: "",
+      },
+      branches,
+      allowedMonitorTypes: ["PING", "SMB", "FIREWALL", "PRINTER"],
+    });
+  }
+
   const permissions = getPermissions(currentUser);
   const branchIds = permissions.canViewAllBranches ? db.prepare("SELECT id FROM branches WHERE organization_id=?").all(currentUser.organization_id).map((item) => item.id) : currentUser.branchIds;
   const devices = branchIds.length ? db.prepare(`

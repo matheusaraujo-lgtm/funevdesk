@@ -313,7 +313,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
         className="hidden h-9 items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted lg:inline-flex"
         aria-label="Buscar telas e ações (atalho Ctrl K)">
         <Search className="size-3.5" /> Buscar
-        <kbd className="rounded border bg-muted px-1 text-[10px]">⌘K</kbd>
+        <kbd className="rounded border bg-muted px-1 text-[10px]">Ctrl K</kbd>
       </button>
       <NotificationsBell />
 

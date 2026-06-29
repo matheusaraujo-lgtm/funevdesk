@@ -5,6 +5,7 @@ import { useReloadableData } from "@/lib/use-reloadable-data";
 import { AlertTriangle, CheckCircle2, Clock3, Droplets, LoaderCircle, MapPin, MoreVertical, Pencil, Plus, Printer, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -259,6 +260,7 @@ export function PrintersView({ branches = [], defaultBranchId, branchId = "", pe
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={checkNow} disabled={checking}><RefreshCw className={checking ? "animate-spin" : undefined} /> {checking ? "Verificando..." : "Verificar agora"}</Button>
             {canConfigure && <Button variant="outline" onClick={openAlerts}><SlidersHorizontal /> Alertas</Button>}
+            {canConfigure && <ImportTemplateButtons endpoint="/api/network" templateFile="modelo-impressoras.csv" onImported={load} label="impressora" />}
             {canConfigure && <Button onClick={openNew}><Plus /> Nova impressora</Button>}
           </div>
         </div>

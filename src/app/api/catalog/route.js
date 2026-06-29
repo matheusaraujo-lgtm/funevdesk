@@ -75,6 +75,22 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   const db = getDb();
+
+  if (new URL(request.url).searchParams.get("mode") === "template") {
+    return Response.json({
+      columns: ["tipo", "kind", "categoria", "prioridade", "descricao", "aprovacao", "campo_label", "campo_tipo", "campo_obrigatorio", "campo_opcoes"],
+      // Cada linha = um campo. As colunas do tipo se repetem nas linhas do mesmo "tipo".
+      examples: [
+        { tipo: "Solicitação de acesso", kind: "REQUISICAO", categoria: "Acesso", prioridade: "MEDIA", descricao: "Criação ou alteração de acessos", aprovacao: "sim", campo_label: "Sistema ou recurso", campo_tipo: "TEXT", campo_obrigatorio: "sim", campo_opcoes: "" },
+        { tipo: "Solicitação de acesso", kind: "REQUISICAO", categoria: "Acesso", prioridade: "MEDIA", descricao: "Criação ou alteração de acessos", aprovacao: "sim", campo_label: "Nível de acesso", campo_tipo: "SELECT", campo_obrigatorio: "sim", campo_opcoes: "Leitura,Edição,Administrador" },
+        { tipo: "Problema no computador", kind: "INCIDENTE", categoria: "Hardware", prioridade: "ALTA", descricao: "Falhas de hardware", aprovacao: "nao", campo_label: "Sintoma", campo_tipo: "SELECT", campo_obrigatorio: "sim", campo_opcoes: "Lentidão,Travamento,Não liga" },
+      ],
+      allowedKinds: ["INCIDENTE", "REQUISICAO"],
+      allowedFieldTypes: ["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT"],
+      allowedPriorities: ["BAIXA", "MEDIA", "ALTA", "CRITICA"],
+    });
+  }
+
   let catalog = listCatalog(db, currentUser.organization_id);
   if (currentUser.role !== "ADMIN") {
     catalog = catalog.filter((type) => type.active);
@@ -83,11 +99,84 @@ export async function GET(request) {
   return Response.json({ catalog });
 }
 
+const IMPORT_KINDS = new Set(["INCIDENTE", "REQUISICAO"]);
+const IMPORT_PRIORITIES = new Set(["BAIXA", "MEDIA", "ALTA", "CRITICA"]);
+const IMPORT_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT"]);
+const isTruthyCell = (value) => /^(sim|s|yes|y|true|1|x)$/i.test(String(value || "").trim());
+
+// Importa tipos de chamado por planilha (1 linha = 1 campo). Agrupa por "tipo"; os
+// atributos do tipo vêm da 1ª linha do grupo. Regras: kind/prioridade/campo_tipo válidos,
+// SELECT exige opções, cada tipo precisa de >=1 campo. Tipos já existentes são pulados.
+function importCatalogRows(db, organizationId, rows) {
+  const groups = new Map();
+  rows.forEach((row, index) => {
+    const tipo = String(row.tipo || "").trim();
+    if (!tipo) throw new Error(`Linha ${index + 2}: a coluna "tipo" é obrigatória.`);
+    if (!groups.has(tipo)) groups.set(tipo, []);
+    groups.get(tipo).push(row);
+  });
+
+  const now = new Date().toISOString();
+  let importedTypes = 0;
+  let skipped = 0;
+  const run = db.transaction(() => {
+    const findType = db.prepare("SELECT id FROM ticket_types WHERE organization_id=? AND name=? LIMIT 1");
+    const insertType = db.prepare(`INSERT INTO ticket_types
+      (id, organization_id, name, description, kind, category, category_id, default_priority, active, created_at,
+       requires_approval, approval_mode, default_approver_id, requires_term, term_template_id, scope_mode, target_branch_mode, target_branch_id, checklist_json)
+      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 1, ?, ?, ?, NULL, 0, NULL, 'ALL', 'REQUESTER', NULL, '[]')`);
+    const insertField = db.prepare(`INSERT INTO ticket_fields
+      (id, ticket_type_id, label, field_type, placeholder, required, options_json, position)
+      VALUES (?, ?, ?, ?, '', ?, ?, ?)`);
+
+    for (const [tipo, entries] of groups) {
+      if (findType.get(organizationId, tipo)) { skipped += 1; continue; }
+      const first = entries[0];
+      const kind = IMPORT_KINDS.has(String(first.kind || "").trim().toUpperCase()) ? String(first.kind).trim().toUpperCase() : "INCIDENTE";
+      const priority = IMPORT_PRIORITIES.has(String(first.prioridade || "").trim().toUpperCase()) ? String(first.prioridade).trim().toUpperCase() : "MEDIA";
+      const category = String(first.categoria || "").trim() || "Geral";
+      const description = String(first.descricao || "").trim();
+      const requiresApproval = isTruthyCell(first.aprovacao);
+
+      const fieldRows = entries.filter((row) => String(row.campo_label || "").trim());
+      if (!fieldRows.length) throw new Error(`O tipo "${tipo}" precisa de ao menos um campo (preencha campo_label).`);
+
+      const typeId = makeId("tipo");
+      insertType.run(typeId, organizationId, tipo, description, kind, category, priority, now, requiresApproval ? 1 : 0, requiresApproval ? "SELECT" : "NONE");
+
+      fieldRows.forEach((row, position) => {
+        const label = String(row.campo_label).trim();
+        const fieldType = IMPORT_FIELD_TYPES.has(String(row.campo_tipo || "").trim().toUpperCase()) ? String(row.campo_tipo).trim().toUpperCase() : "TEXT";
+        const required = isTruthyCell(row.campo_obrigatorio);
+        const options = String(row.campo_opcoes || "").split(",").map((opt) => opt.trim()).filter(Boolean);
+        if (fieldType === "SELECT" && !options.length) throw new Error(`O campo "${label}" do tipo "${tipo}" é SELECT e precisa de opções (campo_opcoes, separadas por vírgula).`);
+        insertField.run(makeId("fld"), typeId, label, fieldType, required ? 1 : 0, options.length ? JSON.stringify(options) : null, position);
+      });
+      importedTypes += 1;
+    }
+  });
+  run();
+  return { importedTypes, skipped };
+}
+
 export async function POST(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!can(currentUser, "ticket_types", "create")) return Response.json({ error: "Sem permissão." }, { status: 403 });
+
+  const body = await request.json();
+  if (Array.isArray(body?.rows)) {
+    if (!body.rows.length) return Response.json({ error: "Planilha vazia." }, { status: 400 });
+    const db = getDb();
+    try {
+      const result = importCatalogRows(db, currentUser.organization_id, body.rows);
+      return Response.json({ imported: result.importedTypes, skipped: result.skipped, catalog: listCatalog(db, currentUser.organization_id) });
+    } catch (error) {
+      return Response.json({ error: error.message || "Não foi possível importar a planilha." }, { status: 400 });
+    }
+  }
+
   const schema = z.object({
     name: z.string().min(3).max(100),
     description: z.string().max(300).optional(),
@@ -110,7 +199,7 @@ export async function POST(request) {
     checklist: z.array(z.object({ id: z.string().optional(), label: z.string().min(1).max(120) })).max(50).optional().default([]),
     ...branchConfigSchema,
   });
-  const parsed = schema.safeParse(await request.json());
+  const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Revise os dados do tipo de chamado." }, { status: 400 });
   const db = getDb();
   const branchError = validateBranchConfig(parsed.data, currentUser.organization_id, db);

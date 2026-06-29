@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { FileCheck2, FileText, MoreVertical, Pencil, Plus, Search, Settings2, Ticket } from "lucide-react";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +34,7 @@ function workflowBadges(type) {
   return badges.length ? badges : <Badge variant="muted">Padrão</Badge>;
 }
 
-export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onConfigureWorkflow }) {
+export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onConfigureWorkflow, onImported }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => catalog.filter((type) => `${type.name} ${type.category} ${type.description}`.toLowerCase().includes(search.toLowerCase())), [catalog, search]);
   const activeCount = catalog.filter((type) => type.active).length;
@@ -48,7 +49,7 @@ export function SettingsTypesView({ catalog, onToggleType, onNew, onEdit, onConf
             <p className="page-copy max-w-md">Formulários, filiais, roteamento, aprovação e termos por tipo de atendimento.</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2"><Button onClick={onNew}><Plus /> Novo tipo</Button></div>
+        <div className="flex flex-wrap items-center gap-2"><ImportTemplateButtons endpoint="/api/catalog" templateFile="modelo-tipos-de-chamado.csv" onImported={onImported} label="tipo" /><Button onClick={onNew}><Plus /> Novo tipo</Button></div>
       </div>
     </div>
     <div className="grid gap-4 sm:grid-cols-4"><MetricCard label="Total" value={catalog.length} /><MetricCard label="Ativos" value={activeCount} /><MetricCard label="Com aprovação" value={catalog.filter((t) => t.requiresApproval).length} /><MetricCard label="Com termo" value={catalog.filter((t) => t.requiresTerm).length} /></div>

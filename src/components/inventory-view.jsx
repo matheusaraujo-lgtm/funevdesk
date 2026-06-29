@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Boxes, Layers, Package, PackageMinus, Pencil, Plus, RefreshCcw, Search, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -197,7 +198,12 @@ export function InventoryView({ branches = [], canConfigure = true, defaultBranc
               <p className="page-copy max-w-md">Materiais de TI e suprimentos consumidos nos atendimentos — com baixa automática ao resolver chamados.</p>
             </div>
           </div>
-          {canConfigure && <Button onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}><Plus /> Novo item</Button>}
+          {canConfigure && (
+            <div className="flex flex-wrap items-center gap-2">
+              <ImportTemplateButtons endpoint="/api/inventory" templateFile="modelo-estoque.csv" onImported={load} label="item" />
+              <Button onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}><Plus /> Novo item</Button>
+            </div>
+          )}
         </div>
       </div>
 
