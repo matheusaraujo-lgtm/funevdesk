@@ -171,7 +171,7 @@ export function AgentSummary({ asset, inventory, permissions, onToggleActive, on
       <Separator />
       <div className="space-y-4 text-xs">
         <div className="flex items-center justify-between gap-4"><span className="flex items-center gap-2 font-medium"><Monitor className="size-4 text-muted-foreground" />IP local</span><span>{asset.ip_address || "Não informado"}</span></div>
-        <div className="flex items-center justify-between gap-4"><span className="flex items-center gap-2 font-medium"><Server className="size-4 text-muted-foreground" />Sistema operacional</span><span className="max-w-[170px] truncate text-right">{asset.os_name || "Não informado"}</span></div>
+        <div className="flex items-start justify-between gap-4"><span className="flex shrink-0 items-center gap-2 font-medium"><Server className="size-4 text-muted-foreground" />Sistema operacional</span><span className="text-right leading-snug" title={asset.os_name || ""}>{asset.os_name || "Não informado"}</span></div>
         <div className="flex items-center justify-between gap-4"><span className="flex items-center gap-2 font-medium"><Clock3 className="size-4 text-muted-foreground" />Última comunicação</span><span>{timeAgo(asset.last_seen_at)}</span></div>
         <ResourceBar icon={Cpu} label="CPU" value={cpu} />
         <ResourceBar icon={Activity} label="Memória" value={memory} dangerAt={95} />

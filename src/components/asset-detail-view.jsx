@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Download, FileSpreadsheet, LoaderCircle, MessageSquarePlus, Monitor, Network, Package, Pencil, Search, Server, Ticket } from "lucide-react";
+import { ArrowLeft, Check, Download, FileSpreadsheet, LoaderCircle, Monitor, Network, Package, Pencil, Search, Server, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/utils";
 import { useReloadableData } from "@/lib/use-reloadable-data";
@@ -27,7 +27,9 @@ function AssetGlyph({ type, className }) {
 const WINGET_CATALOG = [
   { id: "Google.Chrome", name: "Google Chrome" },
   { id: "Mozilla.Firefox", name: "Mozilla Firefox" },
+  { id: "Microsoft.Edge", name: "Microsoft Edge" },
   { id: "7zip.7zip", name: "7-Zip" },
+  { id: "RARLab.WinRAR", name: "WinRAR" },
   { id: "Adobe.Acrobat.Reader.64-bit", name: "Adobe Acrobat Reader" },
   { id: "VideoLAN.VLC", name: "VLC Media Player" },
   { id: "Zoom.Zoom", name: "Zoom" },
@@ -35,6 +37,10 @@ const WINGET_CATALOG = [
   { id: "Notepad++.Notepad++", name: "Notepad++" },
   { id: "Microsoft.Teams", name: "Microsoft Teams" },
   { id: "TheDocumentFoundation.LibreOffice", name: "LibreOffice" },
+  { id: "Microsoft.VisualStudioCode", name: "Visual Studio Code" },
+  { id: "Microsoft.PowerToys", name: "Microsoft PowerToys" },
+  { id: "Git.Git", name: "Git" },
+  { id: "Spotify.Spotify", name: "Spotify" },
 ];
 
 const DEPLOY_STATUS = {
@@ -47,8 +53,10 @@ const DEPLOY_STATUS = {
 function SoftwareDeployCard({ asset }) {
   const [commands, setCommands] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [sending, setSending] = useState("");
+  const [sending, setSending] = useState(false);
   const [customId, setCustomId] = useState("");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState([]); // [{ id, name }]
 
   const fetcher = useCallback(() => {
     return fetch(`/api/assets/${asset.id}/install`, { cache: "no-store" })
@@ -66,21 +74,36 @@ function SoftwareDeployCard({ asset }) {
     return () => clearInterval(interval);
   }, [hasInflight, reload]);
 
-  async function deploy(packageId, name) {
-    setSending(packageId);
-    const response = await fetch(`/api/assets/${asset.id}/install`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "INSTALL_APP", packageId, name }),
-    });
-    const result = await response.json().catch(() => ({}));
-    setSending("");
-    if (!response.ok) return toast.error(result.error || "Não foi possível enviar a instalação.");
-    toast.success(`${name || packageId} enviado para instalação — o agente vai instalar no equipamento.`);
+  function toggle(app) {
+    setSelected((prev) => (prev.some((a) => a.id === app.id) ? prev.filter((a) => a.id !== app.id) : [...prev, app]));
+  }
+
+  // Envia a lista escolhida (catálogo multi-seleção ou ID personalizado) em sequência.
+  async function deployList(apps) {
+    if (!apps.length) return;
+    setSending(true);
+    let okCount = 0;
+    for (const app of apps) {
+      try {
+        const response = await fetch(`/api/assets/${asset.id}/install`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "INSTALL_APP", packageId: app.id, name: app.name }),
+        });
+        if (response.ok) okCount += 1;
+      } catch { /* falha em um app não interrompe os demais */ }
+    }
+    setSending(false);
+    if (!okCount) return toast.error("Não foi possível enviar a instalação.");
+    toast.success(okCount === 1 ? `${apps[0].name} enviado para instalação.` : `${okCount} aplicativos enviados para instalação.`);
+    setSelected([]);
     setCustomId("");
+    setQuery("");
     setDialogOpen(false);
     reload();
   }
+
+  const filtered = WINGET_CATALOG.filter((app) => app.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
@@ -119,30 +142,44 @@ function SoftwareDeployCard({ asset }) {
             <DialogTitle>Instalar software em {asset.hostname}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-xs text-muted-foreground">Escolha um aplicativo. O agente instala em silêncio no próximo contato com o servidor.</p>
-            <div className="grid grid-cols-2 gap-2">
-              {WINGET_CATALOG.map((app) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  disabled={Boolean(sending)}
-                  onClick={() => deploy(app.id, app.name)}
-                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-medium transition hover:border-primary/40 hover:bg-muted/50 disabled:opacity-50"
-                >
-                  {sending === app.id ? <LoaderCircle className="size-4 shrink-0 animate-spin" /> : <Package className="size-4 shrink-0 text-muted-foreground" />}
-                  <span className="min-w-0 truncate">{app.name}</span>
-                </button>
-              ))}
+            <p className="text-xs text-muted-foreground">Selecione um ou mais aplicativos. O agente instala em silêncio no próximo contato com o servidor.</p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar aplicativo..." className="pl-9" disabled={sending} />
             </div>
+            <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+              {filtered.length === 0 ? (
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">Nenhum app no catálogo com esse nome. Use o ID winget abaixo.</p>
+              ) : filtered.map((app) => {
+                const isSel = selected.some((a) => a.id === app.id);
+                return (
+                  <button
+                    key={app.id}
+                    type="button"
+                    disabled={sending}
+                    onClick={() => toggle(app)}
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-xs font-medium transition disabled:opacity-50 ${isSel ? "border-primary bg-primary/5" : "hover:border-primary/40 hover:bg-muted/50"}`}
+                  >
+                    <span className={`flex size-4 shrink-0 items-center justify-center rounded border ${isSel ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>{isSel && <Check className="size-3" />}</span>
+                    <Package className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{app.id}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <Button type="button" className="w-full" disabled={sending || selected.length === 0} onClick={() => deployList(selected)}>
+              {sending ? <LoaderCircle className="animate-spin" /> : <Download />} Instalar selecionados{selected.length > 0 ? ` (${selected.length})` : ""}
+            </Button>
             <div className="space-y-2 border-t pt-3">
               <Label htmlFor="custom-winget">ID winget personalizado</Label>
               <div className="flex gap-2">
-                <Input id="custom-winget" value={customId} onChange={(event) => setCustomId(event.target.value)} placeholder="Ex.: Microsoft.PowerToys" disabled={Boolean(sending)} />
-                <Button type="button" variant="outline" disabled={!customId.trim() || Boolean(sending)} onClick={() => deploy(customId.trim(), customId.trim())}>
-                  {sending === customId.trim() ? <LoaderCircle className="animate-spin" /> : <Search />}
+                <Input id="custom-winget" value={customId} onChange={(event) => setCustomId(event.target.value)} placeholder="Ex.: Microsoft.PowerToys" disabled={sending} />
+                <Button type="button" variant="outline" disabled={!customId.trim() || sending} onClick={() => deployList([{ id: customId.trim(), name: customId.trim() }])}>
+                  {sending ? <LoaderCircle className="animate-spin" /> : <Search />}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">Use o identificador exato do pacote (winget). Apps fora do catálogo acima.</p>
+              <p className="text-[11px] text-muted-foreground">Para apps fora do catálogo, use o identificador exato do pacote (winget).</p>
             </div>
           </div>
         </DialogContent>
@@ -151,7 +188,7 @@ function SoftwareDeployCard({ asset }) {
   );
 }
 
-export function AssetDetailView({ asset, tickets = [], permissions, onBack, onRemoteAsset, onNewTicket, onOpenTicket, onReload }) {
+export function AssetDetailView({ asset, tickets = [], permissions, onBack, onRemoteAsset, onOpenTicket, onReload }) {
   const [inventory, setInventory] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [editingPatrimony, setEditingPatrimony] = useState(false);
@@ -229,7 +266,6 @@ export function AssetDetailView({ asset, tickets = [], permissions, onBack, onRe
           </div>
           <div className="flex flex-wrap gap-2">
             {asset.hostname && onRemoteAsset && <Button variant="outline" onClick={() => onRemoteAsset(asset.id)}><Monitor /> Acesso remoto</Button>}
-            {onNewTicket && <Button onClick={onNewTicket}><MessageSquarePlus /> Abrir chamado</Button>}
           </div>
         </div>
       </div>

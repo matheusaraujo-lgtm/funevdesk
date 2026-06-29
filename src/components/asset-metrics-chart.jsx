@@ -13,6 +13,13 @@ const SERIES = [
 const WIDTH = 280;
 const HEIGHT = 80;
 
+// Períodos selecionáveis — o endpoint /metrics aceita ?hours=N.
+const PERIODS = [
+  { label: "24h", hours: 24 },
+  { label: "7 dias", hours: 168 },
+  { label: "30 dias", hours: 720 },
+];
+
 function buildPath(points, key) {
   const valid = points
     .map((point, index) => ({ index, value: Number(point[key]) }))
@@ -38,6 +45,7 @@ function formatTime(iso) {
 export function AssetMetricsChart({ assetId }) {
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hours, setHours] = useState(24);
 
   useEffect(() => {
     let ignore = false;
@@ -48,7 +56,7 @@ export function AssetMetricsChart({ assetId }) {
         return;
       }
       setLoading(true);
-      const response = await fetch(`/api/assets/${assetId}/metrics?hours=24`, { cache: "no-store" });
+      const response = await fetch(`/api/assets/${assetId}/metrics?hours=${hours}`, { cache: "no-store" });
       const result = await response.json().catch(() => ({}));
       if (!ignore) {
         setMetrics(response.ok ? result.metrics || [] : []);
@@ -57,7 +65,7 @@ export function AssetMetricsChart({ assetId }) {
     }
     load();
     return () => { ignore = true; };
-  }, [assetId]);
+  }, [assetId, hours]);
 
   const latest = useMemo(() => metrics[metrics.length - 1] || null, [metrics]);
 
@@ -66,7 +74,18 @@ export function AssetMetricsChart({ assetId }) {
   return <Card className="rounded-xl py-0 shadow-none">
     <div className="flex items-center justify-between gap-3 border-b p-5">
       <p className="flex items-center gap-2 font-heading text-sm font-bold"><LineChart className="size-4 text-muted-foreground" />Histórico de telemetria</p>
-      <span className="text-[11px] text-muted-foreground">Últimas 24h</span>
+      <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-0.5">
+        {PERIODS.map((period) => (
+          <button
+            key={period.hours}
+            type="button"
+            onClick={() => setHours(period.hours)}
+            className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${hours === period.hours ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {period.label}
+          </button>
+        ))}
+      </div>
     </div>
     <div className="space-y-4 p-5 text-xs">
       {loading ? (
