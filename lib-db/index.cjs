@@ -10,6 +10,14 @@ function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
+// Dados de DEMONSTRAÇÃO (alertas XDR fake, equipes/serviços/macros de exemplo) só são
+// semeados quando NEXUS_SEED_DEMO=true. Em produção o sistema nasce limpo: apenas
+// organização, filial Matriz, usuário admin e os catálogos essenciais (tipos de
+// chamado, status, perfis/permissões). Evita "Ransomware detectado" fake sem agente.
+function demoSeedEnabled() {
+  return process.env.NEXUS_SEED_DEMO === "true";
+}
+
 function initialize(db) {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
@@ -546,7 +554,7 @@ function ensureFeatureTables(db) {
     CREATE INDEX IF NOT EXISTS idx_agent_commands_asset ON agent_commands(asset_id, status);
   `);
   ensureNetworkDeviceColumns(db);
-  ensureMacroSeeds(db);
+  if (demoSeedEnabled()) ensureMacroSeeds(db);
 }
 
 // Semeia macros de resolução padrão (respostas prontas) na primeira execução.
@@ -920,7 +928,7 @@ function ensureObservabilityTables(db) {
     db.exec("ALTER TABLE xdr_alerts ADD COLUMN ticket_id TEXT");
   }
   migrateXdrAlertsUnique(db);
-  ensureXdrAlertSeeds(db);
+  if (demoSeedEnabled()) ensureXdrAlertSeeds(db);
 }
 
 // Semeia alertas XDR de demonstração (primeira execução) para a tela não nascer vazia.
@@ -1267,7 +1275,7 @@ function seedItilData(db) {
   if (!organization) return;
   const now = new Date().toISOString();
   const teamCount = db.prepare("SELECT COUNT(*) total FROM teams").get().total;
-  if (!teamCount) {
+  if (demoSeedEnabled() && !teamCount) {
     const branches = db.prepare("SELECT id, name FROM branches").all();
     const insertTeam = db.prepare("INSERT INTO teams (id, organization_id, branch_id, name, description, created_at) VALUES (?, ?, ?, ?, ?, ?)");
     const teamIds = {};
@@ -1291,7 +1299,7 @@ function seedItilData(db) {
     }
   }
   const serviceCount = db.prepare("SELECT COUNT(*) total FROM services").get().total;
-  if (!serviceCount) {
+  if (demoSeedEnabled() && !serviceCount) {
     const types = db.prepare("SELECT id, name, description FROM ticket_types WHERE organization_id=?").all(organization.id);
     const insert = db.prepare(`INSERT INTO services (id, organization_id, ticket_type_id, name, description, sla_hours, requires_approval, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`);
     for (const type of types) {
