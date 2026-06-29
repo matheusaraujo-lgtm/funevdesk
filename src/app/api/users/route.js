@@ -6,6 +6,10 @@ import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
 
+// Senha padrão temporária de novos usuários LOCAL. Troca obrigatória no 1º login
+// (password_reset_required=1). Mostrada uma vez ao admin que criou o usuário.
+const DEFAULT_USER_PASSWORD = "funev@2026";
+
 const userSchema = z.object({
   name: z.string().min(3).max(120),
   email: z.string().email().max(180),
@@ -114,12 +118,12 @@ export async function POST(request) {
     db.prepare(`INSERT INTO users
       (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active, password_hash, password_reset_required, auth_provider)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
-      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync("Nexus@123", 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider);
+      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));
   });
   create();
-  return Response.json({ userId: id, temporaryPassword: "Nexus@123", users: listUsers(db, currentUser.organization_id) }, { status: 201 });
+  return Response.json({ userId: id, temporaryPassword: DEFAULT_USER_PASSWORD, users: listUsers(db, currentUser.organization_id) }, { status: 201 });
 }
 
 export { userSchema, validateBranches, resolveProfile };
