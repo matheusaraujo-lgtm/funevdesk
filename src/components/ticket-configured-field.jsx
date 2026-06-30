@@ -35,7 +35,8 @@ function fieldIcon(fieldType) {
   switch (fieldType) {
     case "TEXTAREA": return AlignLeft;
     case "DATE": return CalendarDays;
-    case "SELECT": return List;
+    case "SELECT":
+    case "MULTISELECT": return List;
     case "FILE":
     case "SCREENSHOT": return fieldType === "SCREENSHOT" ? ImagePlus : FileUp;
     case "LOCATION": return MapPin;
@@ -118,16 +119,34 @@ function FileDisplay({ field, attachment, readOnly, onUpload, uploading }) {
   }
 
   const accept = isScreenshot ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,application/pdf,text/plain";
+  const isImage = (attachment?.mimeType || "").startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(fileUrl || "");
   return (
     <div className="rounded-xl border border-dashed bg-muted/15 p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-        <Icon className="size-4 shrink-0 text-primary" />
-        {fileName || (isScreenshot ? "Anexe uma captura de tela" : "Anexe um arquivo de apoio")}
-      </div>
+      {fileUrl ? (
+        // Após anexar: mostra miniatura (imagem) ou chip do arquivo, clicável para visualizar.
+        <div className="mb-3 flex items-center gap-3">
+          {isImage ? (
+            <a href={fileUrl} target="_blank" rel="noreferrer" className="shrink-0">
+              <img src={fileUrl} alt={fileName} className="size-14 rounded-lg border object-cover" />
+            </a>
+          ) : (
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></span>
+          )}
+          <div className="min-w-0">
+            <a href={fileUrl} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-primary underline underline-offset-2">{fileName || "Abrir arquivo"}</a>
+            <p className="text-xs text-muted-foreground">Anexado — clique para visualizar</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <Icon className="size-4 shrink-0 text-primary" />
+          {isScreenshot ? "Anexe uma captura de tela" : "Anexe um arquivo de apoio"}
+        </div>
+      )}
       <Input ref={inputRef} className="hidden" type="file" accept={accept} onChange={(e) => onUpload?.(field, e.target.files?.[0])} />
       <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
         {uploading ? <LoaderCircle className="animate-spin" /> : <Icon />}
-        {fileName ? "Trocar arquivo" : "Selecionar arquivo"}
+        {fileUrl ? "Trocar arquivo" : "Selecionar arquivo"}
       </Button>
     </div>
   );
@@ -304,6 +323,39 @@ export function TicketConfiguredFieldInput({
           ))}
         </SelectContent>
       </Select>
+    );
+  }
+
+  if (type === "MULTISELECT") {
+    const options = field.options?.length ? field.options : normalizeOptions(field);
+    const selected = String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+    if (readOnly) {
+      return (
+        <div className="flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border bg-muted/30 px-3 py-1.5 text-sm">
+          {selected.length ? selected.map((item) => <span key={item} className="rounded-full bg-secondary px-2 py-0.5 text-xs">{item}</span>) : <span className="text-muted-foreground">—</span>}
+        </div>
+      );
+    }
+    const toggle = (option) => {
+      const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
+      onChange(next.join(", "));
+    };
+    return (
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const isSel = selected.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => toggle(option)}
+              className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition", isSel ? "border-primary bg-primary/10 text-primary" : "border-input hover:bg-muted")}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
     );
   }
 

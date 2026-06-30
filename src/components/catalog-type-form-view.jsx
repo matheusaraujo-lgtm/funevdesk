@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
 const fieldTypeLabels = {
-  TEXT: "Texto curto", TEXTAREA: "Texto longo", SELECT: "Lista de opções", DATE: "Data",
+  TEXT: "Texto curto", TEXTAREA: "Texto longo", SELECT: "Lista de opções (única)", MULTISELECT: "Múltipla escolha", DATE: "Data",
   FILE: "Arquivo", SCREENSHOT: "Captura de tela", LOCATION: "Localização", STOCK: "Item de estoque",
 };
 const approvalModeLabels = { SELECT: "Solicitante escolhe aprovador", FIXED: "Aprovador fixo" };
@@ -110,7 +110,7 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
         fieldType: field.fieldType,
         placeholder: field.placeholder,
         required: field.required,
-        options: ["SELECT", "STOCK"].includes(field.fieldType)
+        options: ["SELECT", "MULTISELECT", "STOCK"].includes(field.fieldType)
           ? field.optionsText.split(",").map((item) => item.trim()).filter(Boolean)
           : [],
       })),
@@ -223,8 +223,8 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
               <Input required aria-label={`Nome do campo ${index + 1}`} value={field.label} onChange={(event) => updateField(index, "label", event.target.value)} placeholder="Nome do campo" />
               <Select value={field.fieldType} onValueChange={(value) => updateField(index, "fieldType", value)}><SelectTrigger aria-label={`Tipo do campo ${index + 1}`}><SelectValue placeholder="Tipo de campo">{(value) => fieldTypeLabels[value]}</SelectValue></SelectTrigger><SelectContent>{Object.entries(fieldTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
               <Input aria-label={`Texto de orientação do campo ${index + 1}`} value={field.placeholder} onChange={(event) => updateField(index, "placeholder", event.target.value)} placeholder="Texto de orientação" />
-              {field.fieldType === "SELECT" || field.fieldType === "STOCK" ? (
-                <Input required={field.fieldType === "SELECT"} aria-label={`Opções do campo ${index + 1}`} value={field.optionsText} onChange={(event) => updateField(index, "optionsText", event.target.value)} placeholder={field.fieldType === "STOCK" ? "Filtro: Periféricos, Suprimentos (opcional)" : "Opção 1, Opção 2, Opção 3"} />
+              {field.fieldType === "SELECT" || field.fieldType === "MULTISELECT" || field.fieldType === "STOCK" ? (
+                <Input required={field.fieldType === "SELECT" || field.fieldType === "MULTISELECT"} aria-label={`Opções do campo ${index + 1}`} value={field.optionsText} onChange={(event) => updateField(index, "optionsText", event.target.value)} placeholder={field.fieldType === "STOCK" ? "Filtro: Periféricos, Suprimentos (opcional)" : "Opção 1, Opção 2, Opção 3"} />
               ) : (
                 <Button type="button" variant={field.required ? "default" : "outline"} onClick={() => updateField(index, "required", !field.required)}>{field.required ? "Campo obrigatório" : "Campo opcional"}</Button>
               )}

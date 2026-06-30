@@ -444,7 +444,7 @@ export function TicketCreateView({
 
         {selectedType.fields.length > 0 && (
           <StepCard step={3} title="Detalhes para o suporte" hint={`Campos específicos de ${selectedType.name}.`}>
-            <CardContent className="grid gap-5 px-5 py-5 sm:grid-cols-2">{selectedType.fields.map((field) => <Field key={field.id} label={field.label} required={field.required} className={["TEXTAREA", "FILE", "SCREENSHOT", "STOCK"].includes(field.field_type) ? "sm:col-span-2" : ""}>{renderConfiguredField(field)}</Field>)}</CardContent>
+            <CardContent className="grid gap-5 px-5 py-5 sm:grid-cols-2">{selectedType.fields.map((field) => <Field key={field.id} label={field.label} required={field.required} className={["TEXTAREA", "FILE", "SCREENSHOT", "STOCK", "MULTISELECT"].includes(field.field_type) ? "sm:col-span-2" : ""}>{renderConfiguredField(field)}</Field>)}</CardContent>
           </StepCard>
         )}
 

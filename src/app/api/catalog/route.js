@@ -101,7 +101,9 @@ export async function GET(request) {
 
 const IMPORT_KINDS = new Set(["INCIDENTE", "REQUISICAO"]);
 const IMPORT_PRIORITIES = new Set(["BAIXA", "MEDIA", "ALTA", "CRITICA"]);
-const IMPORT_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT"]);
+const IMPORT_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "DATE", "FILE", "SCREENSHOT", "LOCATION", "STOCK"]);
+// SELECT/MULTISELECT exigem opções na importação.
+const IMPORT_FIELD_NEEDS_OPTIONS = new Set(["SELECT", "MULTISELECT"]);
 const isTruthyCell = (value) => /^(sim|s|yes|y|true|1|x)$/i.test(String(value || "").trim());
 
 // Importa tipos de chamado por planilha (1 linha = 1 campo). Agrupa por "tipo"; os
@@ -149,7 +151,7 @@ function importCatalogRows(db, organizationId, rows) {
         const fieldType = IMPORT_FIELD_TYPES.has(String(row.campo_tipo || "").trim().toUpperCase()) ? String(row.campo_tipo).trim().toUpperCase() : "TEXT";
         const required = isTruthyCell(row.campo_obrigatorio);
         const options = String(row.campo_opcoes || "").split(",").map((opt) => opt.trim()).filter(Boolean);
-        if (fieldType === "SELECT" && !options.length) throw new Error(`O campo "${label}" do tipo "${tipo}" é SELECT e precisa de opções (campo_opcoes, separadas por vírgula).`);
+        if (IMPORT_FIELD_NEEDS_OPTIONS.has(fieldType) && !options.length) throw new Error(`O campo "${label}" do tipo "${tipo}" é ${fieldType} e precisa de opções (campo_opcoes, separadas por vírgula).`);
         insertField.run(makeId("fld"), typeId, label, fieldType, required ? 1 : 0, options.length ? JSON.stringify(options) : null, position);
       });
       importedTypes += 1;
@@ -186,7 +188,7 @@ export async function POST(request) {
     defaultPriority: z.enum(["BAIXA", "MEDIA", "ALTA", "CRITICA"]),
     fields: z.array(z.object({
       label: z.string().min(2).max(100),
-      fieldType: z.enum(["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT", "LOCATION", "STOCK"]),
+      fieldType: z.enum(["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "DATE", "FILE", "SCREENSHOT", "LOCATION", "STOCK"]),
       placeholder: z.string().max(160).optional(),
       required: z.boolean(),
       options: z.array(z.string().min(1)).optional(),
