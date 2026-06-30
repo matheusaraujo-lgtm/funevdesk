@@ -5,6 +5,7 @@ import { Building2, Hash, MapPin, Pencil, Plus, Search, Trash2 } from "lucide-re
 import { toast } from "sonner";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -130,7 +131,7 @@ export function SettingsLocationsView({ branches = [] }) {
         icon={MapPin}
         title="Localizações"
         description="Salas, andares e setores por unidade — usados no agente e nos chamados."
-        actions={<Button onClick={openCreate}><Plus /> Nova localização</Button>}
+        actions={<div className="flex flex-wrap items-center gap-2"><ImportTemplateButtons endpoint="/api/locations" templateFile="modelo-localizacoes.csv" onImported={load} label="localização" /><Button onClick={openCreate}><Plus /> Nova localização</Button></div>}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
