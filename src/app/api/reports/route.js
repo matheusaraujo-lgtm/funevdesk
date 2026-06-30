@@ -116,7 +116,7 @@ export async function GET(request) {
   if (branchId) { agentQuery += " AND t.branch_id=?"; agentParams.push(branchId); }
   if (from) { agentQuery += " AND t.created_at>=?"; agentParams.push(from); }
   if (to) { agentQuery += " AND t.created_at<=?"; agentParams.push(to); }
-  agentQuery += " GROUP BY t.assignee_id ORDER BY total DESC LIMIT 8";
+  agentQuery += " GROUP BY u.id, u.name ORDER BY total DESC LIMIT 8";
 
   return Response.json({
     range: { from, to },
