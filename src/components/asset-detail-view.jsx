@@ -130,7 +130,7 @@ function SoftwareDeployCard({ asset }) {
             <DialogTitle>Instalar software em {asset.hostname}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-xs text-muted-foreground">Selecione um ou mais aplicativos. O agente instala em silêncio no próximo contato com o servidor.</p>
+            <p className="text-xs text-muted-foreground">Selecione um ou mais aplicativos. O agente instala em silêncio, com privilégios de administrador (serviço do sistema) — o usuário da máquina não precisa ser admin.</p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar aplicativo..." className="pl-9" disabled={sending} />
