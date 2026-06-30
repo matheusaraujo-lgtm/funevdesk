@@ -33,10 +33,13 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    # Bind apenas em localhost: o tráfego público deve passar por um reverse proxy
-    # com HTTPS (ver DEPLOY.md). Em produção o cookie de sessão é Secure e exige TLS.
+    # O TLS é responsabilidade do reverse proxy (nginx). O app só fala HTTP.
+    #  - nginx no MESMO host  -> APP_BIND=127.0.0.1 (não expõe nada na rede).
+    #  - nginx em OUTRO host  -> APP_BIND=0.0.0.0 (ou o IP privado) E libere a porta
+    #    no firewall SOMENTE para o IP do nginx (ex.: ufw allow from <ip_nginx> to any port 3000).
+    # Em produção o cookie de sessão é Secure e exige que o usuário acesse via HTTPS.
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-3000}:3000"
     # Variáveis de runtime (segredos, integrações) vêm do .env.
     env_file:
       - .env

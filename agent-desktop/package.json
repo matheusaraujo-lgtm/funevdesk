@@ -29,7 +29,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "http://localhost:3000/downloads/agent/updates",
+        "url": "https://funevdesk.funev.org.br/downloads/agent/updates",
         "channel": "latest"
       }
     ],

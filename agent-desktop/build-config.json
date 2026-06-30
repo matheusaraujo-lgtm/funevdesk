@@ -1,5 +1,5 @@
 {
-  "serverUrl": "http://localhost:3000",
+  "serverUrl": "https://funevdesk.funev.org.br",
   "agentToken": "",
   "agentVersion": "1.2.8",
   "appName": "FunevDesk",

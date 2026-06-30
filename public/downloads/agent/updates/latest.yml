@@ -1,8 +1,8 @@
 version: 1.2.8
 files:
   - url: FunevDeskAgente-1.2.8.exe
-    sha512: P4nMCBfXy/VnnO299TiTOPzF49VMUa7j3542EqK9Ej+jx1p3knJcCmpQlNRIn8/Wo9fulC2BMCjch8/JfZDyKw==
-    size: 86476400
+    sha512: dL0+gKGeREhv/KsLNfoed5ZrmBR2g8py3fM0D07pD43N3YKuGUsazFykxGkRFsvQP9ADj7k6sU98IdEKUuCPlQ==
+    size: 86476404
 path: FunevDeskAgente-1.2.8.exe
-sha512: P4nMCBfXy/VnnO299TiTOPzF49VMUa7j3542EqK9Ej+jx1p3knJcCmpQlNRIn8/Wo9fulC2BMCjch8/JfZDyKw==
-releaseDate: '2026-06-29T20:35:24.253Z'
+sha512: dL0+gKGeREhv/KsLNfoed5ZrmBR2g8py3fM0D07pD43N3YKuGUsazFykxGkRFsvQP9ADj7k6sU98IdEKUuCPlQ==
+releaseDate: '2026-06-30T12:36:12.940Z'

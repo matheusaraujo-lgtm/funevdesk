@@ -51,7 +51,7 @@ if [ ! -f .env ]; then
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|"       .env
   sed -i "s|^NEXUS_SEED_PASSWORD=.*|NEXUS_SEED_PASSWORD=$(gen)|"   .env
   sed -i "s|^XDR_INGEST_SECRET=.*|XDR_INGEST_SECRET=$(gen)|"       .env
-  warn "Revise o .env: ajuste AGENT_ALLOWED_SERVER_HOSTS para o seu domínio público."
+  warn "Revise o .env: confirme o domínio (AGENT_ALLOWED_SERVER_HOSTS) e o APP_BIND (127.0.0.1 se o nginx estiver neste host)."
 else
   log ".env já existe — mantido como está."
 fi
@@ -68,7 +68,7 @@ cat <<'EOF'
 
 ============================================================
 Pronto! Próximos passos:
-  1. Coloque um reverse proxy com HTTPS na frente (ver DEPLOY.md).
+  1. Configure o nginx com TLS para https://funevdesk.funev.org.br (ver DEPLOY.md §2).
   2. Senha inicial do admin (admin@local): veja no log do container ->
        docker compose logs app | grep -A2 "Senha inicial"
      (ou o valor de NEXUS_SEED_PASSWORD no .env)
