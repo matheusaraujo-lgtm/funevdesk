@@ -84,6 +84,11 @@ export async function GET(request) {
         { tipo: "Solicitação de acesso", kind: "REQUISICAO", categoria: "Acesso", prioridade: "MEDIA", descricao: "Criação ou alteração de acessos", aprovacao: "sim", campo_label: "Sistema ou recurso", campo_tipo: "TEXT", campo_obrigatorio: "sim", campo_opcoes: "" },
         { tipo: "Solicitação de acesso", kind: "REQUISICAO", categoria: "Acesso", prioridade: "MEDIA", descricao: "Criação ou alteração de acessos", aprovacao: "sim", campo_label: "Nível de acesso", campo_tipo: "SELECT", campo_obrigatorio: "sim", campo_opcoes: "Leitura,Edição,Administrador" },
         { tipo: "Problema no computador", kind: "INCIDENTE", categoria: "Hardware", prioridade: "ALTA", descricao: "Falhas de hardware", aprovacao: "nao", campo_label: "Sintoma", campo_tipo: "SELECT", campo_obrigatorio: "sim", campo_opcoes: "Lentidão,Travamento,Não liga" },
+        // Legenda (linhas iniciadas com # NÃO são importadas) — referência dos valores válidos.
+        { tipo: "" },
+        { tipo: "# REFERÊNCIA — linhas com # não são importadas" },
+        { tipo: "# campo_tipo: TEXT=Texto curto | TEXTAREA=Texto longo | SELECT=Lista de opções (única) | MULTISELECT=Múltipla escolha | DATE=Data | FILE=Arquivo | SCREENSHOT=Captura de tela | LOCATION=Localização | STOCK=Item de estoque" },
+        { tipo: "# kind: INCIDENTE ou REQUISICAO | prioridade: BAIXA, MEDIA, ALTA, CRITICA | aprovacao e campo_obrigatorio: sim ou nao | campo_opcoes: separe por vírgula (SELECT e MULTISELECT)" },
       ],
       allowedKinds: ["INCIDENTE", "REQUISICAO"],
       allowedFieldTypes: ["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT"],
@@ -111,9 +116,10 @@ const isTruthyCell = (value) => /^(sim|s|yes|y|true|1|x)$/i.test(String(value ||
 // SELECT exige opções, cada tipo precisa de >=1 campo. Tipos já existentes são pulados.
 function importCatalogRows(db, organizationId, rows) {
   const groups = new Map();
-  rows.forEach((row, index) => {
+  rows.forEach((row) => {
     const tipo = String(row.tipo || "").trim();
-    if (!tipo) throw new Error(`Linha ${index + 2}: a coluna "tipo" é obrigatória.`);
+    // Ignora linhas em branco e de referência (legenda iniciada com #).
+    if (!tipo || tipo.startsWith("#")) return;
     if (!groups.has(tipo)) groups.set(tipo, []);
     groups.get(tipo).push(row);
   });
