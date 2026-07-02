@@ -13,10 +13,14 @@ export function formatPercent(value, decimals = 1) {
   return `${Math.round(n * factor) / factor}%`;
 }
 
-/** Tempo relativo curto em pt-BR ("Há 5 min", "Há 3h", "Há 2d"). `fallback` para data ausente. */
+/** Tempo relativo curto em pt-BR ("Agora mesmo", "Há 5 min", "Há 3h", "Há 2d"). `fallback` para data ausente. */
 export function timeAgo(date, fallback = "Nunca") {
   if (!date) return fallback;
-  const minutes = Math.max(1, Math.round((Date.now() - new Date(date).getTime()) / 60000));
+  const seconds = Math.round((Date.now() - new Date(date).getTime()) / 1000);
+  // Comunicação recente (até ~1 min, incluindo pequeno desvio de relógio) é mostrada de forma
+  // direta como "Agora mesmo" — antes qualquer coisa recente virava "Há 1 min".
+  if (seconds < 75) return "Agora mesmo";
+  const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `Há ${minutes} min`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `Há ${hours}h`;

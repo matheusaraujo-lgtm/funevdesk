@@ -110,11 +110,13 @@ export function can(user, module, action = "read") {
 // O escopo por unidade (canViewAllBranches/canSelectBranches/isEmployee) permanece
 // derivado do role (= base_role do perfil), preservando o isolamento por filial.
 export function getPermissions(user) {
-  const isAdmin = user.role === "ADMIN";
+  // Visibilidade por unidade NÃO depende mais do papel: deriva do flag explícito
+  // all_branches. Assim um admin pode ser restrito a uma unidade (ex.: só a filial UPA).
+  const seesAllBranches = Boolean(user.all_branches);
   const canConfigure = can(user, "settings", "read");
   return {
-    canViewAllBranches: isAdmin,
-    canSelectBranches: isAdmin || user.branchIds.length > 1,
+    canViewAllBranches: seesAllBranches,
+    canSelectBranches: seesAllBranches || user.branchIds.length > 1,
     // "Gerenciar chamados" = papel de atendente/gestor (atualiza/atribui), não apenas abrir o próprio.
     // Por isso deriva de update — criar o próprio chamado (tickets:create) não concede gestão.
     canManageTickets: can(user, "tickets", "update"),
@@ -155,11 +157,14 @@ export function canManageUser(actor, targetRole) {
 
 export function canAccessTicket(user, ticket) {
   if (user.organization_id !== ticket.organization_id) return false;
-  if (user.role === "ADMIN") return true;
-  if (user.role === "TECHNICIAN") return user.branchIds.includes(ticket.branch_id);
-  if (ticket.requester_id === user.id) return true;
-  if (user.asset_id && ticket.asset_id === user.asset_id) return true;
-  return false;
+  if (user.all_branches) return true;
+  // Usuário-final (EMPLOYEE) só vê os próprios chamados, mesmo dentro da sua unidade.
+  if (user.role === "EMPLOYEE") {
+    if (ticket.requester_id === user.id) return true;
+    return Boolean(user.asset_id && ticket.asset_id === user.asset_id);
+  }
+  // Admin/Técnico escopados: acessam chamados das unidades atribuídas.
+  return user.branchIds.includes(ticket.branch_id);
 }
 
 export function roleLabel(role) {

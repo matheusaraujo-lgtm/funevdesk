@@ -17,6 +17,7 @@ const userSchema = z.object({
   profileId: z.string().min(1).optional(),
   branchIds: z.array(z.string().min(1)).min(1),
   primaryBranchId: z.string().min(1),
+  allBranches: z.boolean().optional().default(false),
   assetId: z.string().nullable().optional(),
   authProvider: z.enum(["LOCAL", "LDAP"]).optional().default("LOCAL"),
 });
@@ -39,7 +40,7 @@ function resolveProfile(db, organizationId, data) {
 export function listUsers(db, organizationId, branchIds = null) {
   const users = db.prepare(`
     SELECT u.id, u.name, u.email, u.role, u.profile_id, u.branch_id, u.asset_id, u.active,
-      u.password_reset_required, u.auth_provider, u.created_at, b.name branch_name, a.hostname,
+      u.password_reset_required, u.auth_provider, u.all_branches, u.created_at, b.name branch_name, a.hostname,
       p.name profile_name
     FROM users u
     LEFT JOIN branches b ON b.id=u.branch_id
@@ -57,6 +58,7 @@ export function listUsers(db, organizationId, branchIds = null) {
     ...user,
     active: Boolean(user.active),
     passwordResetRequired: Boolean(user.password_reset_required),
+    allBranches: Boolean(user.all_branches),
     authProvider: user.auth_provider || "LOCAL",
     profileId: user.profile_id || null,
     profileName: user.profile_name || roleLabel(user.role),
@@ -79,6 +81,16 @@ function validateBranches(db, organizationId, branchIds, primaryBranchId, assetI
     const asset = db.prepare("SELECT branch_id FROM assets WHERE id=? AND organization_id=?").get(assetId, organizationId);
     if (!asset || !branchIds.includes(asset.branch_id)) return "O equipamento deve pertencer a uma unidade vinculada.";
   }
+  return null;
+}
+
+// Isolamento na ESCRITA: um ator restrito a unidades não pode criar/mover usuários para
+// unidades fora do seu escopo, nem conceder "todas as unidades" sendo ele próprio restrito.
+function actorBranchScopeError(actor, data) {
+  if (actor.all_branches) return null;
+  if (data.allBranches) return "Você não pode conceder acesso a todas as unidades.";
+  const outside = data.branchIds.filter((branchId) => !actor.branchIds.includes(branchId));
+  if (outside.length) return "Você só pode atribuir unidades às quais você tem acesso.";
   return null;
 }
 
@@ -107,6 +119,8 @@ export async function POST(request) {
   const db = getDb();
   const branchError = validateBranches(db, currentUser.organization_id, parsed.data.branchIds, parsed.data.primaryBranchId, parsed.data.assetId);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
+  const scopeError = actorBranchScopeError(currentUser, parsed.data);
+  if (scopeError) return Response.json({ error: scopeError }, { status: 403 });
   if (db.prepare("SELECT id FROM users WHERE organization_id=? AND email=?").get(currentUser.organization_id, parsed.data.email.toLowerCase())) return Response.json({ error: "Já existe um usuário com este e-mail." }, { status: 409 });
   const resolved = resolveProfile(db, currentUser.organization_id, parsed.data);
   if (resolved.error) return Response.json({ error: resolved.error }, { status: 400 });
@@ -116,9 +130,9 @@ export async function POST(request) {
   const authProvider = parsed.data.authProvider || "LOCAL";
   const create = db.transaction(() => {
     db.prepare(`INSERT INTO users
-      (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active, password_hash, password_reset_required, auth_provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
-      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider);
+      (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active, password_hash, password_reset_required, auth_provider, all_branches)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`)
+      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider, parsed.data.allBranches ? 1 : 0);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));
   });
@@ -126,4 +140,4 @@ export async function POST(request) {
   return Response.json({ userId: id, temporaryPassword: DEFAULT_USER_PASSWORD, users: listUsers(db, currentUser.organization_id) }, { status: 201 });
 }
 
-export { userSchema, validateBranches, resolveProfile };
+export { userSchema, validateBranches, resolveProfile, actorBranchScopeError };

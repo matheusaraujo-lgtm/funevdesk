@@ -1,6 +1,6 @@
 import { requireCurrentUser, can } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
-import { getAllowedBranchIds } from "@/lib/branch-scope";
+import { getAllowedBranchIds, canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +66,8 @@ export async function POST(request) {
   const db = getDb();
   const refError = validateTeamRefs(db, auth.user.organization_id, parsed.data.branchId, parsed.data.memberIds);
   if (refError) return Response.json({ error: refError }, { status: 400 });
+  // Isolamento: admin restrito não cria equipe em unidade fora do seu acesso.
+  if (parsed.data.branchId && !canAccessBranch(auth.user, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const id = makeId("team");
   const now = new Date().toISOString();
   db.transaction(() => {

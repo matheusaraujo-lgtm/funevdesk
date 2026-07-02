@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { toServableLogoUrl } from "@/lib/branding";
+import { canAccessBranch } from "@/lib/branch-scope";
+import { rotateBranchEnrollmentKey } from "@/lib/agent";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +53,7 @@ function readOrgBranding(db, organizationId) {
   const org = db.prepare("SELECT name FROM organizations WHERE id=?").get(organizationId);
   return {
     appName: settings?.app_name || org?.name || "FunevDesk",
-    logoUrl: settings?.logo_url || "",
+    logoUrl: toServableLogoUrl(settings?.logo_url),
     primaryColor: settings?.primary_color || "#102033",
   };
 }
@@ -144,13 +147,31 @@ export async function GET(request) {
 
     const url = new URL(request.url);
     const type = url.searchParams.get("type") || "exe";
-    const requestedServerUrl = url.searchParams.get("serverUrl") || url.origin;
+    // URL pública configurada (ex.: https://funevdesk.funev.org.br). Quando o admin acessa o
+    // painel pelo próprio servidor (localhost:3000), a origem da requisição NÃO serve para a
+    // frota — o agente roda em outras máquinas. Nesse caso usamos a URL pública configurada.
+    // Sem APP_PUBLIC_URL, derivamos do primeiro host de AGENT_ALLOWED_SERVER_HOSTS (https),
+    // que já costuma estar definido no deploy — assim funciona sem nova variável de ambiente.
+    const allowedHostsEnv = (process.env.AGENT_ALLOWED_SERVER_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean);
+    let publicUrl = (process.env.APP_PUBLIC_URL || "").trim().replace(/\/$/, "");
+    if (!publicUrl && allowedHostsEnv[0]) publicUrl = `https://${allowedHostsEnv[0]}`;
+    let publicHost = "";
+    try { if (publicUrl) publicHost = new URL(publicUrl).host; } catch { /* URL pública inválida: ignorada */ }
+    let requestedServerUrl = url.searchParams.get("serverUrl") || url.origin;
+    try {
+      const reqHost = new URL(requestedServerUrl).hostname;
+      const isLoopback = ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(reqHost);
+      if (publicUrl && isLoopback) requestedServerUrl = publicUrl;
+    } catch {
+      if (publicUrl) requestedServerUrl = publicUrl;
+    }
     // O serverUrl é embutido no agente (que roda como SYSTEM) e define para onde ele
     // se reporta. Validar contra a própria origem + allow-list evita gerar um instalador
     // que aponte a frota para um servidor malicioso (C2).
     const allowedHosts = new Set([
       url.host,
-      ...(process.env.AGENT_ALLOWED_SERVER_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
+      ...(publicHost ? [publicHost] : []),
+      ...allowedHostsEnv,
     ]);
     let serverUrl;
     try {
@@ -165,7 +186,8 @@ export async function GET(request) {
     }
     const agentToken = url.searchParams.get("agentToken") || "";
     const enrollmentKey = url.searchParams.get("enrollmentKey") || "";
-    const token = agentToken || enrollmentKey;
+    const requestedBranchId = (url.searchParams.get("branchId") || "").trim();
+    let token = agentToken || enrollmentKey;
 
     if (type === "manifest" || type === "info") {
       const manifest = await readAgentManifest();
@@ -180,10 +202,17 @@ export async function GET(request) {
       });
     }
 
-    if (!token) {
-      return Response.json({
-        error: "Selecione um token ou chave de enrollment antes de baixar o instalador.",
-      }, { status: 400 });
+    // Opcional: se uma unidade for passada (fluxo de repack/Windows), embute a chave dela.
+    // No fluxo padrão o instalador é GENÉRICO e a unidade é definida na instalação pela chave
+    // da filial (config.json), então `token` pode ficar vazio aqui sem problema.
+    if (requestedBranchId) {
+      const db = getDb();
+      if (!canAccessBranch(auth.user, requestedBranchId)) {
+        return Response.json({ error: "Sem acesso à unidade selecionada." }, { status: 403 });
+      }
+      const minted = rotateBranchEnrollmentKey(db, auth.user.organization_id, requestedBranchId);
+      if (!minted) return Response.json({ error: "Unidade inválida." }, { status: 400 });
+      token = minted.plaintextOnce;
     }
 
     if (type === "exe" || type === "gpo-exe" || type === "msi" || type === "gpo-msi") {

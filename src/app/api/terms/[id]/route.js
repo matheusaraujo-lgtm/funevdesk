@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser, can } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,9 @@ export async function DELETE(request, { params }) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem excluir termos." }, { status: 403 });
+  const term = db.prepare("SELECT branch_id FROM equipment_terms WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
+  if (!term) return Response.json({ error: "Termo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(currentUser, term.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const result = db.prepare("DELETE FROM equipment_terms WHERE id=? AND organization_id=?").run(id, currentUser.organization_id);
   if (!result.changes) return Response.json({ error: "Termo não encontrado." }, { status: 404 });
   return Response.json({ ok: true });

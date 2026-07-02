@@ -97,7 +97,7 @@ export async function GET(request) {
   }
 
   let catalog = listCatalog(db, currentUser.organization_id);
-  if (currentUser.role !== "ADMIN") {
+  if (!currentUser.all_branches) {
     catalog = catalog.filter((type) => type.active);
     catalog = catalog.filter((type) => type.allBranches || type.branchIds.some((id) => currentUser.branchIds.includes(id)));
   }

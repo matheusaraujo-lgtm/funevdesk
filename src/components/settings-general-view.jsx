@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AGENT_VERSION = "1.2.8";
 
@@ -100,6 +101,10 @@ export function SettingsGeneralView({ settings, onSave }) {
   const [organizationName, setOrganizationName] = useState(() => settings?.organizationName || "");
   const [appName, setAppName] = useState(() => settings?.appName || "FunevDesk");
   const [logoUrl, setLogoUrl] = useState(() => settings?.logoUrl || "");
+  // Pré-visualização imediata da imagem recém-enviada: o /uploads/<uuid> só é servido
+  // depois de salvar (a rota pública entrega apenas logos já registradas), então até lá
+  // mostramos o arquivo local via object URL.
+  const [logoPreview, setLogoPreview] = useState("");
   const [primaryColor, setPrimaryColor] = useState(() => settings?.primaryColor || "#102033");
   const [secondaryColor, setSecondaryColor] = useState(() => settings?.secondaryColor || "#bff2e6");
   const [navigationMode, setNavigationMode] = useState(() => settings?.navigationMode || "NAVBAR");
@@ -115,6 +120,13 @@ export function SettingsGeneralView({ settings, onSave }) {
   const [enrollmentKey, setEnrollmentKey] = useState("");
   const [generatingKey, setGeneratingKey] = useState(false);
   const [softwarePackages, setSoftwarePackages] = useState([]);
+  // Unidade-alvo do instalador: o ativo registra-se NESTA filial. Lista já vem escopada
+  // pelo /api/branches (cada admin só enxerga as unidades a que tem acesso).
+  const [branches, setBranches] = useState([]);
+  const [installBranchId, setInstallBranchId] = useState("");
+  const [branchKey, setBranchKey] = useState("");
+  const [branchServerUrl, setBranchServerUrl] = useState("");
+  const [generatingBranchKey, setGeneratingBranchKey] = useState(false);
   const [swName, setSwName] = useState("");
   const [swId, setSwId] = useState("");
   const [swBusy, setSwBusy] = useState(false);
@@ -158,6 +170,19 @@ export function SettingsGeneralView({ settings, onSave }) {
       .catch(() => setSoftwarePackages([]));
   }, []);
 
+  // Unidades às quais o admin tem acesso — alvo de enrollment do instalador.
+  useEffect(() => {
+    fetch("/api/branches", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { branches: [] }))
+      .then((data) => {
+        const list = data.branches || [];
+        setBranches(list);
+        // Pré-seleciona a matriz quando disponível; senão a primeira unidade acessível.
+        setInstallBranchId((current) => current || list.find((b) => b.type === "MATRIZ")?.id || list[0]?.id || "");
+      })
+      .catch(() => setBranches([]));
+  }, []);
+
   async function addSoftwarePackage() {
     const name = swName.trim();
     const wingetId = swId.trim();
@@ -198,6 +223,11 @@ export function SettingsGeneralView({ settings, onSave }) {
   }
 
   const serverUrl = typeof window !== "undefined" ? window.location.origin : "";
+  // Comando que grava a config da filial (serverUrl público + chave da unidade) em ProgramData.
+  // O agente relê a config a cada heartbeat (~60s) e passa a se reportar nessa unidade — sem reinstalar.
+  const branchInstallCommand = branchKey
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$d='C:\\ProgramData\\FunevDesk'; New-Item -ItemType Directory -Force $d | Out-Null; [pscustomobject]@{serverUrl='${branchServerUrl || serverUrl}';agentToken='${branchKey}'} | ConvertTo-Json | Set-Content -Encoding ascii (Join-Path $d 'config.json')"`
+    : "";
 
   if (!settings) {
     return (
@@ -229,6 +259,7 @@ export function SettingsGeneralView({ settings, onSave }) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) return toast.error(result.error || "Não foi possível enviar a logo.");
     setLogoUrl(result.publicUrl);
+    setLogoPreview(URL.createObjectURL(file));
     toast.success("Logo enviada. Clique em salvar para aplicar.");
   }
 
@@ -237,18 +268,9 @@ export function SettingsGeneralView({ settings, onSave }) {
     const slowBuild = ["exe", "gpo-msi"].includes(type);
     if (slowBuild) toast.info(`Preparando instalador v${AGENT_VERSION} (até 1 minuto)…`);
     try {
-      // O download gera automaticamente a chave de enrollment e a embute no instalador,
-      // dispensando a cópia manual de tokens. O servidor guarda apenas o hash da chave.
-      const keyResponse = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ regenerateAgentEnrollmentKey: true }),
-      });
-      const keyResult = await keyResponse.json().catch(() => ({}));
-      if (!keyResponse.ok || !keyResult.agentEnrollmentKey) {
-        throw new Error(keyResult.error || "Não foi possível gerar a chave de enrollment.");
-      }
-      const params = new URLSearchParams({ type, serverUrl, enrollmentKey: keyResult.agentEnrollmentKey });
+      // O instalador é GENÉRICO (mesmo binário para toda a empresa). A UNIDADE é definida na
+      // instalação pela chave da filial (card "Instalação por unidade") — não embutimos aqui.
+      const params = new URLSearchParams({ type, serverUrl });
       const savedAs = await downloadFile(`/api/agent/download?${params}`, filename);
       const version = savedAs.includes(AGENT_VERSION) ? `v${AGENT_VERSION}` : "";
       toast.success(version ? `Instalador ${version} baixado. Execute como Administrador.` : "Download concluído.");
@@ -256,6 +278,34 @@ export function SettingsGeneralView({ settings, onSave }) {
       toast.error(error.message);
     } finally {
       setDownloading("");
+    }
+  }
+
+  // Gera/rotaciona a chave de enrollment DA FILIAL selecionada. O texto puro aparece UMA vez —
+  // é o que vai no config.json / comando de GPO para o equipamento entrar naquela unidade.
+  async function generateBranchKey() {
+    if (!installBranchId) {
+      toast.error("Selecione a unidade.");
+      return;
+    }
+    setGeneratingBranchKey(true);
+    try {
+      const response = await fetch("/api/agent/enrollment-key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ branchId: installBranchId }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.enrollmentKey) {
+        throw new Error(result.error || "Não foi possível gerar a chave da unidade.");
+      }
+      setBranchKey(result.enrollmentKey);
+      setBranchServerUrl(result.serverUrl || serverUrl);
+      toast.success(`Chave gerada para ${result.branchName || "a unidade"}.`);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setGeneratingBranchKey(false);
     }
   }
 
@@ -341,14 +391,14 @@ export function SettingsGeneralView({ settings, onSave }) {
                 <Label htmlFor="settings-logo-url" className="mb-2 block">Logo do sistema</Label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border bg-transparent">
-                    {logoUrl ? <img src={logoUrl} alt="Logo do sistema" className="h-full w-full object-contain" /> : <ImageIcon className="size-6 text-muted-foreground" />}
+                    {(logoPreview || logoUrl) ? <img src={logoPreview || logoUrl} alt="Logo do sistema" className="h-full w-full object-contain" /> : <ImageIcon className="size-6 text-muted-foreground" />}
                   </div>
                   <div className="min-w-0 flex-1 space-y-2">
-                    <Input id="settings-logo-url" value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="/uploads/logo.png ou https://..." />
+                    <Input id="settings-logo-url" value={logoUrl} onChange={(event) => { setLogoPreview(""); setLogoUrl(event.target.value); }} placeholder="/uploads/logo.png ou https://..." />
                     <div className="flex gap-2">
                       <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={uploadLogo} />
                       <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}><ImageIcon className="size-4" /> Escolher imagem</Button>
-                      {logoUrl && <Button type="button" variant="ghost" size="sm" onClick={() => setLogoUrl("")}>Remover</Button>}
+                      {logoUrl && <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoPreview(""); setLogoUrl(""); }}>Remover</Button>}
                     </div>
                   </div>
                 </div>
@@ -469,7 +519,7 @@ export function SettingsGeneralView({ settings, onSave }) {
             </CardHeader>
             <CardContent className="space-y-4 pt-1">
               <p className="text-sm text-muted-foreground">
-                Baixe o instalador e execute como Administrador na máquina. A chave de enrollment é gerada e embutida automaticamente a cada download — não é preciso copiar nenhum token.
+                Baixe o instalador genérico e execute como Administrador. A <strong>unidade</strong> em que cada equipamento entra é definida na instalação pela chave da filial (card "Instalação por unidade" abaixo).
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Button type="button" variant="outline" className="h-auto justify-start gap-4 p-4 text-left" disabled={downloading === "exe"} onClick={() => handleDownload("exe", `FunevDeskAgenteSetup-${AGENT_VERSION}.exe`)}><HardDriveDownload className="size-5" /><div><p className="font-medium">{downloading === "exe" ? "Gerando..." : `Instalador EXE v${AGENT_VERSION}`}</p><p className="text-xs font-normal text-muted-foreground">Agente completo — arquivo .exe, não ZIP.</p></div></Button>
@@ -477,12 +527,54 @@ export function SettingsGeneralView({ settings, onSave }) {
                 <Button type="button" variant="outline" className="h-auto justify-start gap-4 p-4 text-left" disabled={downloading === "gpo-msi"} onClick={() => handleDownload("gpo-msi", `FunevDeskAgente-${AGENT_VERSION}.msi`)}><Package className="size-5" /><div><p className="font-medium">{downloading === "gpo-msi" ? "Gerando..." : `Pacote MSI v${AGENT_VERSION} (GPO)`}</p><p className="text-xs font-normal text-muted-foreground">Implantação por política de grupo.</p></div></Button>
               </div>
 
+              <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/[0.03] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 className="size-[18px]" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Instalação por unidade (GPO)</p>
+                    <p className="text-xs text-muted-foreground">Gere a chave da filial e use o comando abaixo na GPO (ou manualmente) após instalar o agente. O equipamento entra nessa unidade em até 1 minuto — sem reinstalar.</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="install-branch" className="text-xs font-medium">Unidade</Label>
+                    <Select value={installBranchId} onValueChange={(value) => { setInstallBranchId(value); setBranchKey(""); }}>
+                      <SelectTrigger id="install-branch" aria-label="Unidade" className="w-full">
+                        <SelectValue placeholder="Selecione a unidade">{(value) => branches.find((b) => b.id === value)?.name || "Selecione a unidade"}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.length === 0
+                          ? <SelectItem value="none" disabled>Nenhuma unidade disponível</SelectItem>
+                          : branches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>{branch.name}{branch.type === "MATRIZ" ? " (Matriz)" : ""}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="button" variant="default" disabled={generatingBranchKey || !installBranchId} onClick={generateBranchKey}><KeyRound className="size-4" /> {generatingBranchKey ? "Gerando..." : "Gerar chave da unidade"}</Button>
+                </div>
+                {branchKey && (
+                  <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-950/40">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Copie agora — esta chave não será exibida novamente. Gerar outra invalida esta.</p>
+                    <div className="flex items-center gap-2">
+                      <Input readOnly value={branchKey} className="font-mono text-xs" onFocus={(event) => event.target.select()} />
+                      <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard?.writeText(branchKey); toast.success("Chave copiada."); }}><Copy className="size-4" /></Button>
+                    </div>
+                    <p className="text-xs font-medium text-foreground">Comando (rode na máquina após instalar o agente, ou via GPO):</p>
+                    <div className="flex items-start gap-2">
+                      <code className="min-w-0 flex-1 overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-[11px] leading-relaxed">{branchInstallCommand}</code>
+                      <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard?.writeText(branchInstallCommand); toast.success("Comando copiado."); }}><Copy className="size-4" /></Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-3 rounded-xl border border-dashed p-4">
                 <div className="flex items-start gap-3">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><KeyRound className="size-[18px]" /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Chave de enrollment</p>
-                    <p className="text-xs text-muted-foreground">Já é embutida automaticamente nos downloads acima. Gere manualmente só se precisar instalar o agente por outro meio. Gerar uma nova invalida a anterior.</p>
+                    <p className="text-sm font-medium">Chave da empresa (fallback)</p>
+                    <p className="text-xs text-muted-foreground">Chave única da organização — equipamentos com ela caem na matriz. Use só fora do fluxo por unidade. Gerar uma nova invalida a anterior.</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">

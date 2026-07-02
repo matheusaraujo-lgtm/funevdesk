@@ -1,4 +1,5 @@
 import { can, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { getDb } from "@/lib/db";
 import { applyStockMovement, mapInventoryItem } from "@/lib/inventory";
 import { z } from "zod";
@@ -34,6 +35,8 @@ export async function PATCH(request, { params }) {
   const db = getDb();
   const item = db.prepare("SELECT * FROM inventory_items WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!item) return Response.json({ error: "Item não encontrado." }, { status: 404 });
+  if (item.branch_id && !canAccessBranch(auth.user, item.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  if (parsed.data.branchId && !canAccessBranch(auth.user, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const now = new Date().toISOString();
   db.prepare(`UPDATE inventory_items SET
     name=?, sku=?, category=?, branch_id=?, min_quantity=?, unit=?, active=?,
@@ -63,8 +66,9 @@ export async function DELETE(request, { params }) {
   if (auth.error) return auth.error;
   if (!can(auth.user, "inventory", "delete")) return Response.json({ error: "Sem permissão." }, { status: 403 });
   const db = getDb();
-  const item = db.prepare("SELECT id FROM inventory_items WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  const item = db.prepare("SELECT * FROM inventory_items WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!item) return Response.json({ error: "Item não encontrado." }, { status: 404 });
+  if (item.branch_id && !canAccessBranch(auth.user, item.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   // Preserva o histórico: itens com movimentações registradas não são apagados —
   // o caminho correto é desativar (active=false).
   const movements = db.prepare("SELECT COUNT(*) AS total FROM inventory_movements WHERE item_id=?").get(id).total;
@@ -85,6 +89,7 @@ export async function POST(request, { params }) {
   const db = getDb();
   const item = db.prepare("SELECT * FROM inventory_items WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!item) return Response.json({ error: "Item não encontrado." }, { status: 404 });
+  if (item.branch_id && !canAccessBranch(auth.user, item.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   try {
     const result = applyStockMovement(db, {
       itemId: id,

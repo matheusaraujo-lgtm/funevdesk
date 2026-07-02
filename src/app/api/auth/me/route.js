@@ -1,4 +1,5 @@
 import { getCurrentUser, getPermissions, roleLabel } from "@/lib/auth";
+import { toServableLogoUrl } from "@/lib/branding";
 import { MODULES } from "@/lib/permissions";
 
 export async function GET(request) {
@@ -14,7 +15,7 @@ export async function GET(request) {
       organizationName: user.organization_name,
       organizationSlug: user.organization_slug,
       appName: user.app_name || "FunevDesk",
-      logoUrl: user.logo_url || "",
+      logoUrl: toServableLogoUrl(user.logo_url),
       primaryColor: user.primary_color || "#102033",
       secondaryColor: user.secondary_color || "#bff2e6",
       navigationMode: user.navigation_mode || "SIDEBAR",

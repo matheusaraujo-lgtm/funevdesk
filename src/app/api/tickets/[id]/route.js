@@ -1,4 +1,5 @@
 import { canAccessTicket, getPermissions, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { getSlaStatus, extendSlaAfterPause } from "@/lib/sla";
@@ -197,6 +198,26 @@ export async function PATCH(request, { params }) {
   }
   if (parsed.data.problemId && !belongsToOrg("problems", parsed.data.problemId)) {
     return Response.json({ error: "Problema inválido." }, { status: 400 });
+  }
+
+  // Isolamento por filial: actor sem all_branches não pode atribuir equipe/responsável fora do seu escopo.
+  if (!currentUser.all_branches) {
+    if (parsed.data.teamId) {
+      const team = db.prepare("SELECT branch_id FROM teams WHERE id=? AND organization_id=?").get(parsed.data.teamId, orgId);
+      // branch_id nulo = equipe a nível de organização, permitida.
+      if (team && team.branch_id && !canAccessBranch(currentUser, team.branch_id)) {
+        return Response.json({ error: "Responsável/equipe fora do seu acesso." }, { status: 400 });
+      }
+    }
+    if (parsed.data.assigneeId) {
+      const allowed = getAllowedBranchIds(currentUser, db);
+      const shares = allowed.length
+        ? db.prepare(`SELECT 1 FROM user_branches WHERE user_id=? AND branch_id IN (${allowed.map(() => "?").join(",")})`).get(parsed.data.assigneeId, ...allowed)
+        : null;
+      if (!shares) {
+        return Response.json({ error: "Responsável/equipe fora do seu acesso." }, { status: 400 });
+      }
+    }
   }
 
   // Baixa de estoque só vale na transição para um status terminal (resolução do chamado).

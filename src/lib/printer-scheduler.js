@@ -4,9 +4,22 @@ import { maybeOpenPrinterTicket } from "@/lib/printer-alerts";
 
 // Verificação automática (ping/portas/SNMP) de todos os dispositivos de rede e
 // impressoras, em segundo plano, sem precisar clicar "Verificar agora".
-const INTERVAL_MS = 15 * 60 * 1000; // 15 minutos (intervalo fixo)
+// Ajustável por env (NETWORK_MONITOR_INTERVAL_MS); padrão 2 minutos.
+const INTERVAL_MS = Math.max(30_000, Number(process.env.NETWORK_MONITOR_INTERVAL_MS) || 2 * 60 * 1000);
 
 async function runScheduledNetworkChecks() {
+  // Evita sobreposição: se a rodada anterior ainda estiver correndo (muitos
+  // dispositivos, SNMP lento), não dispara outra em paralelo.
+  if (globalThis.__nexusNetCheckRunning) return;
+  globalThis.__nexusNetCheckRunning = true;
+  try {
+    await doScheduledNetworkChecks();
+  } finally {
+    globalThis.__nexusNetCheckRunning = false;
+  }
+}
+
+async function doScheduledNetworkChecks() {
   let db;
   try { db = getDb(); } catch { return; }
   let devices;

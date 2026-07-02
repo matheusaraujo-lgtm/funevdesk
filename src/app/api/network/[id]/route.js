@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,11 @@ export async function PUT(request, { params }) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem editar rede." }, { status: 403 });
+  // Isolamento: admin restrito não edita dispositivo de outra unidade nem o move para fora do seu acesso.
+  const device = db.prepare("SELECT branch_id FROM network_devices WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
+  if (!device) return Response.json({ error: "Dispositivo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(currentUser, device.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  if (!canAccessBranch(currentUser, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, currentUser.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
 
@@ -71,6 +77,9 @@ export async function DELETE(request, { params }) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem excluir rede." }, { status: 403 });
+  const device = db.prepare("SELECT branch_id FROM network_devices WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
+  if (!device) return Response.json({ error: "Dispositivo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(currentUser, device.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const result = db.prepare("DELETE FROM network_devices WHERE id=? AND organization_id=?").run(id, currentUser.organization_id);
   if (!result.changes) return Response.json({ error: "Dispositivo não encontrado." }, { status: 404 });
   return Response.json({ ok: true });

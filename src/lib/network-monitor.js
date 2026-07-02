@@ -47,11 +47,13 @@ async function pingHost(ipAddress) {
 
 function checkTcpPort(host, port, timeoutMs = 1800) {
   return new Promise((resolve) => {
+    const startedAt = Date.now();
     const socket = net.createConnection({ host, port });
     const done = (open, error = "") => {
       socket.removeAllListeners();
       socket.destroy();
-      resolve({ port, open, error });
+      // latencyMs só faz sentido quando a conexão abriu (mede o tempo do handshake TCP).
+      resolve({ port, open, error, latencyMs: open ? Date.now() - startedAt : null });
     };
     socket.setTimeout(timeoutMs);
     socket.once("connect", () => done(true));
@@ -253,6 +255,10 @@ export async function checkNetworkDevice(device) {
   const ping = await pingHost(device.ip_address);
   const ports = await Promise.all(normalizePorts(device).map((port) => checkTcpPort(device.ip_address, port)));
   const openPorts = ports.filter((port) => port.open).map((port) => port.port);
+  // Latência: usa o ping ICMP quando disponível; senão, o tempo do handshake TCP da porta
+  // aberta mais rápida. Assim a latência aparece mesmo se o ICMP estiver bloqueado na rede.
+  const tcpLatencies = ports.filter((port) => port.open && port.latencyMs != null).map((port) => port.latencyMs);
+  const latencyMs = ping.latencyMs != null ? ping.latencyMs : (tcpLatencies.length ? Math.min(...tcpLatencies) : null);
   const metrics = {
     monitorType: device.monitor_type || "PING",
     vendor: device.vendor || null,
@@ -294,14 +300,14 @@ export async function checkNetworkDevice(device) {
     }
   }
 
-  if (status === "ONLINE" && ping.latencyMs && ping.latencyMs > 120) {
+  if (status === "ONLINE" && latencyMs != null && latencyMs > 120) {
     status = "ALERTA";
     lastError = "Latência acima de 120 ms.";
   }
 
   return {
     status,
-    latencyMs: ping.latencyMs,
+    latencyMs,
     reachable: status !== "OFFLINE",
     metrics,
     lastError,

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toServableLogoUrl } from "@/lib/branding";
 
 const BRANDING_COLUMNS = `
   o.id, o.name, o.slug, s.app_name, s.logo_url, s.primary_color, s.secondary_color, s.navigation_mode
@@ -12,7 +13,7 @@ function toBranding(org) {
     name: org.name,
     slug: org.slug,
     appName: org.app_name || "FunevDesk",
-    logoUrl: org.logo_url || "",
+    logoUrl: toServableLogoUrl(org.logo_url),
     primaryColor: org.primary_color || "#102033",
     secondaryColor: org.secondary_color || "#bff2e6",
     navigationMode: org.navigation_mode || "SIDEBAR",

@@ -45,6 +45,12 @@ dev-server.*.log
 .env*
 !.env*.example
 
+# coturn: config do TURN contém credenciais (não versiona; fica local no servidor)
+/coturn/turnserver.conf
+
+# backups locais
+*.bak
+
 # vercel
 .vercel
 

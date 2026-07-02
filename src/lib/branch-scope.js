@@ -1,7 +1,9 @@
 const placeholders = (values) => values.map(() => "?").join(",");
 
+// Escopo de unidades do usuário. "Vê todas" deriva do flag explícito all_branches
+// (não mais do papel ADMIN), permitindo restringir um admin a uma unidade específica.
 export function getAllowedBranchIds(user, db, requestedBranchId = null) {
-  const allowed = user.role === "ADMIN"
+  const allowed = user.all_branches
     ? db.prepare("SELECT id FROM branches WHERE organization_id=?").all(user.organization_id).map((item) => item.id)
     : [...user.branchIds];
   if (requestedBranchId && allowed.includes(requestedBranchId)) return [requestedBranchId];
@@ -14,8 +16,8 @@ export function branchFilterClause(branchIds, column = "branch_id") {
 }
 
 export function canAccessBranch(user, branchId) {
-  if (!branchId) return user.role === "ADMIN";
-  if (user.role === "ADMIN") return true;
+  if (!branchId) return Boolean(user.all_branches);
+  if (user.all_branches) return true;
   return user.branchIds.includes(branchId);
 }
 

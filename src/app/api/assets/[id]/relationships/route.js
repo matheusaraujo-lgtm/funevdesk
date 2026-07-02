@@ -1,5 +1,6 @@
 import { requireCurrentUser, getPermissions } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function GET(request, { params }) {
   // expor a topologia — impede que técnico de outra unidade veja relacionamentos fora do escopo.
   const source = db.prepare("SELECT branch_id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!source) return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
-  if (auth.user.role !== "ADMIN" && source.branch_id && !auth.user.branchIds.includes(source.branch_id)) {
+  if (!auth.user.all_branches && source.branch_id && !auth.user.branchIds.includes(source.branch_id)) {
     return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
   }
   const rels = db.prepare(`
@@ -39,9 +40,10 @@ export async function POST(request, { params }) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const db = getDb();
-  const source = db.prepare("SELECT id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
-  const target = db.prepare("SELECT id FROM assets WHERE id=? AND organization_id=?").get(parsed.data.targetAssetId, auth.user.organization_id);
+  const source = db.prepare("SELECT id, branch_id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  const target = db.prepare("SELECT id, branch_id FROM assets WHERE id=? AND organization_id=?").get(parsed.data.targetAssetId, auth.user.organization_id);
   if (!source || !target) return Response.json({ error: "Ativo inválido." }, { status: 404 });
+  if (!canAccessBranch(auth.user, source.branch_id) || !canAccessBranch(auth.user, target.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const relId = makeId("rel");
   db.prepare("INSERT INTO asset_relationships (id, organization_id, source_asset_id, target_asset_id, relationship_type, created_at) VALUES (?, ?, ?, ?, ?, ?)")
     .run(relId, auth.user.organization_id, id, parsed.data.targetAssetId, parsed.data.relationshipType, new Date().toISOString());
@@ -59,6 +61,8 @@ export async function DELETE(request, { params }) {
   const rel = db.prepare("SELECT id FROM asset_relationships WHERE id=? AND source_asset_id=? AND organization_id=?")
     .get(relationshipId, id, auth.user.organization_id);
   if (!rel) return Response.json({ error: "Relacionamento não encontrado." }, { status: 404 });
+  const source = db.prepare("SELECT branch_id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  if (source && !canAccessBranch(auth.user, source.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   db.prepare("DELETE FROM asset_relationships WHERE id=?").run(relationshipId);
   return Response.json({ ok: true });
 }

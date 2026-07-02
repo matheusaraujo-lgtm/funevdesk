@@ -1,5 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { getPermissions, requireCurrentUser, can } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export async function POST(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canManageTickets) return Response.json({ error: "Sem permissão para salvar documentação." }, { status: 403 });
+  if (!canAccessBranch(currentUser, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, currentUser.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
   const now = new Date().toISOString();

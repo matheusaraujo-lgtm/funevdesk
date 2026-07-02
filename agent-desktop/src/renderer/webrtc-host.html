@@ -6,46 +6,67 @@
 </head>
 <body>
 <script>
-async function runHost(sessionId, sourceId) {
+async function runHost(sessionId, sourceId, iceServers, monitors) {
   const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    iceServers: (Array.isArray(iceServers) && iceServers.length)
+      ? iceServers
+      : [{ urls: "stun:stun.l.google.com:19302" }],
   });
 
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: sourceId,
-          minWidth: 1280,
-          maxWidth: 4096,
-        },
-      },
-    });
-  } catch (e) {
-    console.error("getUserMedia falhou:", e.message);
+  const monitorList = Array.isArray(monitors) && monitors.length ? monitors : [{ id: sourceId, name: "Monitor 1" }];
+  let currentSourceId = sourceId;
+  let stream = null;
+  let videoSender = null;
+  let controlChannelRef = null;
+
+  // Captura uma tela específica (com fallback sem constraints mandatórias).
+  async function captureScreen(id) {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      return await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId },
+        video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: id, minWidth: 1280, maxWidth: 4096 } },
       });
-    } catch (e2) {
-      console.error("getUserMedia fallback falhou:", e2.message);
-      throw e2;
+    } catch (e) {
+      console.error("getUserMedia falhou:", e.message);
+      return await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { chromeMediaSource: "desktop", chromeMediaSourceId: id },
+      });
     }
   }
 
-  const tracks = stream.getTracks();
-  console.log("Tracks capturadas:", tracks.length, tracks.map(t => t.kind));
-  tracks.forEach((track) => pc.addTrack(track, stream));
+  // Informa ao viewer quais monitores existem e qual está ativo (para mostrar o seletor).
+  function sendMonitors() {
+    if (controlChannelRef && controlChannelRef.readyState === "open") {
+      controlChannelRef.send(JSON.stringify({ type: "monitors", list: monitorList, active: currentSourceId }));
+    }
+  }
 
-  // DataChannel de controle (mouse, teclado, arquivos): o VIEWER (offerer) cria o canal
-  // e o host (answerer) apenas ESCUTA — padrão canônico e confiável de WebRTC.
+  // Alterna a tela transmitida sem renegociar: troca o track no mesmo sender (replaceTrack).
+  async function switchMonitor(id) {
+    if (id === currentSourceId || !monitorList.some((m) => m.id === id)) return;
+    const newStream = await captureScreen(id);
+    const newTrack = newStream.getVideoTracks()[0];
+    if (!videoSender || !newTrack) return;
+    await videoSender.replaceTrack(newTrack);
+    try { stream.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    stream = newStream;
+    currentSourceId = id;
+    console.log("Monitor alternado para", id);
+    sendMonitors();
+  }
+
+  stream = await captureScreen(sourceId);
+  const videoTrack = stream.getVideoTracks()[0];
+  console.log("Tracks capturadas:", stream.getTracks().length);
+  videoSender = pc.addTrack(videoTrack, stream);
+
+  // DataChannel de controle (mouse, teclado, arquivos, troca de monitor): o VIEWER (offerer)
+  // cria o canal e o host (answerer) apenas ESCUTA — padrão canônico e confiável de WebRTC.
   pc.ondatachannel = (event) => {
     const controlChannel = event.channel;
-    controlChannel.onopen = () => console.log("DataChannel 'control' aberto");
+    controlChannelRef = controlChannel;
+    controlChannel.onopen = () => { console.log("DataChannel 'control' aberto"); sendMonitors(); };
     controlChannel.onclose = () => console.log("DataChannel 'control' fechado");
     controlChannel.onmessage = (msg) => handleControlMessage(msg.data);
   };
@@ -53,7 +74,9 @@ async function runHost(sessionId, sourceId) {
   function handleControlMessage(raw) {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === "mouse_move") {
+      if (msg.type === "switch_monitor") {
+        switchMonitor(msg.id).catch((e) => console.error("Falha ao trocar monitor:", e.message));
+      } else if (msg.type === "mouse_move") {
         window.webrtcBridge.simulateInput("mouse_move", { x: msg.x, y: msg.y, screenW: msg.screenW, screenH: msg.screenH });
       } else if (msg.type === "mouse_down") {
         window.webrtcBridge.simulateInput("mouse_down", { button: msg.button });
@@ -115,7 +138,7 @@ async function runHost(sessionId, sourceId) {
 }
 
 window.webrtcBridge.onConfig((config) => {
-  runHost(config.sessionId, config.sourceId).catch(console.error);
+  runHost(config.sessionId, config.sourceId, config.iceServers, config.monitors).catch(console.error);
 });
 </script>
 </body>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Expand, ExternalLink, Keyboard, Minimize2, MousePointer, Upload, X } from "lucide-react";
+import { Expand, ExternalLink, Keyboard, Minimize2, Monitor, MousePointer, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
@@ -14,6 +14,8 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   const [controlMode, setControlMode] = useState("view"); // "view" | "mouse" | "keyboard"
   const [dcOpen, setDcOpen] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [monitors, setMonitors] = useState([]);
+  const [activeMonitor, setActiveMonitor] = useState("");
   const lastSignalAtRef = useRef("");
   const pollingRef = useRef(false);
   const stoppedRef = useRef(false);
@@ -23,6 +25,14 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   const sendControl = useCallback((msg) => {
     if (dcRef.current && dcRef.current.readyState === "open") {
       dcRef.current.send(JSON.stringify(msg));
+    }
+  }, []);
+
+  // Pede ao host para transmitir outro monitor (replaceTrack no agente — sem reconectar).
+  const switchMonitor = useCallback((id) => {
+    setActiveMonitor(id);
+    if (dcRef.current && dcRef.current.readyState === "open") {
+      dcRef.current.send(JSON.stringify({ type: "switch_monitor", id }));
     }
   }, []);
 
@@ -161,13 +171,34 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
     let pollTimer;
     stoppedRef.current = false;
     setEnded("");
+    setMonitors([]);
+    setActiveMonitor("");
 
     async function start() {
       try {
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        });
+        // Busca STUN/TURN do servidor (TURN é essencial entre redes diferentes). Fallback: STUN.
+        let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+        try {
+          const iceResp = await fetch("/api/remote/ice-servers", { cache: "no-store" });
+          if (iceResp.ok) {
+            const data = await iceResp.json();
+            if (Array.isArray(data.iceServers) && data.iceServers.length) iceServers = data.iceServers;
+          }
+        } catch { /* mantém STUN padrão */ }
+        if (stopped) return;
+        const pc = new RTCPeerConnection({ iceServers });
         pcRef.current = pc;
+
+        // Diagnóstico de conexão: sem TURN, redes diferentes falham no ICE — antes travava em
+        // silêncio. Agora a falha aparece com orientação em vez de ficar só "Aguardando…".
+        pc.oniceconnectionstatechange = () => {
+          const state = pc.iceConnectionState;
+          if (state === "failed") {
+            setStatus("Falha de rede (ICE). É necessário um servidor TURN para redes diferentes.");
+          } else if (state === "disconnected") {
+            setStatus("Conexão instável…");
+          }
+        };
 
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {
@@ -193,6 +224,16 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
           dcRef.current = dc;
           dc.onopen = () => { setDcOpen(true); setStatus("Conectado (controles ativos)"); setControlMode("mouse"); };
           dc.onclose = () => { setDcOpen(false); setControlMode("view"); };
+          // O host envia a lista de monitores (e qual está ativo) para o seletor de tela.
+          dc.onmessage = (event) => {
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.type === "monitors") {
+                setMonitors(Array.isArray(msg.list) ? msg.list : []);
+                if (msg.active) setActiveMonitor(msg.active);
+              }
+            } catch { /* ignore */ }
+          };
         }
         // Compat: agente antigo cria o canal (chega via ondatachannel).
         pc.ondatachannel = (event) => bindControlChannel(event.channel);
@@ -314,6 +355,26 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
           <Keyboard className="size-3 mr-1" />
           Teclado
         </Button>
+
+        {monitors.length > 1 && (
+          <div className="flex items-center gap-1 border-l border-zinc-800 pl-2">
+            <Monitor className="size-3.5 text-zinc-400" title="Monitor" />
+            {monitors.map((mon, index) => (
+              <Button
+                key={mon.id}
+                type="button"
+                variant={activeMonitor === mon.id ? "default" : "ghost"}
+                size="sm"
+                className={`h-7 w-7 p-0 text-xs ${activeMonitor === mon.id ? "bg-blue-600 hover:bg-blue-700" : "text-zinc-400 hover:text-white"}`}
+                onClick={() => switchMonitor(mon.id)}
+                disabled={!dcOpen}
+                title={mon.name || `Monitor ${index + 1}`}
+              >
+                {index + 1}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {controlMode === "keyboard" && (
           <div className="flex items-center gap-1 ml-auto">

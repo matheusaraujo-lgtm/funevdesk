@@ -349,6 +349,26 @@ function ensureRuntimeMigrations(db) {
   }
   db.prepare(`INSERT OR IGNORE INTO user_branches (user_id, branch_id, is_primary)
     SELECT id, branch_id, 1 FROM users WHERE branch_id IS NOT NULL`).run();
+  // Visibilidade por unidade: por padrão TODO usuário (inclusive admin) enxerga apenas as
+  // unidades atribuídas. O flag all_branches=1 é a marcação explícita "vê todas as unidades".
+  // Backfill seguro: admins vinculados à MATRIZ (donos/matriz) recebem 1; admins restritos a
+  // filiais ficam 0 (escopados), preservando o isolamento desejado sem regredir o dono.
+  if (!userColumns.some((column) => column.name === "all_branches")) {
+    db.exec("ALTER TABLE users ADD COLUMN all_branches INTEGER NOT NULL DEFAULT 0");
+    db.exec(`UPDATE users SET all_branches=1 WHERE role='ADMIN' AND id IN (
+      SELECT ub.user_id FROM user_branches ub JOIN branches b ON b.id=ub.branch_id WHERE b.type='MATRIZ'
+    )`);
+  }
+  // Chave de enrollment POR FILIAL: o instalador baixado por uma filial embute a chave dela,
+  // e o ativo enrolla diretamente naquela unidade (em vez de cair sempre na matriz). Guardamos
+  // só o hash em repouso, igual à chave org-level em system_settings.
+  const branchColumns = db.prepare("PRAGMA table_info(branches)").all();
+  if (!branchColumns.some((column) => column.name === "enrollment_key_hash")) {
+    db.exec("ALTER TABLE branches ADD COLUMN enrollment_key_hash TEXT");
+  }
+  if (!branchColumns.some((column) => column.name === "enrollment_key_prefix")) {
+    db.exec("ALTER TABLE branches ADD COLUMN enrollment_key_prefix TEXT");
+  }
   const usersWithoutPassword = db.prepare("SELECT COUNT(*) total FROM users WHERE password_hash IS NULL").get().total;
   if (usersWithoutPassword) {
     // Sem senha padrão hardcoded. Usa NEXUS_SEED_PASSWORD se definida; senão gera

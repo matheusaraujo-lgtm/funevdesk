@@ -1,4 +1,5 @@
 import { can, requireCurrentUser } from "@/lib/auth";
+import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 import { listInventoryItems } from "@/lib/inventory";
 import { z } from "zod";
@@ -32,8 +33,12 @@ export async function GET(request) {
     });
   }
 
-  const branchId = url.searchParams.get("branchId") || undefined;
-  const items = listInventoryItems(db, auth.user.organization_id, { branchId, activeOnly: false });
+  // Isolamento por unidade: valida a unidade pedida contra o escopo do usuário; sem unidade
+  // pedida, limita aos itens das unidades dele (mais itens org-level com branch_id NULL).
+  const allowed = getAllowedBranchIds(auth.user, db);
+  const requested = url.searchParams.get("branchId") || undefined;
+  const branchId = requested && allowed.includes(requested) ? requested : undefined;
+  const items = listInventoryItems(db, auth.user.organization_id, branchId ? { branchId, activeOnly: false } : { branchIds: allowed, activeOnly: false });
   return Response.json({ items });
 }
 

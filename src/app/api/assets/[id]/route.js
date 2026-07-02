@@ -1,6 +1,7 @@
 import { requireCurrentUser, getPermissions, can } from "@/lib/auth";
 import { issueAgentToken } from "@/lib/agent";
 import { getDb } from "@/lib/db";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function PATCH(request, { params }) {
   const db = getDb();
   const asset = db.prepare("SELECT * FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!asset) return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, asset.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   if (parsed.data.active !== undefined) {
     // Desativar/reativar é restrito a administradores (escopo da organização já validado acima).
     if (!getPermissions(auth.user).canConfigure) {
@@ -66,6 +68,7 @@ export async function DELETE(request, { params }) {
   const db = getDb();
   const asset = db.prepare("SELECT * FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!asset) return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, asset.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
 
   // Não apagar histórico de termos assinados: bloqueia se houver termos de equipamento vinculados.
   const termsCount = db.prepare("SELECT COUNT(*) total FROM equipment_terms WHERE asset_id=?").get(id).total;
@@ -81,10 +84,10 @@ export async function DELETE(request, { params }) {
     db.prepare("UPDATE tickets SET asset_id=NULL WHERE asset_id=?").run(id);
     db.prepare("UPDATE users SET asset_id=NULL WHERE asset_id=?").run(id);
     // Limpa tabelas dependentes; cada uma em try/catch pois pode não existir nesta instância.
-    // remote_sessions tem asset_id NOT NULL + FK sem ON DELETE (bloqueia a remoção);
-    // suas remote_signal_messages somem em cascata. asset_inventory/asset_metrics têm
+    // remote_sessions e agent_commands têm asset_id NOT NULL + FK sem ON DELETE (bloqueiam a
+    // remoção); as remote_signal_messages somem em cascata. asset_inventory/asset_metrics têm
     // ON DELETE CASCADE, mas limpamos explicitamente para robustez.
-    for (const table of ["remote_sessions", "asset_inventory", "asset_metrics", "alerts"]) {
+    for (const table of ["agent_commands", "remote_sessions", "asset_inventory", "asset_metrics", "alerts"]) {
       try {
         db.prepare(`DELETE FROM ${table} WHERE asset_id=?`).run(id);
       } catch {
@@ -93,7 +96,16 @@ export async function DELETE(request, { params }) {
     }
     db.prepare("DELETE FROM assets WHERE id=? AND organization_id=?").run(id, auth.user.organization_id);
   });
-  removeAsset();
+  try {
+    removeAsset();
+  } catch (error) {
+    // Alguma outra tabela ainda referencia o ativo (FK). Devolve mensagem clara em vez de 500 genérico.
+    console.error("Falha ao excluir ativo:", error?.message || error);
+    return Response.json(
+      { error: "Não foi possível excluir o ativo: ele ainda possui registros vinculados. Desative-o para preservar o histórico." },
+      { status: 409 }
+    );
+  }
 
   return Response.json({ ok: true });
 }

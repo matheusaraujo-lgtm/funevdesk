@@ -69,7 +69,11 @@ export async function GET(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
   if (!can(auth.user, "branches", "read")) return Response.json({ error: "Sem permissão." }, { status: 403 });
-  return Response.json({ branches: listBranches(getDb(), auth.user.organization_id) });
+  // Isolamento: o seletor/lista só mostra as unidades que o usuário pode ver. Quem não tem
+  // o flag "todas as unidades" enxerga apenas as suas — evita ver (e selecionar) outras filiais.
+  const all = listBranches(getDb(), auth.user.organization_id);
+  const branches = auth.user.all_branches ? all : all.filter((branch) => auth.user.branchIds.includes(branch.id));
+  return Response.json({ branches });
 }
 
 export async function POST(request) {

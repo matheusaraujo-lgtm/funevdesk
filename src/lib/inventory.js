@@ -3,7 +3,7 @@ import { computeSlaDueAt, getSlaStatus } from "@/lib/sla";
 import { getTicketStatusMeta, isTerminalStatusCode } from "@/lib/ticket-statuses";
 import { createNotification } from "@/lib/notifications";
 
-export function listInventoryItems(db, organizationId, { branchId, activeOnly = true } = {}) {
+export function listInventoryItems(db, organizationId, { branchId, branchIds, activeOnly = true } = {}) {
   let query = `
     SELECT i.*, b.name branch_name
     FROM inventory_items i
@@ -15,6 +15,14 @@ export function listInventoryItems(db, organizationId, { branchId, activeOnly = 
   if (branchId) {
     query += " AND (i.branch_id IS NULL OR i.branch_id=?)";
     params.push(branchId);
+  } else if (branchIds) {
+    // Escopo por unidade: itens da unidade do usuário + itens org-level (branch_id NULL).
+    if (!branchIds.length) {
+      query += " AND i.branch_id IS NULL";
+    } else {
+      query += ` AND (i.branch_id IS NULL OR i.branch_id IN (${branchIds.map(() => "?").join(",")}))`;
+      params.push(...branchIds);
+    }
   }
   query += " ORDER BY i.category, i.name";
   return db.prepare(query).all(...params).map(mapInventoryItem);

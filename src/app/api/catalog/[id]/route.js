@@ -52,7 +52,7 @@ const typeSchema = z.object({
   fields: z.array(z.object({
     id: z.string().optional(),
     label: z.string().min(2).max(100),
-    fieldType: z.enum(["TEXT", "TEXTAREA", "SELECT", "DATE", "FILE", "SCREENSHOT", "LOCATION", "STOCK"]),
+    fieldType: z.enum(["TEXT", "TEXTAREA", "SELECT", "MULTISELECT", "DATE", "FILE", "SCREENSHOT", "LOCATION", "STOCK"]),
     placeholder: z.string().max(160).optional(),
     required: z.boolean(),
     options: z.array(z.string().min(1)).optional(),

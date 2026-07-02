@@ -45,10 +45,25 @@ export default function RemoteConsolePage({ params }) {
 
     async function start() {
       try {
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        });
+        // Busca STUN/TURN do servidor (TURN é essencial entre redes diferentes). Fallback: STUN.
+        let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+        try {
+          const iceResp = await fetch("/api/remote/ice-servers", { cache: "no-store" });
+          if (iceResp.ok) {
+            const data = await iceResp.json();
+            if (Array.isArray(data.iceServers) && data.iceServers.length) iceServers = data.iceServers;
+          }
+        } catch { /* mantém STUN padrão */ }
+        if (stopped) return;
+        const pc = new RTCPeerConnection({ iceServers });
         pcRef.current = pc;
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === "failed") {
+            setError("Falha de rede (ICE). É necessário um servidor TURN para conectar entre redes diferentes.");
+            setStatus("Erro");
+          }
+        };
 
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {

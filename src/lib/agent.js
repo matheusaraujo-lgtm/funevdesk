@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { makeId } from "@/lib/db";
 import { hashToken } from "@/lib/security";
+import { getIceServers } from "@/lib/ice";
 import { explainTelemetry, insightToTicketDescription } from "@/lib/intelligence";
 
 export function generateAgentToken() {
@@ -96,6 +97,42 @@ export function findOrganizationByEnrollmentKey(db, token) {
   `).get(hashToken(token)) || null;
 }
 
+/**
+ * Gera e persiste uma NOVA chave de enrollment para uma FILIAL específica (rotação),
+ * substituindo o hash anterior daquela filial. Devolve o texto puro UMA vez para embutir
+ * no instalador + o prefixo. A filial precisa pertencer à organização informada.
+ * @returns {{ prefix: string, plaintextOnce: string }|null}
+ */
+export function rotateBranchEnrollmentKey(db, organizationId, branchId) {
+  const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(branchId, organizationId);
+  if (!branch) return null;
+  const plaintextOnce = generateEnrollmentKey();
+  const hash = hashToken(plaintextOnce);
+  const prefix = maskSecretPrefix(plaintextOnce);
+  db.prepare("UPDATE branches SET enrollment_key_hash=?, enrollment_key_prefix=? WHERE id=?").run(hash, prefix, branchId);
+  return { prefix, plaintextOnce };
+}
+
+/**
+ * Resolve o contexto de enrollment de um token: primeiro tenta uma chave POR FILIAL
+ * (devolve org + filial exata); se não casar, cai na chave org-level (matriz/legado),
+ * devolvendo branch_id=null para o fallback de matriz em upsertAssetFromTelemetry.
+ * @returns {{ organization_id: string, branch_id: string|null }|null}
+ */
+export function findEnrollmentContext(db, token) {
+  if (!token) return null;
+  const tokenHash = hashToken(token);
+  const branch = db.prepare(
+    "SELECT organization_id, id AS branch_id FROM branches WHERE enrollment_key_hash=?",
+  ).get(tokenHash);
+  if (branch) return { organization_id: branch.organization_id, branch_id: branch.branch_id };
+  const org = db.prepare(
+    "SELECT organization_id FROM system_settings WHERE agent_enrollment_key_hash=?",
+  ).get(tokenHash);
+  if (org) return { organization_id: org.organization_id, branch_id: null };
+  return null;
+}
+
 export function upsertAssetFromTelemetry(db, organizationId, branchId, data, token) {
   const now = new Date().toISOString();
   const hostname = data.hostname?.trim();
@@ -114,14 +151,18 @@ export function upsertAssetFromTelemetry(db, organizationId, branchId, data, tok
   const status = data.cpuPercent >= 90 || data.memoryPercent >= 95 || data.diskPercent >= 90 ? "ALERT" : "ONLINE";
 
   if (asset) {
+    // Reinstalar com a chave de uma FILIAL específica reatribui o ativo àquela unidade
+    // (corrige equipamentos que enrollaram antes na matriz). O fallback org-level passa
+    // branchId=null e preserva a unidade atual do ativo.
+    const reassignedBranchId = branchId || asset.branch_id;
     db.prepare(`UPDATE assets SET hostname=?, os_name=?, ip_address=?, logged_user=?, status=?,
       cpu_percent=?, memory_percent=?, disk_percent=?, last_seen_at=?, agent_domain=?, serial_number=?, machine_uuid=?,
-      agent_token=NULL, agent_token_hash=?, agent_token_prefix=? WHERE id=?`)
+      branch_id=?, agent_token=NULL, agent_token_hash=?, agent_token_prefix=? WHERE id=?`)
       .run(
         hostname, data.osName || asset.os_name, data.ipAddress || asset.ip_address,
         data.loggedUser || asset.logged_user, status, data.cpuPercent, data.memoryPercent, data.diskPercent,
         now, data.domain || asset.agent_domain, data.serialNumber || asset.serial_number,
-        data.machineUuid || asset.machine_uuid, tokenHash, tokenPrefix, asset.id
+        data.machineUuid || asset.machine_uuid, reassignedBranchId, tokenHash, tokenPrefix, asset.id
       );
     return db.prepare("SELECT * FROM assets WHERE id=?").get(asset.id);
   }
@@ -266,6 +307,8 @@ export function findPendingRemoteSession(db, assetId) {
     ticketId: row.ticket_id,
     ticketNumber: row.ticket_number,
     provider: row.provider || "NEXUS_WEBRTC",
+    // STUN/TURN para o host WebRTC do agente — sem TURN, redes diferentes não conectam.
+    iceServers: getIceServers(),
     requestedByName: row.requested_by_name,
     message: row.ticket_number
       ? `${row.requested_by_name} solicita acesso remoto no chamado #${row.ticket_number}. Clique em Aceitar para compartilhar sua tela pelo navegador.`

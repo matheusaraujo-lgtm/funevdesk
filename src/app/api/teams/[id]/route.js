@@ -1,6 +1,6 @@
 import { requireCurrentUser, can } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { getAllowedBranchIds } from "@/lib/branch-scope";
+import { getAllowedBranchIds, canAccessBranch } from "@/lib/branch-scope";
 import { listTeams, validateTeamRefs } from "../route";
 import { z } from "zod";
 
@@ -40,6 +40,9 @@ export async function PUT(request, { params }) {
   const db = getDb();
   const team = db.prepare("SELECT * FROM teams WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!team) return Response.json({ error: "Equipe não encontrada." }, { status: 404 });
+  // Isolamento: admin restrito não edita equipe de outra unidade nem a move para fora do seu acesso.
+  if (team.branch_id && !canAccessBranch(auth.user, team.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  if (parsed.data.branchId && !canAccessBranch(auth.user, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const refError = validateTeamRefs(db, auth.user.organization_id, parsed.data.branchId, parsed.data.memberIds);
   if (refError) return Response.json({ error: refError }, { status: 400 });
   db.transaction(() => {

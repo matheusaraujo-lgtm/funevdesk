@@ -1,7 +1,7 @@
 import { getDb, makeId } from "@/lib/db";
 import {
   findAssetByToken,
-  findOrganizationByEnrollmentKey,
+  findEnrollmentContext,
   findPendingRemoteSession,
   generateAgentToken,
   maybeCreateAlertTicket,
@@ -56,10 +56,12 @@ export async function POST(request) {
   let enrolled = false;
 
   if (!asset) {
-    const org = findOrganizationByEnrollmentKey(db, token);
-    if (!org) return Response.json({ error: "Agente não autorizado." }, { status: 401 });
+    // A chave embutida no instalador define a UNIDADE: chave por filial → enrolla naquela
+    // filial; chave org-level (legado/manual) → branch_id=null cai no fallback da matriz.
+    const ctx = findEnrollmentContext(db, token);
+    if (!ctx) return Response.json({ error: "Agente não autorizado." }, { status: 401 });
     agentToken = generateAgentToken();
-    asset = upsertAssetFromTelemetry(db, org.organization_id, null, data, agentToken);
+    asset = upsertAssetFromTelemetry(db, ctx.organization_id, ctx.branch_id, data, agentToken);
     if (!asset) return Response.json({ error: "Não foi possível registrar o ativo." }, { status: 500 });
     enrolled = true;
   } else {

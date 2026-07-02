@@ -1,5 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { requireCurrentUser, can } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,9 @@ export async function GET(request, { params }) {
     return Response.json({ error: "Sem permissão." }, { status: 403 });
   }
   const db = getDb();
-  const asset = db.prepare("SELECT id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  const asset = db.prepare("SELECT id, branch_id FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!asset) return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, asset.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const rows = db.prepare(`SELECT id, command, params_json, status, result, created_by_name, created_at, completed_at
     FROM agent_commands WHERE asset_id=? AND command IN ('INSTALL_APP','UNINSTALL_APP') ORDER BY created_at DESC LIMIT 12`).all(asset.id);
   const commands = rows.map((r) => {
@@ -58,6 +60,7 @@ export async function POST(request, { params }) {
   const db = getDb();
   const asset = db.prepare("SELECT * FROM assets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!asset) return Response.json({ error: "Ativo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, asset.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   if (!asset.agent_token_hash && !asset.agent_token) {
     return Response.json({ error: "Este ativo não possui agente instalado." }, { status: 409 });
   }

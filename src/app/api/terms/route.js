@@ -1,5 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { getPermissions, requireCurrentUser, can } from "@/lib/auth";
+import { getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +21,16 @@ export async function GET(request) {
   const currentUser = auth.user;
   // Termos contêm PII (nome/documento do responsável). Exige permissão de leitura do módulo.
   if (!can(currentUser, "terms", "read")) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  // Isolamento por unidade: só lista termos das unidades que o usuário pode ver.
+  const branchScope = branchFilterClause(getAllowedBranchIds(currentUser, db), "et.branch_id");
   const terms = db.prepare(`
     SELECT et.*, a.hostname, a.patrimony_number, b.name branch_name
     FROM equipment_terms et
     JOIN assets a ON a.id=et.asset_id
     JOIN branches b ON b.id=et.branch_id
-    WHERE et.organization_id=?
+    WHERE et.organization_id=? AND ${branchScope.clause}
     ORDER BY et.created_at DESC
-  `).all(currentUser.organization_id);
+  `).all(currentUser.organization_id, ...branchScope.params);
   return Response.json({ terms });
 }
 

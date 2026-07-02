@@ -74,6 +74,18 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
     fetch("/api/categories", { cache: "no-store" }).then(async (r) => { if (r.ok) setCategories((await r.json()).categories.filter((c) => c.active)); });
   }, []);
 
+  useEffect(() => {
+    // Tipos antigos guardam só o nome da categoria (sem category_id). Ao editar, casa pelo nome
+    // assim que a lista de categorias carrega, para o campo não abrir vazio e forçar nova seleção.
+    if (!categories.length) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm((current) => {
+      if (current.categoryId && current.categoryId !== "none") return current;
+      const match = categories.find((c) => c.name === current.category);
+      return match ? { ...current, categoryId: match.id } : current;
+    });
+  }, [categories, ticketType]);
+
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   const toggleBranch = (branchId) => setForm((current) => ({

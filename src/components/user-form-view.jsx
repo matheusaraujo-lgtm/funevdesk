@@ -19,7 +19,7 @@ function defaultProfileId(profiles) {
 
 function emptyForm(branches, profiles) {
   const firstBranch = branches[0]?.id || "";
-  return { name: "", email: "", role: "EMPLOYEE", profileId: defaultProfileId(profiles), branchIds: firstBranch ? [firstBranch] : [], primaryBranchId: firstBranch, assetId: "none", authProvider: "LOCAL" };
+  return { name: "", email: "", role: "EMPLOYEE", profileId: defaultProfileId(profiles), branchIds: firstBranch ? [firstBranch] : [], primaryBranchId: firstBranch, allBranches: false, assetId: "none", authProvider: "LOCAL" };
 }
 
 function formFromUser(user, profiles) {
@@ -30,6 +30,7 @@ function formFromUser(user, profiles) {
     profileId: user.profileId || defaultProfileId(profiles),
     branchIds: user.branchIds,
     primaryBranchId: user.branch_id,
+    allBranches: user.allBranches || false,
     assetId: user.asset_id || "none",
     authProvider: user.authProvider || "LOCAL",
   };
@@ -105,7 +106,13 @@ export function UserFormView({ userId, users, branches, assets, profiles = [], o
         <div><Label htmlFor="user-role" className="mb-2 block">Perfil</Label><Select value={form.role} onValueChange={(value) => update("role", value)}><SelectTrigger id="user-role" aria-label="Perfil" className="w-full"><SelectValue placeholder="Perfil">{(value) => roleLabels[value]}</SelectValue></SelectTrigger><SelectContent>{Object.entries(roleLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
       )}
       <div><Label htmlFor="user-auth-provider" className="mb-2 block">Autenticação</Label><Select value={form.authProvider} onValueChange={(value) => update("authProvider", value)}><SelectTrigger id="user-auth-provider" aria-label="Autenticação" className="w-full"><SelectValue>{(value) => value === "LDAP" ? "LDAP da unidade principal" : "Senha local"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="LOCAL">Senha local</SelectItem><SelectItem value="LDAP">LDAP da unidade principal</SelectItem></SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">LDAP usa a configuração da unidade principal do usuário.</p></div>
-      <div className="sm:col-span-2"><p className="mb-2 text-sm font-medium">Unidades autorizadas</p><div className="grid gap-2 rounded-xl border p-3 sm:grid-cols-2">{branches.map((branch) => <Button key={branch.id} type="button" variant="ghost" className="h-auto justify-start gap-3 px-2 py-2" onClick={() => toggleBranch(branch.id)}><Checkbox checked={form.branchIds.includes(branch.id)} tabIndex={-1} /><span className="text-left">{branch.name}</span></Button>)}</div>{fieldError("branchIds") || <p className="mt-2 text-xs text-muted-foreground">Marque as unidades que o usuário pode acessar. A unidade principal é escolhida entre elas.</p>}</div>
+      <div className="sm:col-span-2">
+        <Button type="button" variant="ghost" className="h-auto w-full justify-start gap-3 rounded-xl border px-3 py-2.5" onClick={() => update("allBranches", !form.allBranches)}>
+          <Checkbox checked={form.allBranches} tabIndex={-1} />
+          <span className="text-left"><span className="block text-sm font-medium">Acesso a todas as unidades</span><span className="block text-xs text-muted-foreground">Vê dados da matriz e de todas as filiais. Deixe DESMARCADO para limitar às unidades selecionadas abaixo.</span></span>
+        </Button>
+      </div>
+      <div className="sm:col-span-2"><p className="mb-2 text-sm font-medium">Unidades autorizadas</p><div className="grid gap-2 rounded-xl border p-3 sm:grid-cols-2">{branches.map((branch) => <Button key={branch.id} type="button" variant="ghost" className="h-auto justify-start gap-3 px-2 py-2" onClick={() => toggleBranch(branch.id)}><Checkbox checked={form.branchIds.includes(branch.id)} tabIndex={-1} /><span className="text-left">{branch.name}</span></Button>)}</div>{fieldError("branchIds") || <p className="mt-2 text-xs text-muted-foreground">Marque as unidades que o usuário pode acessar. A unidade principal é escolhida entre elas{form.allBranches ? " (ignorado enquanto “Todas as unidades” estiver marcado, exceto a principal usada na abertura de chamados)" : ""}.</p>}</div>
       <div className="sm:col-span-2"><Label htmlFor="user-primary-branch" className="mb-2 block">Unidade principal</Label><Select value={form.primaryBranchId} onValueChange={(value) => update("primaryBranchId", value)}><SelectTrigger id="user-primary-branch" aria-label="Unidade principal" aria-invalid={errors.primaryBranchId ? true : undefined} className="w-full"><SelectValue placeholder="Selecione">{(value) => branches.find((branch) => branch.id === value)?.name}</SelectValue></SelectTrigger><SelectContent>{branches.filter((branch) => form.branchIds.includes(branch.id)).map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select>{fieldError("primaryBranchId") || <p className="mt-2 text-xs text-muted-foreground">Padrão do usuário ao abrir chamados. Só lista unidades autorizadas acima.</p>}</div>
       <div className="sm:col-span-2"><Label htmlFor="user-asset" className="mb-2 block">Equipamento</Label><Select value={form.assetId} onValueChange={(value) => update("assetId", value)}><SelectTrigger id="user-asset" aria-label="Equipamento" className="w-full"><SelectValue placeholder="Não vincular">{(value) => value === "none" ? "Não vincular" : assets.find((asset) => asset.id === value)?.hostname}</SelectValue></SelectTrigger><SelectContent><SelectItem value="none">Não vincular</SelectItem>{selectedAssets.map((asset) => <SelectItem key={asset.id} value={asset.id}>{asset.hostname} · {asset.branch_name}</SelectItem>)}</SelectContent></Select></div>
     </CrudFormLayout>

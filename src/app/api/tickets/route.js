@@ -59,7 +59,7 @@ export async function POST(request) {
     if (!hasValue && !hasFile) return Response.json({ error: `O campo "${field.label}" é obrigatório.` }, { status: 400 });
   }
   const branchId = parsed.data.branchId;
-  if (currentUser.role !== "ADMIN" && !currentUser.branchIds.includes(branchId)) {
+  if (!currentUser.all_branches && !currentUser.branchIds.includes(branchId)) {
     return Response.json({ error: "Você não possui permissão para abrir chamados nesta unidade." }, { status: 403 });
   }
   const branch = db.prepare("SELECT id, organization_id, name FROM branches WHERE id=? AND organization_id=?").get(branchId, currentUser.organization_id);

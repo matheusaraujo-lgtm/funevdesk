@@ -1,6 +1,6 @@
 import { requireCurrentUser, can, canManageUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listUsers, userSchema, validateBranches, resolveProfile } from "@/app/api/users/route";
+import { listUsers, userSchema, validateBranches, resolveProfile, actorBranchScopeError } from "@/app/api/users/route";
 
 export async function PUT(request, { params }) {
   const { id } = await params;
@@ -19,14 +19,16 @@ export async function PUT(request, { params }) {
   if (duplicate) return Response.json({ error: "Já existe outro usuário com este e-mail." }, { status: 409 });
   const branchError = validateBranches(db, currentUser.organization_id, parsed.data.branchIds, parsed.data.primaryBranchId, parsed.data.assetId);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
+  const scopeError = actorBranchScopeError(currentUser, parsed.data);
+  if (scopeError) return Response.json({ error: scopeError }, { status: 403 });
   const resolved = resolveProfile(db, currentUser.organization_id, parsed.data);
   if (resolved.error) return Response.json({ error: resolved.error }, { status: 400 });
   // Impede escalonamento: não-admin não pode promover ninguém a uma patente >= à sua.
   if (!canManageUser(currentUser, resolved.role)) return Response.json({ error: "Você não pode atribuir um perfil de igual ou maior privilégio." }, { status: 403 });
   const authProvider = parsed.data.authProvider || "LOCAL";
   const save = db.transaction(() => {
-    db.prepare("UPDATE users SET name=?, email=?, role=?, profile_id=?, branch_id=?, asset_id=?, auth_provider=? WHERE id=?")
-      .run(parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, parsed.data.primaryBranchId, parsed.data.assetId || null, authProvider, id);
+    db.prepare("UPDATE users SET name=?, email=?, role=?, profile_id=?, branch_id=?, asset_id=?, auth_provider=?, all_branches=? WHERE id=?")
+      .run(parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, parsed.data.primaryBranchId, parsed.data.assetId || null, authProvider, parsed.data.allBranches ? 1 : 0, id);
     db.prepare("DELETE FROM user_branches WHERE user_id=?").run(id);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));

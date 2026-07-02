@@ -59,7 +59,10 @@ async function pathExists(filePath) {
 }
 
 function buildConfigObject(serverUrl, agentToken, branding = {}) {
-  const base = (serverUrl || "http://localhost:3000").replace(/\/$/, "");
+  // Default da URL do servidor embutida no instalador. Sem --serverUrl explícito, usa a URL
+  // pública configurada no ambiente do build (evita gerar instalador apontando p/ localhost).
+  const fallbackServerUrl = process.env.AGENT_DEFAULT_SERVER_URL || process.env.APP_PUBLIC_URL || "http://localhost:3000";
+  const base = (serverUrl || fallbackServerUrl).replace(/\/$/, "");
   let logoUrl = branding.logoUrl || "";
   if (logoUrl.startsWith("/")) logoUrl = `${base}${logoUrl}`;
 

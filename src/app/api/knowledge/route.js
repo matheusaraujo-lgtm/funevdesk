@@ -1,5 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { can, getPermissions, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export async function POST(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!can(currentUser, "knowledge", "create")) return Response.json({ error: "Sem permissão para salvar artigos." }, { status: 403 });
+  if (parsed.data.branchId && !canAccessBranch(currentUser, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const now = new Date().toISOString();
   const id = makeId("kb");
   db.prepare(`INSERT INTO knowledge_articles

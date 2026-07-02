@@ -1,5 +1,5 @@
 import { requireCurrentUser, getPermissions } from "@/lib/auth";
-import { assertBranchAccess } from "@/lib/branch-scope";
+import { assertBranchAccess, getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 import { getDb } from "@/lib/db";
 import { z } from "zod";
 
@@ -29,13 +29,15 @@ export async function GET(request, { params }) {
      FROM tickets t LEFT JOIN users u ON u.id = t.requester_id
      WHERE t.problem_id=? ORDER BY t.number DESC`
   ).all(id);
+  // Candidatos a vincular: só chamados das unidades que o usuário pode ver.
+  const candScope = branchFilterClause(getAllowedBranchIds(auth.user, db), "t.branch_id");
   const candidates = db.prepare(
     `SELECT t.id, t.number, t.title, t.status, u.name requester_name
      FROM tickets t LEFT JOIN users u ON u.id = t.requester_id
-     WHERE t.organization_id=? AND (t.problem_id IS NULL OR t.problem_id='')
+     WHERE t.organization_id=? AND ${candScope.clause} AND (t.problem_id IS NULL OR t.problem_id='')
        AND t.status NOT IN ('RESOLVIDO','FECHADO','CANCELADO')
      ORDER BY t.number DESC LIMIT 50`
-  ).all(auth.user.organization_id);
+  ).all(auth.user.organization_id, ...candScope.params);
   return Response.json({ problem, incidents, candidates });
 }
 

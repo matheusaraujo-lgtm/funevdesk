@@ -1,4 +1,5 @@
 import { can, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { getDb } from "@/lib/db";
 import { z } from "zod";
 
@@ -21,6 +22,8 @@ export async function PATCH(request, { params }) {
   const db = getDb();
   const row = db.prepare("SELECT * FROM locations WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!row) return Response.json({ error: "Localização não encontrada." }, { status: 404 });
+  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  if (parsed.data.branchId && !canAccessBranch(auth.user, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
 
   const name = parsed.data.name?.trim() || row.name;
   const code = parsed.data.code !== undefined ? (parsed.data.code?.trim() || null) : row.code;
@@ -43,8 +46,9 @@ export async function DELETE(request, { params }) {
   if (!can(auth.user, "locations", "delete")) return Response.json({ error: "Sem permissão." }, { status: 403 });
 
   const db = getDb();
-  const row = db.prepare("SELECT id FROM locations WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  const row = db.prepare("SELECT id, branch_id FROM locations WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!row) return Response.json({ error: "Localização não encontrada." }, { status: 404 });
+  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
 
   const ticketCount = db.prepare("SELECT COUNT(*) count FROM tickets WHERE location_id=? AND organization_id=?")
     .get(id, auth.user.organization_id).count;

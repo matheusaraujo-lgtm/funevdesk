@@ -40,6 +40,10 @@ services:
     # Em produção o cookie de sessão é Secure e exige que o usuário acesse via HTTPS.
     ports:
       - "${APP_BIND:-0.0.0.0}:${APP_PORT:-3000}:3000"
+    # Permite ao processo (usuário não-root) abrir sockets ICMP para o ping do
+    # monitoramento de rede/impressoras. Sem isso o ping falha e a latência fica N/D.
+    sysctls:
+      - net.ipv4.ping_group_range=0 2147483647
     # Variáveis de runtime (segredos, integrações) vêm do .env.
     env_file:
       - .env
@@ -56,6 +60,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
+  # Servidor TURN próprio (alternativa ao ExpressTurn) para o acesso remoto WebRTC.
+  # Fica DESLIGADO por padrão (profile "turn"); para subir: docker compose --profile turn up -d coturn.
+  # Requer liberar no firewall: 3478/udp, 3478/tcp e a faixa 49152-65535/udp.
+  # network_mode: host porque o relay usa uma faixa ampla de portas UDP (inviável publicar via -p).
+  coturn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    profiles: ["turn"]
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
 
 volumes:
   postgres-data:

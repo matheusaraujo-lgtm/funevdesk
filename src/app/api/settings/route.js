@@ -1,5 +1,6 @@
 import { requireCurrentUser } from "@/lib/auth";
 import { ensureEnrollmentKey, rotateEnrollmentKey } from "@/lib/agent";
+import { toServableLogoUrl } from "@/lib/branding";
 import { getDb } from "@/lib/db";
 import { parseSlaPolicy } from "@/lib/sla";
 import { z } from "zod";
@@ -59,7 +60,7 @@ export async function GET(request) {
     settings: {
       organizationName: organization.name,
       appName: settings?.app_name || "FunevDesk",
-      logoUrl: settings?.logo_url || "",
+      logoUrl: toServableLogoUrl(settings?.logo_url),
       primaryColor: settings?.primary_color || "#102033",
       secondaryColor: settings?.secondary_color || "#bff2e6",
       navigationMode: settings?.navigation_mode || "SIDEBAR",

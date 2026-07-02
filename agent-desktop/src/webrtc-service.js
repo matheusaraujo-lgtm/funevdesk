@@ -4,6 +4,12 @@ const api = require("./api-client");
 
 let hostWindow = null;
 let activeSessionId = null;
+// STUN/TURN entregues pelo servidor via heartbeat (pendingRemote.iceServers). Default: só STUN.
+let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+
+function setIceServers(servers) {
+  if (Array.isArray(servers) && servers.length) iceServers = servers;
+}
 
 async function startWebRtcHost(sessionId) {
   if (activeSessionId === sessionId && hostWindow && !hostWindow.isDestroyed()) return;
@@ -15,8 +21,13 @@ async function startWebRtcHost(sessionId) {
     types: ["screen"],
     thumbnailSize: { width: 0, height: 0 },
   });
-  const screenSource = sources.find((s) => s.id.startsWith("screen:")) || sources[0];
-  if (!screenSource) throw new Error("Nenhuma fonte de captura de tela disponível.");
+  const screens = sources.filter((s) => s.id.startsWith("screen:"));
+  // Lista de monitores para o técnico poder alternar quando a máquina tem mais de uma tela.
+  const monitors = (screens.length ? screens : sources).map((s, index) => ({
+    id: s.id,
+    name: s.name || `Monitor ${index + 1}`,
+  }));
+  if (!monitors.length) throw new Error("Nenhuma fonte de captura de tela disponível.");
 
   hostWindow = new BrowserWindow({
     show: false,
@@ -30,7 +41,9 @@ async function startWebRtcHost(sessionId) {
   hostWindow.webContents.on("did-finish-load", () => {
     hostWindow.webContents.send("webrtc-config", {
       sessionId,
-      sourceId: screenSource.id,
+      sourceId: monitors[0].id,
+      monitors,
+      iceServers,
     });
   });
 
@@ -52,4 +65,4 @@ async function pollAndHost(sessionId) {
   await startWebRtcHost(sessionId);
 }
 
-module.exports = { startWebRtcHost, stopWebRtcHost, pollAndHost };
+module.exports = { startWebRtcHost, stopWebRtcHost, pollAndHost, setIceServers };

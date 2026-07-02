@@ -7,7 +7,7 @@ const { ensureAgentReady, registerHeartbeatSender, resetToBundledEnrollmentIfNee
 const { loadConfig, saveConfig, appendLog, isPermanentToken, DEFAULTS } = require("./config");
 const { processCommands, drainResults } = require("./incident-response");
 const { collectInventory, collectTelemetry } = require("./inventory");
-const { startWebRtcHost, stopWebRtcHost } = require("./webrtc-service");
+const { startWebRtcHost, stopWebRtcHost, setIceServers } = require("./webrtc-service");
 const { simulateInput } = require("./input-simulator");
 const { registerPopupIpc, openConsentPopup, openReplyPopup } = require("./popups");
 
@@ -246,6 +246,9 @@ async function sendHeartbeat(includeInventory) {
     }
 
     if (response.pendingRemote) {
+      // STUN/TURN vêm do servidor: guarda para o host WebRTC usar ao aceitar (sem TURN, redes
+      // diferentes não conectam e a sessão trava em "aguardando canal de controle").
+      setIceServers(response.pendingRemote.iceServers);
       showRemoteConsentNotification(response.pendingRemote);
     }
 

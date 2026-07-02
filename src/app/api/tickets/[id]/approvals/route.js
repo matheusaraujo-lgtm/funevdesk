@@ -1,4 +1,5 @@
 import { canAccessTicket, getPermissions, requireCurrentUser } from "@/lib/auth";
+import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { createNotification } from "@/lib/notifications";
 import { getDb, makeId } from "@/lib/db";
 import { extendSlaAfterPause, getSlaStatus } from "@/lib/sla";
@@ -35,6 +36,14 @@ export async function POST(request, { params }) {
   if (!getPermissions(currentUser).canManageTickets) return Response.json({ error: "Seu perfil não pode solicitar aprovação." }, { status: 403 });
   const approver = db.prepare("SELECT id, name FROM users WHERE id=? AND organization_id=? AND active=1").get(parsed.data.approverId, currentUser.organization_id);
   if (!approver) return Response.json({ error: "Usuário aprovador não encontrado." }, { status: 404 });
+  // Isolamento por filial: actor sem all_branches só pode escolher aprovador que compartilhe uma de suas filiais.
+  if (!currentUser.all_branches) {
+    const allowed = getAllowedBranchIds(currentUser, db);
+    const shares = allowed.length
+      ? db.prepare(`SELECT 1 FROM user_branches WHERE user_id=? AND branch_id IN (${allowed.map(() => "?").join(",")})`).get(approver.id, ...allowed)
+      : null;
+    if (!shares) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  }
   const now = new Date().toISOString();
   const approvalId = makeId("apv");
   const create = db.transaction(() => {

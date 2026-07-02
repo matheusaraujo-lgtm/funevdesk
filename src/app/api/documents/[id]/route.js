@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,10 @@ export async function PUT(request, { params }) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canManageTickets) return Response.json({ error: "Sem permissão para editar documentação." }, { status: 403 });
+  const document = db.prepare("SELECT branch_id FROM it_documents WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
+  if (!document) return Response.json({ error: "Documento não encontrado." }, { status: 404 });
+  if (!canAccessBranch(currentUser, document.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  if (parsed.data.branchId && !canAccessBranch(currentUser, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, currentUser.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
   const result = db.prepare(`
@@ -56,6 +61,9 @@ export async function DELETE(request, { params }) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem excluir documentação." }, { status: 403 });
+  const document = db.prepare("SELECT branch_id FROM it_documents WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
+  if (!document) return Response.json({ error: "Documento não encontrado." }, { status: 404 });
+  if (!canAccessBranch(currentUser, document.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const result = db.prepare("DELETE FROM it_documents WHERE id=? AND organization_id=?").run(id, currentUser.organization_id);
   if (!result.changes) return Response.json({ error: "Documento não encontrado." }, { status: 404 });
   return Response.json({ ok: true });
