@@ -253,11 +253,21 @@ export function maybeCreateAlertTicket(db, asset, alertType, metricValue) {
   const settings = db.prepare("SELECT automatic_tickets_enabled FROM system_settings WHERE organization_id=?").get(asset.organization_id);
   if (settings && !settings.automatic_tickets_enabled) return null;
 
-  const open = db.prepare(`
-    SELECT id FROM tickets WHERE asset_id=? AND status!='RESOLVIDO' AND source='MONITOR'
-    AND title LIKE ? LIMIT 1
-  `).get(asset.id, `%${alertType === "CPU_HIGH" ? "Processador" : alertType === "MEMORY_HIGH" ? "Memória" : "Disco"}%`);
-  if (open) return null;
+  const labelByType = { CPU_HIGH: "Processador", MEMORY_HIGH: "Memória", DISK_HIGH: "Disco" };
+  const label = labelByType[alertType] || "Monitoramento";
+
+  // Dedup inteligente por ativo + tipo de recurso: NÃO abre outro chamado se já existe um
+  // aberto do mesmo tipo, OU se um foi aberto nas últimas 6h (mesmo já resolvido). Isso evita
+  // enxurrada de chamados quando o pico é recorrente (CPU sobe/desce várias vezes ao dia).
+  const COOLDOWN_MS = 6 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - COOLDOWN_MS).toISOString();
+  const recent = db.prepare(`
+    SELECT id FROM tickets
+    WHERE asset_id=? AND source='MONITOR' AND title LIKE ?
+      AND (status != 'RESOLVIDO' OR created_at >= ?)
+    ORDER BY created_at DESC LIMIT 1
+  `).get(asset.id, `%${label}%`, cutoff);
+  if (recent) return null;
 
   const meta = alertTicketMeta[alertType];
   if (!meta) return null;
@@ -273,7 +283,7 @@ export function maybeCreateAlertTicket(db, asset, alertType, metricValue) {
     hostname: asset.hostname,
     logged_user: asset.logged_user,
     ip_address: asset.ip_address,
-    metric: `${alertType} = ${metricValue}%`,
+    metric: `${label}: ${Math.round(Number(metricValue))}%`,
   });
 
   db.prepare(`INSERT INTO tickets

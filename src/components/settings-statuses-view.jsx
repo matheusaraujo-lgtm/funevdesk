@@ -8,6 +8,7 @@ import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { statusColorHex } from "@/lib/status-colors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const EDITABLE = ["label", "is_terminal", "pauses_sla", "allows_messages"];
+const EDITABLE = ["label", "is_terminal", "pauses_sla", "allows_messages", "color"];
 
 function snapshot(list) {
   return Object.fromEntries(list.map((s) => [s.id, EDITABLE.reduce((acc, key) => ({ ...acc, [key]: s[key] }), {})]));
@@ -52,6 +53,7 @@ export function SettingsStatusesView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newCode, setNewCode] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState("#2563eb");
 
   const apply = useCallback((list) => {
     setStatuses(list);
@@ -72,7 +74,7 @@ export function SettingsStatusesView() {
   function isDirty(status) {
     const base = originals[status.id];
     if (!base) return false;
-    return EDITABLE.some((key) => Boolean(status[key]) !== Boolean(base[key]) || (key === "label" && status[key] !== base[key]));
+    return EDITABLE.some((key) => Boolean(status[key]) !== Boolean(base[key]) || ((key === "label" || key === "color") && status[key] !== base[key]));
   }
 
   function patchRow(id, patch) {
@@ -86,13 +88,14 @@ export function SettingsStatusesView() {
     const response = await fetch("/api/ticket-statuses", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, label }),
+      body: JSON.stringify({ code, label, color: newColor }),
     });
     const result = await response.json();
     if (!response.ok) return toast.error(result.error || "Não foi possível criar.");
     apply(result.statuses);
     setNewCode("");
     setNewLabel("");
+    setNewColor("#2563eb");
     setCreateOpen(false);
     toast.success("Situação criada.");
   }
@@ -115,6 +118,7 @@ export function SettingsStatusesView() {
         isTerminal: status.is_terminal,
         pausesSla: status.pauses_sla,
         allowsMessages: status.allows_messages,
+        color: status.color,
       }),
     });
     const result = await response.json();
@@ -167,7 +171,18 @@ export function SettingsStatusesView() {
                 const dirty = isDirty(status);
                 return (
                   <TableRow key={status.id} data-dirty={dirty || undefined} className="data-[dirty]:bg-primary/[0.03]">
-                    <TableCell><StatusBadge value={status.code} statuses={statuses} /></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="color"
+                          aria-label={`Cor da situação ${status.code}`}
+                          value={statusColorHex(status.color) || "#2563eb"}
+                          onChange={(e) => patchRow(status.id, { color: e.target.value })}
+                          className="h-9 w-11 shrink-0 p-1"
+                        />
+                        <StatusBadge value={status.code} statuses={statuses} />
+                      </div>
+                    </TableCell>
                     <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">{status.code}</code></TableCell>
                     <TableCell>
                       <Input
@@ -208,7 +223,7 @@ export function SettingsStatusesView() {
         )}
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setNewCode(""); setNewLabel(""); } }}>
+      <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setNewCode(""); setNewLabel(""); setNewColor("#2563eb"); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nova situação</DialogTitle></DialogHeader>
           <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); createStatus(); }}>
@@ -220,6 +235,13 @@ export function SettingsStatusesView() {
             <div className="space-y-1.5">
               <Label htmlFor="status-label">Nome exibido</Label>
               <Input id="status-label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Ex.: Aguardando terceiro" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="status-color">Cor</Label>
+              <div className="flex gap-2">
+                <Input type="color" aria-label="Cor da situação (seletor)" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="h-10 w-14 p-1" />
+                <Input id="status-color" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="font-mono text-xs" />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>

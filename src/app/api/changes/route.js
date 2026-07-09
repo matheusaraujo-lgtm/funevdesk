@@ -22,7 +22,8 @@ const schema = z.object({
 export function listChanges(db, organizationId, branchIds = null) {
   const scope = branchIds?.length ? branchFilterClause(branchIds, "c.branch_id") : { clause: "1=1", params: [] };
   return db.prepare(`
-    SELECT c.*, u.name assignee_name, b.name branch_name
+    SELECT c.*, u.name assignee_name, b.name branch_name,
+      (SELECT COUNT(*) FROM tickets t WHERE t.change_id=c.id) linked_count
     FROM changes c
     LEFT JOIN users u ON u.id=c.assignee_id
     LEFT JOIN branches b ON b.id=c.branch_id

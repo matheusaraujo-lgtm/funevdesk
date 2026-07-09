@@ -24,7 +24,7 @@ export default function RootLayout({ children }) {
       <body suppressHydrationWarning>
         <TooltipProvider>
           {children}
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="top-center" />
         </TooltipProvider>
       </body>
     </html>

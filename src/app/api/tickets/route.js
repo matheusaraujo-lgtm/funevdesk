@@ -15,7 +15,7 @@ const schema = z.object({
   locationId: z.string().nullable().optional(),
   assetId: z.string().nullable().optional(),
   ticketTypeId: z.string().min(1),
-  title: z.string().min(5).max(160),
+  title: z.string().min(3).max(160),
   description: z.string().min(5).max(5000),
   answers: z.array(z.object({
     fieldId: z.string().min(1),

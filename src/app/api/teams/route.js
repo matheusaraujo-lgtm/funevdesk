@@ -49,7 +49,9 @@ export async function GET(request) {
   const requestedBranchId = new URL(request.url).searchParams.get("branchId");
   const scopedBranchIds = getAllowedBranchIds(auth.user, db, requestedBranchId || null);
   let teams = listTeams(db, auth.user.organization_id);
-  if (auth.user.role !== "ADMIN") {
+  // Isolamento por unidade: só quem tem acesso a todas as unidades vê equipes de outras filiais.
+  // Um ADMIN escopado (all_branches=false) fica restrito às suas unidades como qualquer outro.
+  if (!auth.user.all_branches) {
     teams = teams.filter((team) => !team.branch_id || scopedBranchIds.includes(team.branch_id));
   } else if (requestedBranchId) {
     teams = teams.filter((team) => !team.branch_id || team.branch_id === requestedBranchId);

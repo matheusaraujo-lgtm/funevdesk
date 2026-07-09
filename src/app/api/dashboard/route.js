@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser, roleLabel } from "@/lib/auth";
-import { isActiveTicketStatus, listTicketStatuses } from "@/lib/ticket-statuses";
+import { listTicketStatuses } from "@/lib/ticket-statuses";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +19,17 @@ export async function GET(request) {
   const scopedBranchIds = requestedBranchId && allowedBranchIds.includes(requestedBranchId) ? [requestedBranchId] : allowedBranchIds;
   const scopedBranchClause = scopedBranchIds.length ? ` IN (${placeholders(scopedBranchIds)})` : " IS NULL";
   const allowedBranchClause = allowedBranchIds.length ? ` IN (${placeholders(allowedBranchIds)})` : " IS NULL";
-  const ticketConditions = [`t.branch_id${scopedBranchClause}`];
-  const ticketParams = [...scopedBranchIds];
+  // Usuário-final vê SEMPRE os próprios chamados, independentemente da unidade que os atende.
+  // Antes exigia também t.branch_id na sua unidade — o que escondia chamados roteados para a
+  // Matriz/outra filial (ele não conseguia acompanhar o próprio chamado).
+  const ticketConditions = [];
+  const ticketParams = [];
   if (currentUser.role === "EMPLOYEE") {
     ticketConditions.push("(t.requester_id = ? OR t.asset_id = ?)");
     ticketParams.push(currentUser.id, currentUser.asset_id || "");
+  } else {
+    ticketConditions.push(`t.branch_id${scopedBranchClause}`);
+    ticketParams.push(...scopedBranchIds);
   }
   const branches = db.prepare(`
     SELECT b.*, COUNT(a.id) asset_count,
@@ -91,8 +97,12 @@ export async function GET(request) {
       LIMIT 8
     `).all(...xdrParams);
   }
+  // Situações terminais já vêm em `ticketStatuses` (carregado acima) — usa um Set em memória
+  // em vez de consultar o banco por chamado (evita 2×N round-trips na conexão única).
+  const terminalCodes = new Set(ticketStatuses.filter((status) => status.is_terminal).map((status) => status.code));
+  const isActiveStatus = (code) => Boolean(code) && !terminalCodes.has(code) && code !== "RESOLVIDO";
   const stats = {
-    openTickets: tickets.filter((ticket) => isActiveTicketStatus(db, currentUser.organization_id, ticket.status)).length,
+    openTickets: tickets.filter((ticket) => isActiveStatus(ticket.status)).length,
     critical: tickets.filter((ticket) => ticket.priority === "CRITICA").length,
     assets: assets.length,
     online: assets.filter((asset) => asset.status === "ONLINE").length,

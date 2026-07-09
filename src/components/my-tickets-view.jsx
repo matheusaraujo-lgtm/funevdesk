@@ -40,7 +40,7 @@ function StatCard({ icon: Icon, label, value, tone, active, onClick }) {
   );
 }
 
-export function MyTicketsView({ tickets, onOpenTicket, onNewTicket }) {
+export function MyTicketsView({ tickets, statuses, onOpenTicket, onNewTicket }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
@@ -111,7 +111,7 @@ export function MyTicketsView({ tickets, onOpenTicket, onNewTicket }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] text-muted-foreground">#{ticket.number}</span>
-                    <StatusBadge value={ticket.status} />
+                    <StatusBadge value={ticket.status} statuses={statuses} />
                   </div>
                   <p className="mt-0.5 truncate text-sm font-medium">{ticket.title}</p>
                   <p className="truncate text-xs text-muted-foreground">{ticket.ticket_type_name || "—"}</p>

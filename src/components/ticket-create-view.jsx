@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AppWindow, ArrowLeft, Building2, Check, FileCheck2, FileUp, Info, KeyRound,
+  AppWindow, ArrowLeft, ArrowRight, Check, FileCheck2, FileUp, Info, KeyRound,
   Laptop2, LoaderCircle, Mail, Monitor, Printer, Search, Send, Ticket, Wifi
 } from "lucide-react";
 import { toast } from "sonner";
@@ -84,23 +84,12 @@ function TypeCard({ option, selected, onSelect }) {
   );
 }
 
-// Chip de contexto detectado automaticamente (unidade, máquina, fila).
-function ContextChip({ icon: Icon, value, muted }) {
-  return (
-    <span className={cn(
-      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-      muted ? "border-foreground/10 text-muted-foreground" : "border-primary/20 bg-primary/[0.05] text-foreground"
-    )}>
-      <Icon className={cn("size-3.5", muted ? "text-muted-foreground" : "text-primary")} />
-      <span className="max-w-[180px] truncate">{value}</span>
-    </span>
-  );
-}
-
 export function TicketCreateView({
   branches, assets = [], users = [], defaultBranchId, onCreate, onCancel, currentUser, catalog,
 }) {
   const [ticketTypeId, setTicketTypeId] = useState("");
+  // Fluxo em 2 passos: 1 = escolher o tipo, 2 = preencher o formulário.
+  const [step, setStep] = useState(1);
   const [typeSearch, setTypeSearch] = useState("");
   const [branchId, setBranchId] = useState("");
   const [assetId, setAssetId] = useState("none");
@@ -145,17 +134,6 @@ export function TicketCreateView({
     || (assetId && assetId !== "none" ? assets.find((asset) => asset.id === assetId)?.hostname : null)
     || (currentUser.role === "EMPLOYEE" ? assets[0]?.hostname : null)
     || null;
-  const handlingBranchName = useMemo(() => {
-    if (!selectedType || !selectedBranch) return selectedBranch?.name || currentUser.branchName;
-    if (selectedType.targetBranchMode === "MATRIZ") {
-      return branches.find((branch) => branch.type === "MATRIZ")?.name || "Matriz";
-    }
-    if (selectedType.targetBranchMode === "SPECIFIC" && selectedType.targetBranchId) {
-      return branches.find((branch) => branch.id === selectedType.targetBranchId)?.name || selectedType.targetBranchName || "Unidade configurada";
-    }
-    return selectedBranch.name;
-  }, [selectedType, selectedBranch, branches, currentUser.branchName]);
-  const routedToOtherBranch = selectedType && selectedBranch && handlingBranchName && handlingBranchName !== selectedBranch.name;
 
   function changeTicketType(value) {
     setTicketTypeId(value);
@@ -244,6 +222,8 @@ export function TicketCreateView({
       // Limpa a seleção quando o tipo escolhido deixa de existir nas opções.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTicketTypeId("");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStep(1);
     }
   }, [ticketTypeId, ticketTypeOptions]);
 
@@ -276,12 +256,15 @@ export function TicketCreateView({
     toast.success("Arquivo anexado.");
   }
 
-  async function submit(event) {
-    event.preventDefault();
+  async function submit() {
+    // Envio SÓ acontece por clique explícito no botão "Abrir chamado" (passo 2). O <form>
+    // não tem mais submit nativo (onSubmit faz preventDefault), então Enter em qualquer
+    // campo ou a troca de botão ao avançar não conseguem disparar o envio com campos vazios.
+    if (step !== 2) return;
     if (submitLockRef.current) return; // 2º clique no mesmo tick: ignora.
     if (!selectedType) return toast.error("Selecione um tipo de chamado.");
     const nextErrors = {};
-    if (title.trim().length < 5) nextErrors.title = "Escreva um título com pelo menos 5 caracteres.";
+    if (title.trim().length < 3) nextErrors.title = "Escreva um título com pelo menos 3 caracteres.";
     if (isRichTextEmpty(description)) nextErrors.description = "Descreva o que está acontecendo.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -327,6 +310,7 @@ export function TicketCreateView({
         onChange={(next) => setAnswers((current) => ({ ...current, [field.id]: next }))}
         attachment={attachments.find((item) => item.fieldId === field.id)}
         onUpload={uploadFile}
+        onRemove={() => setAttachments((current) => current.filter((item) => item.fieldId !== field.id))}
         uploading={uploading}
         branchId={selectedBranchId}
       />
@@ -336,7 +320,7 @@ export function TicketCreateView({
   const submitting_ = uploading || submitting;
   const submitLabel = uploading ? "Enviando arquivo..." : submitting ? "Criando chamado..." : "Abrir chamado";
 
-  return <form className="mx-auto max-w-7xl space-y-4 pb-6" onSubmit={submit}>
+  return <form className="mx-auto max-w-7xl space-y-4 pb-6" onSubmit={(event) => event.preventDefault()}>
     {/* Header em destaque, enxuto: as ações principais agora vivem na barra fixa do rodapé. */}
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.07] via-card to-secondary/25 px-5 py-5 ring-1 ring-foreground/10 sm:px-6">
       <div className="flex items-start gap-3.5">
@@ -349,19 +333,13 @@ export function TicketCreateView({
       </div>
     </div>
 
-    {/* Contexto detectado automaticamente — vira informação leve, não campos a preencher. */}
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Detectado automaticamente</span>
-      <ContextChip icon={Building2} value={selectedBranch?.name || currentUser.branchName || "Sua unidade"} />
-      <ContextChip icon={Monitor} value={detectedMachineName || "Nenhuma máquina"} muted={!detectedMachineName} />
-      {routedToOtherBranch && <ContextChip icon={Building2} value={`Atendimento: ${handlingBranchName}`} />}
-    </div>
 
-    {/* Passo 1 — escolha do tipo em cards (sempre visível). */}
+    {/* Passo 1 — escolha do tipo. Só aparece enquanto o formulário não foi aberto. */}
+    {step === 1 && (
     <StepCard
       step={1}
       title="Do que você precisa?"
-      hint="Escolha o tipo de atendimento."
+      hint="Escolha o tipo e toque em Criar chamado."
       complete={Boolean(selectedType)}
       className="bg-gradient-to-br from-primary/[0.04] to-card ring-primary/15"
     >
@@ -394,21 +372,22 @@ export function TicketCreateView({
         )}
       </CardContent>
     </StepCard>
+    )}
 
-    {/* Aviso de máquina exigida — destacado assim que o tipo é escolhido. */}
-    {selectedType && equipmentRequired && !detectedMachineName && (
+    {/* Aviso de máquina exigida — destacado ao preencher o formulário. */}
+    {step === 2 && selectedType && equipmentRequired && !detectedMachineName && (
       <div className="flex items-start gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         <Monitor className="mt-0.5 size-4 shrink-0" />
         <span>Este tipo exige equipamento. Instale o agente nesta máquina para que ela seja detectada e vinculada automaticamente.</span>
       </div>
     )}
 
-    {/* Passos seguintes só aparecem após escolher o tipo (progressive disclosure). */}
-    {selectedType && (
+    {/* Passo 2 — formulário. Aparece após escolher o tipo e tocar em Criar chamado. */}
+    {step === 2 && selectedType && (
       <>
         <StepCard step={2} title="Conte o que está acontecendo" hint="Quanto mais detalhes, mais rápido o suporte resolve.">
           <CardContent className="grid gap-5 px-5 py-5 sm:grid-cols-2">
-            <Field label="Título" required className="sm:col-span-2">
+            <Field label="Título" className="sm:col-span-2">
               <Input value={title} aria-invalid={errors.title ? true : undefined} onChange={(event) => { setTitle(event.target.value); if (errors.title) setErrors((prev) => ({ ...prev, title: undefined })); }} placeholder="Resuma o problema em uma frase" />
               {errors.title && <p className="mt-1.5 text-xs text-destructive">{errors.title}</p>}
             </Field>
@@ -465,11 +444,22 @@ export function TicketCreateView({
           : "Selecione um tipo de chamado para começar"}
       </p>
       <div className="ml-auto flex gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" disabled={!selectedType || submitting_}>
-          {submitting_ ? <LoaderCircle className="animate-spin" /> : <Send />}
-          {submitLabel}
-        </Button>
+        {step === 1 ? (
+          <>
+            <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
+            <Button type="button" disabled={!selectedType} onClick={() => { setErrors({}); setStep(2); }}>
+              Criar chamado <ArrowRight />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="outline" onClick={() => setStep(1)}><ArrowLeft /> Voltar</Button>
+            <Button type="button" disabled={!selectedType || submitting_} onClick={submit}>
+              {submitting_ ? <LoaderCircle className="animate-spin" /> : <Send />}
+              {submitLabel}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   </form>;

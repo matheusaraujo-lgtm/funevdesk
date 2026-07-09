@@ -34,20 +34,20 @@ const itsmLinks = [
 
 // Conhecimento — base de conhecimento e documentação
 const knowledgeLinks = [
-  { id: "knowledge", label: "Base de conhecimento", description: "Artigos e orientações", icon: BookOpen, module: "knowledge" },
+  { id: "knowledge", label: "Conhecimento", description: "Artigos e orientações", icon: BookOpen, module: "knowledge" },
   { id: "documentation", label: "Documentação", description: "Informações técnicas", icon: FileText, module: "documentation" },
 ];
 
 // Monitoramento — gestão de eventos (rede, segurança)
 const monitoringLinks = [
-  { id: "network", label: "Monitoramento de rede", description: "Dispositivos e links", icon: Network, module: "network" },
+  { id: "network", label: "Monitoramento", description: "Dispositivos e links", icon: Network, module: "network" },
   { id: "security", label: "Segurança", description: "Ameaças XDR/EPP e triagem", icon: ShieldAlert, module: "security" },
 ];
 
 // Administração — estoque, termos, catálogo, equipes e governança
 const adminLinks = [
   { id: "inventory", label: "Estoque", description: "Materiais e suprimentos", icon: Package, module: "inventory" },
-  { id: "terms", label: "Termos de equipamento", description: "Assinatura e PDF", icon: FileCheck2, module: "terms" },
+  { id: "terms", label: "Termos", description: "Assinatura e PDF", icon: FileCheck2, module: "terms" },
   { id: "teams", label: "Equipes", description: "Filas e responsáveis", icon: Users, module: "teams" },
   { id: "reports", label: "Relatórios", description: "KPIs e indicadores", icon: LayoutDashboard, module: "reports" },
   { id: "audit", label: "Auditoria", description: "Trilha de ações", icon: ClipboardList, module: "audit" },

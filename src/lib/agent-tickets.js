@@ -6,6 +6,7 @@ import { dispatchWebhooks } from "@/lib/webhooks";
 import { isTicketTypeAvailableForBranch, resolveHandlingBranchId } from "@/lib/ticket-type-routing";
 import { listCatalog } from "@/app/api/catalog/route";
 import { makeId } from "@/lib/db";
+import { plainTextPreview } from "@/lib/rich-text";
 
 export function resolveRequesterForAsset(db, asset) {
   if (!asset?.id) return null;
@@ -116,7 +117,8 @@ export function listAgentNotifications(db, asset, since) {
       title: row.message_type === "RESOLUTION"
         ? `Chamado #${row.ticket_number} resolvido`
         : `Chamado #${row.ticket_number}`,
-      body: row.body,
+      // Mensagens são HTML (rich text); envia texto puro ao agente (sem tags nem entidades cruas).
+      body: plainTextPreview(row.body, 200),
       authorName: row.author_name,
       createdAt: row.created_at,
     })),

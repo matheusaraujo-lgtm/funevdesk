@@ -100,6 +100,11 @@ export default function Home() {
     if (response.ok) setTermTemplates((await response.json()).templates);
   }, []);
 
+  const reloadUsers = useCallback(async () => {
+    const response = await fetch("/api/users", { cache: "no-store" });
+    if (response.ok) setUsers((await response.json()).users);
+  }, []);
+
   function refreshLists() {
     setListRefreshKey((current) => current + 1);
     reloadCatalog();
@@ -201,6 +206,20 @@ export default function Home() {
     setTermTemplates(templatesRes?.ok ? ((await templatesRes.json()).templates || []) : []);
   }, [branchId, handleProtectedResponse]);
 
+  // Refresh leve para o polling/foco: recarrega só o painel operacional (chamados/ativos),
+  // que é o que muda a todo momento. Os dados de configuração (catálogo, usuários, perfis,
+  // filiais, templates) mudam raramente e já têm reloads próprios — não precisam re-buscar
+  // a cada 30s, poupando ~6 GETs por ciclo por usuário.
+  const refreshDashboard = useCallback(async () => {
+    const dashboardResponse = await fetch(`/api/dashboard${branchId ? `?branchId=${branchId}` : ""}`, { cache: "no-store" });
+    if (!await handleProtectedResponse(dashboardResponse)) return;
+    if (!dashboardResponse.ok) return;
+    const dashboard = await dashboardResponse.json();
+    setData(dashboard);
+    setSessionUser(dashboard.currentUser);
+    setTicketStatuses(dashboard.ticketStatuses || []);
+  }, [branchId, handleProtectedResponse]);
+
   const loadTicketDetails = useCallback(async (ticketId) => {
     const response = await fetch(`/api/tickets/${ticketId}`, { cache: "no-store" });
     if (!await handleProtectedResponse(response)) return null;
@@ -223,9 +242,10 @@ export default function Home() {
     if (authStatus === "authenticated") loadData().catch(() => {});
   }, [authStatus, loadData]);
 
-  // Mantém o loadData mais recente sem recriar o intervalo a cada novo `data`.
-  const loadDataRef = useRef(loadData);
-  loadDataRef.current = loadData;
+  // Mantém o refresh mais recente sem recriar o intervalo a cada novo `data`.
+  // O polling usa o refresh leve (só painel), não o loadData completo.
+  const loadDataRef = useRef(refreshDashboard);
+  loadDataRef.current = refreshDashboard;
   const lastLoadRef = useRef(0);
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -576,6 +596,7 @@ export default function Home() {
           // O agente já abre os chamados de incidente automaticamente — sem alerta de saúde aqui.
           <MyTicketsView
             tickets={data.tickets}
+            statuses={ticketStatuses}
             onOpenTicket={openTicket}
             onNewTicket={() => setView("new-ticket")}
           />
@@ -633,7 +654,7 @@ export default function Home() {
       {view === "dashboard" && <DashboardView data={data} currentUser={data.currentUser} openTicket={openTicket} onNavigate={setView} onNavigateQueue={goToTicketsQueue} onNewTicket={() => setView("new-ticket")} />}
       {view === "tickets" && can("tickets", "read") && <TicketsView tickets={data.tickets} catalog={catalog} users={users} currentUser={data.currentUser} permissions={data.permissions} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} initialQueue={ticketsQueue} onQueueApplied={() => setTicketsQueue(null)} onOpenTicket={openTicket} onRemoteAccess={remoteAccess} onStatusChange={changeStatus} onAssumeTicket={assumeTicket} onBulkPatch={bulkPatchTickets} />}
       {view === "assets" && data.permissions.canViewAssets && <AssetsView assets={data.assets} allAssets={data.assets} networkDevices={data.networkDevices || []} tickets={data.tickets} permissions={data.permissions} onNewTicket={() => setView("new-ticket")} onRemoteAccess={remoteAccess} onRemoteAsset={assetRemoteAccess} onOpenTicket={openTicket} onImported={loadData} onOpenMonitoring={() => setView("network")} onOpenAsset={openAsset} />}
-      {view === "asset-detail" && data.permissions.canViewAssets && <AssetDetailView asset={data.assets.find((item) => item.id === selectedAsset?.id) || selectedAsset} tickets={data.tickets} permissions={data.permissions} onBack={() => setView("assets")} onRemoteAsset={assetRemoteAccess} onNewTicket={() => setView("new-ticket")} onOpenTicket={openTicket} onReload={loadData} />}
+      {view === "asset-detail" && data.permissions.canViewAssets && <AssetDetailView asset={data.assets.find((item) => item.id === selectedAsset?.id) || selectedAsset} tickets={data.tickets} statuses={ticketStatuses} permissions={data.permissions} onBack={() => setView("assets")} onRemoteAsset={assetRemoteAccess} onNewTicket={() => setView("new-ticket")} onOpenTicket={openTicket} onReload={loadData} />}
       {view === "documentation" && can("documentation", "read") && <DocumentationView key={listRefreshKey} branches={data.branches} branchId={branchId} permissions={data.permissions} onNew={() => { setFormDraft(null); setView("documentation-form"); }} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onOpen={(item) => { setFormDraft(item); setView("documentation-detail"); }} />}
       {view === "documentation-form" && <DocumentationFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("documentation")} onSaved={refreshLists} />}
       {view === "documentation-detail" && formDraft && <DocumentationDetailView item={formDraft} permissions={data.permissions} onBack={() => closeDraftForm("documentation")} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onDeleted={refreshLists} onSaved={refreshLists} />}
@@ -648,8 +669,8 @@ export default function Home() {
       {view === "network-form" && <NetworkFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("network")} onSaved={refreshLists} />}
       {view === "security" && can("security", "read") && <SecurityView permissions={data.permissions} onOpenTicket={openTicketById} />}
       {view === "details" && <TicketDetails details={ticketDetails} users={users} assets={data.assets} currentUser={data.currentUser} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} onBack={() => setView("tickets")} onStatusChange={changeStatus} onRemoteAccess={remoteAccess} onPatchTicket={patchTicket} onAssumeTicket={assumeTicket} onReload={() => { const id = selectedTicket?.id || ticketDetails?.ticket?.id; if (id) loadTicketDetails(id); }} />}
-      {view === "users" && can("users", "read") && <UsersView users={users} currentUserId={data.currentUser.id} createdCredential={createdCredential} onAckCredential={() => setCreatedCredential(null)} onNew={() => { setUserEditId(null); setView("users-form"); }} onEdit={(id) => { setUserEditId(id); setView("users-form"); }} onToggle={toggleUser} onDelete={deleteUser} onResetPassword={resetUserPassword} />}
-      {view === "users-form" && can("users", "read") && <UserFormView userId={userEditId} users={users} branches={data.branches} assets={data.assets} profiles={profiles} onCreate={createUser} onSave={saveUser} onCancel={closeUserForm} />}
+      {view === "users" && can("users", "read") && <UsersView users={users} currentUserId={data.currentUser.id} createdCredential={createdCredential} onAckCredential={() => setCreatedCredential(null)} onNew={() => { setUserEditId(null); setView("users-form"); }} onEdit={(id) => { setUserEditId(id); setView("users-form"); }} onToggle={toggleUser} onDelete={deleteUser} onResetPassword={resetUserPassword} onImported={reloadUsers} />}
+      {view === "users-form" && can("users", "read") && <UserFormView userId={userEditId} users={users} branches={data.branches} assets={data.assets} profiles={profiles} canGrantAllBranches={data.currentUser?.role === "ADMIN" && Boolean(data.permissions?.canViewAllBranches)} onCreate={createUser} onSave={saveUser} onCancel={closeUserForm} />}
       {view === "profiles" && can("profiles", "read") && <ProfilesView can={can} onProfilesChanged={setProfiles} />}
       {view === "settings" && can("settings", "read") && <SettingsGeneralView settings={settings} agentAssets={agentAssets} onSave={saveSettings} onRefreshSettings={loadData} />}
       {view === "settings-branches" && can("branches", "read") && <BranchesView branches={branches} onNew={() => { setBranchEditId(null); setView("settings-branches-form"); }} onEdit={(id) => { setBranchEditId(id); setView("settings-branches-form"); }} onDelete={deleteBranch} />}

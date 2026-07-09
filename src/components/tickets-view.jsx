@@ -242,8 +242,8 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   }, []);
 
   async function handleAssume(ticket) {
-    const ok = await onAssumeTicket?.(ticket.id);
-    if (ok) toast.success(ticket.assignee_id === currentUser.id ? "Chamado atualizado." : "Chamado assumido.");
+    // O toast de sucesso é emitido uma única vez pelo handler do page.js (assumeTicket).
+    await onAssumeTicket?.(ticket.id);
   }
 
   async function handleRemote(ticket) {

@@ -273,8 +273,10 @@ export async function buildElectronAgent({
   outputDirectory = path.join(root, "public", "downloads", "agent"),
   branding = {},
 } = {}) {
+  // Em Windows builda nativo; em Linux builda os alvos --win via Wine (imagem
+  // electronuserland/builder:wine). O ícone já vem versionado (ensureIcon é no-op se existir).
   if (process.platform !== "win32") {
-    throw new Error("Build Electron do agente requer Windows.");
+    console.log("Build em Linux: usando Wine para gerar os instaladores Windows.");
   }
 
   await ensureDependencies();

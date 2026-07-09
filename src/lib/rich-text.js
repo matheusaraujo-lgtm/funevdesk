@@ -8,11 +8,39 @@ export function isHtmlContent(value) {
   return HTML_TAG.test(value) || HTML_ENTITY.test(value);
 }
 
+// Entidades nomeadas mais comuns (o editor + DOMPurify geram sobretudo &amp; &lt; &gt; &quot;
+// &#39; &nbsp;; conteúdo colado pode trazer entidades acentuadas). Sem decodificar isto, a
+// notificação/preview exibia "Servi&ccedil;o", "Rua A &amp; B", "palavra&nbsp;palavra" cru.
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  agrave: "à", Agrave: "À", atilde: "ã", otilde: "õ", Atilde: "Ã", Otilde: "Õ",
+  acirc: "â", ecirc: "ê", ocirc: "ô", Acirc: "Â", Ecirc: "Ê", Ocirc: "Ô",
+  ccedil: "ç", Ccedil: "Ç", ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü",
+  ordf: "ª", ordm: "º", deg: "°", hellip: "…", mdash: "—", ndash: "–",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+};
+
+export function decodeHtmlEntities(text) {
+  if (!text || text.indexOf("&") === -1) return text;
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z0-9]+);/gi, (match, entity) => {
+    if (entity[0] === "#") {
+      const code = entity[1] === "x" || entity[1] === "X"
+        ? parseInt(entity.slice(2), 16)
+        : parseInt(entity.slice(1), 10);
+      if (Number.isNaN(code) || code < 0 || code > 0x10FFFF) return match;
+      try { return String.fromCodePoint(code); } catch { return match; }
+    }
+    const named = NAMED_ENTITIES[entity] ?? NAMED_ENTITIES[entity.toLowerCase()];
+    return named !== undefined ? named : match;
+  });
+}
+
 export function plainTextPreview(value, maxLength = 120) {
   if (!value) return "";
-  const text = isHtmlContent(value)
-    ? value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
-    : value.replace(/\s+/g, " ").trim();
+  const stripped = isHtmlContent(value) ? value.replace(/<[^>]+>/g, " ") : value;
+  const text = decodeHtmlEntities(stripped).replace(/\s+/g, " ").trim();
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
@@ -26,12 +54,12 @@ export function isRichTextEmpty(value) {
 export function plainTextFromHtml(value) {
   if (!value) return "";
   if (!isHtmlContent(value)) return value;
-  return value
+  return decodeHtmlEntities(value
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<[^>]+>/g, "")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim());
 }
 
 export function toEditorHtml(value) {

@@ -1,6 +1,6 @@
 {
   "name": "funevdesk-agent",
-  "version": "1.2.8",
+  "version": "1.2.12",
   "description": "FunevDesk Agente - telemetria, inventário e chamados",
   "main": "src/main.js",
   "author": "FunevDesk",
@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win nsis msi",
+    "build": "electron-builder --win nsis",
     "build:dir": "electron-builder --win dir"
   },
   "dependencies": {

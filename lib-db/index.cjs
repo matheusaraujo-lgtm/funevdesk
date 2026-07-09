@@ -10,6 +10,20 @@ function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
+// Executa um DDL de ALTER ... ADD COLUMN de forma idempotente: se a coluna já existir
+// (Postgres 42701 duplicate_column / SQLite "duplicate column name"), ignora em vez de
+// derrubar a migração. Blindagem contra leituras transitórias vazias do sync-bridge.
+function execAddColumn(db, sql) {
+  try {
+    db.exec(sql);
+  } catch (error) {
+    const code = error && error.code;
+    const message = String((error && error.message) || "");
+    if (code === "42701" || /duplicate column|already exists/i.test(message)) return;
+    throw error;
+  }
+}
+
 // Dados de DEMONSTRAÇÃO (alertas XDR fake, equipes/serviços/macros de exemplo) só são
 // semeados quando NEXUS_SEED_DEMO=true. Em produção o sistema nasce limpo: apenas
 // organização, filial Matriz, usuário admin e os catálogos essenciais (tipos de
@@ -191,20 +205,20 @@ function initialize(db) {
   const count = db.prepare("SELECT COUNT(*) AS total FROM organizations").get().total;
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
   if (!userColumns.some((column) => column.name === "asset_id")) {
-    db.exec("ALTER TABLE users ADD COLUMN asset_id TEXT REFERENCES assets(id)");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN asset_id TEXT REFERENCES assets(id)");
   }
   if (!userColumns.some((column) => column.name === "active")) {
-    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
   }
   if (!userColumns.some((column) => column.name === "password_hash")) {
-    db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN password_hash TEXT");
   }
   if (!userColumns.some((column) => column.name === "password_reset_required")) {
-    db.exec("ALTER TABLE users ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0");
   }
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
   if (!ticketColumns.some((column) => column.name === "ticket_type_id")) {
-    db.exec("ALTER TABLE tickets ADD COLUMN ticket_type_id TEXT REFERENCES ticket_types(id)");
+    execAddColumn(db, "ALTER TABLE tickets ADD COLUMN ticket_type_id TEXT REFERENCES ticket_types(id)");
   }
   ensureAssetColumns(db);
   ensureFeatureTables(db);
@@ -286,19 +300,19 @@ function ensureSystemSettings(db) {
   if (!organization) return;
   const columns = db.prepare("PRAGMA table_info(system_settings)").all();
   if (!columns.some((column) => column.name === "app_name")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN app_name TEXT NOT NULL DEFAULT 'FunevDesk'");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN app_name TEXT NOT NULL DEFAULT 'FunevDesk'");
   }
   if (!columns.some((column) => column.name === "logo_url")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN logo_url TEXT");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN logo_url TEXT");
   }
   if (!columns.some((column) => column.name === "primary_color")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#102033'");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#102033'");
   }
   if (!columns.some((column) => column.name === "secondary_color")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#bff2e6'");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#bff2e6'");
   }
   if (!columns.some((column) => column.name === "navigation_mode")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN navigation_mode TEXT NOT NULL DEFAULT 'NAVBAR'");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN navigation_mode TEXT NOT NULL DEFAULT 'NAVBAR'");
   }
   db.prepare(`INSERT OR IGNORE INTO system_settings
     (organization_id, sla_hours, remote_access_enabled, automatic_tickets_enabled, app_name, primary_color, secondary_color, navigation_mode, updated_at)
@@ -339,13 +353,13 @@ function ensureRuntimeMigrations(db) {
   `);
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
   if (!userColumns.some((column) => column.name === "active")) {
-    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
   }
   if (!userColumns.some((column) => column.name === "password_hash")) {
-    db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN password_hash TEXT");
   }
   if (!userColumns.some((column) => column.name === "password_reset_required")) {
-    db.exec("ALTER TABLE users ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0");
   }
   db.prepare(`INSERT OR IGNORE INTO user_branches (user_id, branch_id, is_primary)
     SELECT id, branch_id, 1 FROM users WHERE branch_id IS NOT NULL`).run();
@@ -354,7 +368,7 @@ function ensureRuntimeMigrations(db) {
   // Backfill seguro: admins vinculados à MATRIZ (donos/matriz) recebem 1; admins restritos a
   // filiais ficam 0 (escopados), preservando o isolamento desejado sem regredir o dono.
   if (!userColumns.some((column) => column.name === "all_branches")) {
-    db.exec("ALTER TABLE users ADD COLUMN all_branches INTEGER NOT NULL DEFAULT 0");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN all_branches INTEGER NOT NULL DEFAULT 0");
     db.exec(`UPDATE users SET all_branches=1 WHERE role='ADMIN' AND id IN (
       SELECT ub.user_id FROM user_branches ub JOIN branches b ON b.id=ub.branch_id WHERE b.type='MATRIZ'
     )`);
@@ -364,10 +378,10 @@ function ensureRuntimeMigrations(db) {
   // só o hash em repouso, igual à chave org-level em system_settings.
   const branchColumns = db.prepare("PRAGMA table_info(branches)").all();
   if (!branchColumns.some((column) => column.name === "enrollment_key_hash")) {
-    db.exec("ALTER TABLE branches ADD COLUMN enrollment_key_hash TEXT");
+    execAddColumn(db, "ALTER TABLE branches ADD COLUMN enrollment_key_hash TEXT");
   }
   if (!branchColumns.some((column) => column.name === "enrollment_key_prefix")) {
-    db.exec("ALTER TABLE branches ADD COLUMN enrollment_key_prefix TEXT");
+    execAddColumn(db, "ALTER TABLE branches ADD COLUMN enrollment_key_prefix TEXT");
   }
   const usersWithoutPassword = db.prepare("SELECT COUNT(*) total FROM users WHERE password_hash IS NULL").get().total;
   if (usersWithoutPassword) {
@@ -411,37 +425,58 @@ function ensureRuntimeMigrations(db) {
   ensureFeatureTables(db);
   ensureItilTables(db);
   ensureSystemSettings(db);
+  ensurePerformanceIndexes(db);
+}
+
+// Índices para as colunas filtradas/ordenadas/juntadas nas rotas quentes (dashboard, listas).
+// Sem eles o Postgres faz full scan + filesort a cada carga. CREATE INDEX IF NOT EXISTS é idempotente.
+function ensurePerformanceIndexes(db) {
+  const indexes = [
+    "CREATE INDEX IF NOT EXISTS idx_tickets_branch_updated ON tickets(branch_id, updated_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_asset ON tickets(asset_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(ticket_type_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_org_status ON tickets(organization_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_assets_branch_status ON assets(branch_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_network_devices_branch ON network_devices(branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(organization_id)",
+    "CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read_at)",
+  ];
+  for (const sql of indexes) {
+    try { db.exec(sql); } catch { /* coluna/tabela ainda ausente numa base antiga: ignora */ }
+  }
 }
 
 function ensureAssetColumns(db) {
   const assetColumns = db.prepare("PRAGMA table_info(assets)").all();
   if (!assetColumns.some((column) => column.name === "equipment_type")) {
-    db.exec("ALTER TABLE assets ADD COLUMN equipment_type TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN equipment_type TEXT");
   }
   if (!assetColumns.some((column) => column.name === "patrimony_number")) {
-    db.exec("ALTER TABLE assets ADD COLUMN patrimony_number TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN patrimony_number TEXT");
   }
   if (!assetColumns.some((column) => column.name === "agent_domain")) {
-    db.exec("ALTER TABLE assets ADD COLUMN agent_domain TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN agent_domain TEXT");
   }
   if (!assetColumns.some((column) => column.name === "serial_number")) {
-    db.exec("ALTER TABLE assets ADD COLUMN serial_number TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN serial_number TEXT");
   }
   if (!assetColumns.some((column) => column.name === "machine_uuid")) {
-    db.exec("ALTER TABLE assets ADD COLUMN machine_uuid TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN machine_uuid TEXT");
   }
   if (!assetColumns.some((column) => column.name === "active")) {
-    db.exec("ALTER TABLE assets ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
   }
   if (!assetColumns.some((column) => column.name === "agent_version")) {
-    db.exec("ALTER TABLE assets ADD COLUMN agent_version TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN agent_version TEXT");
   }
   // Tokens de agente hasheados em repouso (sha256). Prefixo mascarado só para identificação na UI.
   if (!assetColumns.some((column) => column.name === "agent_token_hash")) {
-    db.exec("ALTER TABLE assets ADD COLUMN agent_token_hash TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN agent_token_hash TEXT");
   }
   if (!assetColumns.some((column) => column.name === "agent_token_prefix")) {
-    db.exec("ALTER TABLE assets ADD COLUMN agent_token_prefix TEXT");
+    execAddColumn(db, "ALTER TABLE assets ADD COLUMN agent_token_prefix TEXT");
   }
   // Garante que cada hash de token de agente resolve para NO MÁXIMO um ativo (segurança da
   // autenticação do agente). Índice parcial: ignora os NULL (ativos ainda sem token).
@@ -487,7 +522,7 @@ function migrateSecretsAtRest(db) {
 function ensureNetworkDeviceColumns(db) {
   const columns = db.prepare("PRAGMA table_info(network_devices)").all();
   const addColumn = (name, ddl) => {
-    if (!columns.some((column) => column.name === name)) db.exec(`ALTER TABLE network_devices ADD COLUMN ${ddl}`);
+    if (!columns.some((column) => column.name === name)) execAddColumn(db, `ALTER TABLE network_devices ADD COLUMN ${ddl}`);
   };
   addColumn("monitor_type", "monitor_type TEXT NOT NULL DEFAULT 'PING'");
   addColumn("vendor", "vendor TEXT");
@@ -725,12 +760,13 @@ function ensureItilTables(db) {
   `);
 
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
-  const addTicketCol = (name, ddl) => { if (!ticketColumns.some((c) => c.name === name)) db.exec(`ALTER TABLE tickets ADD COLUMN ${ddl}`); };
+  const addTicketCol = (name, ddl) => { if (!ticketColumns.some((c) => c.name === name)) execAddColumn(db, `ALTER TABLE tickets ADD COLUMN ${ddl}`); };
   addTicketCol("ticket_type_id", "ticket_type_id TEXT");
   addTicketCol("assignee_id", "assignee_id TEXT");
   addTicketCol("team_id", "team_id TEXT");
   addTicketCol("service_id", "service_id TEXT");
   addTicketCol("problem_id", "problem_id TEXT");
+  addTicketCol("change_id", "change_id TEXT");
   addTicketCol("sla_due_at", "sla_due_at TEXT");
   addTicketCol("sla_status", "sla_status TEXT");
   addTicketCol("first_response_at", "first_response_at TEXT");
@@ -745,45 +781,45 @@ function ensureItilTables(db) {
 
   const messageColumns = db.prepare("PRAGMA table_info(ticket_messages)").all();
   if (messageColumns.length && !messageColumns.some((column) => column.name === "message_type")) {
-    db.exec("ALTER TABLE ticket_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'REPLY'");
+    execAddColumn(db, "ALTER TABLE ticket_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'REPLY'");
   }
 
   const assetColumns = db.prepare("PRAGMA table_info(assets)").all();
-  if (!assetColumns.some((c) => c.name === "lifecycle_status")) db.exec("ALTER TABLE assets ADD COLUMN lifecycle_status TEXT DEFAULT 'EM_USO'");
-  if (!assetColumns.some((c) => c.name === "warranty_expires_at")) db.exec("ALTER TABLE assets ADD COLUMN warranty_expires_at TEXT");
-  if (!assetColumns.some((c) => c.name === "contract_vendor")) db.exec("ALTER TABLE assets ADD COLUMN contract_vendor TEXT");
-  if (!assetColumns.some((c) => c.name === "contract_expires_at")) db.exec("ALTER TABLE assets ADD COLUMN contract_expires_at TEXT");
+  if (!assetColumns.some((c) => c.name === "lifecycle_status")) execAddColumn(db, "ALTER TABLE assets ADD COLUMN lifecycle_status TEXT DEFAULT 'EM_USO'");
+  if (!assetColumns.some((c) => c.name === "warranty_expires_at")) execAddColumn(db, "ALTER TABLE assets ADD COLUMN warranty_expires_at TEXT");
+  if (!assetColumns.some((c) => c.name === "contract_vendor")) execAddColumn(db, "ALTER TABLE assets ADD COLUMN contract_vendor TEXT");
+  if (!assetColumns.some((c) => c.name === "contract_expires_at")) execAddColumn(db, "ALTER TABLE assets ADD COLUMN contract_expires_at TEXT");
 
   const notificationColumns = db.prepare("PRAGMA table_info(notifications)").all();
-  if (!notificationColumns.some((c) => c.name === "reference_id")) db.exec("ALTER TABLE notifications ADD COLUMN reference_id TEXT");
-  if (!notificationColumns.some((c) => c.name === "reference_type")) db.exec("ALTER TABLE notifications ADD COLUMN reference_type TEXT");
+  if (!notificationColumns.some((c) => c.name === "reference_id")) execAddColumn(db, "ALTER TABLE notifications ADD COLUMN reference_id TEXT");
+  if (!notificationColumns.some((c) => c.name === "reference_type")) execAddColumn(db, "ALTER TABLE notifications ADD COLUMN reference_type TEXT");
 
   const settingsColumns = db.prepare("PRAGMA table_info(system_settings)").all();
-  if (!settingsColumns.some((c) => c.name === "business_hours_json")) db.exec("ALTER TABLE system_settings ADD COLUMN business_hours_json TEXT DEFAULT '{\"start\":\"08:00\",\"end\":\"18:00\",\"days\":[1,2,3,4,5]}'");
-  if (!settingsColumns.some((c) => c.name === "notifications_enabled")) db.exec("ALTER TABLE system_settings ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1");
-  if (!settingsColumns.some((c) => c.name === "escalation_enabled")) db.exec("ALTER TABLE system_settings ADD COLUMN escalation_enabled INTEGER NOT NULL DEFAULT 1");
-  if (!settingsColumns.some((c) => c.name === "sso_provider")) db.exec("ALTER TABLE system_settings ADD COLUMN sso_provider TEXT DEFAULT 'LOCAL'");
-  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key")) db.exec("ALTER TABLE system_settings ADD COLUMN agent_enrollment_key TEXT");
-  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key_hash")) db.exec("ALTER TABLE system_settings ADD COLUMN agent_enrollment_key_hash TEXT");
-  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key_prefix")) db.exec("ALTER TABLE system_settings ADD COLUMN agent_enrollment_key_prefix TEXT");
-  if (!settingsColumns.some((c) => c.name === "mesh_central_url")) db.exec("ALTER TABLE system_settings ADD COLUMN mesh_central_url TEXT");
-  if (!settingsColumns.some((c) => c.name === "printer_alert_events")) db.exec("ALTER TABLE system_settings ADD COLUMN printer_alert_events TEXT");
-  if (!settingsColumns.some((c) => c.name === "app_name")) db.exec("ALTER TABLE system_settings ADD COLUMN app_name TEXT NOT NULL DEFAULT 'FunevDesk'");
-  if (!settingsColumns.some((c) => c.name === "logo_url")) db.exec("ALTER TABLE system_settings ADD COLUMN logo_url TEXT");
-  if (!settingsColumns.some((c) => c.name === "primary_color")) db.exec("ALTER TABLE system_settings ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#102033'");
-  if (!settingsColumns.some((c) => c.name === "secondary_color")) db.exec("ALTER TABLE system_settings ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#bff2e6'");
-  if (!settingsColumns.some((c) => c.name === "navigation_mode")) db.exec("ALTER TABLE system_settings ADD COLUMN navigation_mode TEXT NOT NULL DEFAULT 'NAVBAR'");
-  if (!settingsColumns.some((c) => c.name === "sla_policy_json")) db.exec("ALTER TABLE system_settings ADD COLUMN sla_policy_json TEXT DEFAULT '{\"CRITICA\":{\"firstResponseMinutes\":15,\"resolutionHours\":2},\"ALTA\":{\"firstResponseMinutes\":30,\"resolutionHours\":4},\"MEDIA\":{\"firstResponseMinutes\":60,\"resolutionHours\":8},\"BAIXA\":{\"firstResponseMinutes\":240,\"resolutionHours\":16}}'");
+  if (!settingsColumns.some((c) => c.name === "business_hours_json")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN business_hours_json TEXT DEFAULT '{\"start\":\"08:00\",\"end\":\"18:00\",\"days\":[1,2,3,4,5]}'");
+  if (!settingsColumns.some((c) => c.name === "notifications_enabled")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 1");
+  if (!settingsColumns.some((c) => c.name === "escalation_enabled")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN escalation_enabled INTEGER NOT NULL DEFAULT 1");
+  if (!settingsColumns.some((c) => c.name === "sso_provider")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN sso_provider TEXT DEFAULT 'LOCAL'");
+  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN agent_enrollment_key TEXT");
+  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key_hash")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN agent_enrollment_key_hash TEXT");
+  if (!settingsColumns.some((c) => c.name === "agent_enrollment_key_prefix")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN agent_enrollment_key_prefix TEXT");
+  if (!settingsColumns.some((c) => c.name === "mesh_central_url")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN mesh_central_url TEXT");
+  if (!settingsColumns.some((c) => c.name === "printer_alert_events")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN printer_alert_events TEXT");
+  if (!settingsColumns.some((c) => c.name === "app_name")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN app_name TEXT NOT NULL DEFAULT 'FunevDesk'");
+  if (!settingsColumns.some((c) => c.name === "logo_url")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN logo_url TEXT");
+  if (!settingsColumns.some((c) => c.name === "primary_color")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#102033'");
+  if (!settingsColumns.some((c) => c.name === "secondary_color")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#bff2e6'");
+  if (!settingsColumns.some((c) => c.name === "navigation_mode")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN navigation_mode TEXT NOT NULL DEFAULT 'NAVBAR'");
+  if (!settingsColumns.some((c) => c.name === "sla_policy_json")) execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN sla_policy_json TEXT DEFAULT '{\"CRITICA\":{\"firstResponseMinutes\":15,\"resolutionHours\":2},\"ALTA\":{\"firstResponseMinutes\":30,\"resolutionHours\":4},\"MEDIA\":{\"firstResponseMinutes\":60,\"resolutionHours\":8},\"BAIXA\":{\"firstResponseMinutes\":240,\"resolutionHours\":16}}'");
 
   const remoteColumns = db.prepare("PRAGMA table_info(remote_sessions)").all();
   if (remoteColumns.length && !remoteColumns.some((c) => c.name === "ticket_id")) {
-    db.exec("ALTER TABLE remote_sessions ADD COLUMN ticket_id TEXT REFERENCES tickets(id)");
+    execAddColumn(db, "ALTER TABLE remote_sessions ADD COLUMN ticket_id TEXT REFERENCES tickets(id)");
   }
   if (remoteColumns.length && !remoteColumns.some((c) => c.name === "agent_acknowledged_at")) {
-    db.exec("ALTER TABLE remote_sessions ADD COLUMN agent_acknowledged_at TEXT");
+    execAddColumn(db, "ALTER TABLE remote_sessions ADD COLUMN agent_acknowledged_at TEXT");
   }
   if (remoteColumns.length && !remoteColumns.some((c) => c.name === "session_secret")) {
-    db.exec("ALTER TABLE remote_sessions ADD COLUMN session_secret TEXT");
+    execAddColumn(db, "ALTER TABLE remote_sessions ADD COLUMN session_secret TEXT");
   }
 
   seedItilData(db);
@@ -828,7 +864,7 @@ function ensureProfilePermissionTables(db) {
 
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
   if (!userColumns.some((column) => column.name === "profile_id")) {
-    db.exec("ALTER TABLE users ADD COLUMN profile_id TEXT REFERENCES profiles(id)");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN profile_id TEXT REFERENCES profiles(id)");
   }
 
   const C = ["read", "create", "update", "delete"];
@@ -945,7 +981,7 @@ function ensureObservabilityTables(db) {
   // Vínculo do alerta com o chamado aberto pelo analista de segurança (dedup).
   const xdrColumns = db.prepare("PRAGMA table_info(xdr_alerts)").all();
   if (!xdrColumns.some((column) => column.name === "ticket_id")) {
-    db.exec("ALTER TABLE xdr_alerts ADD COLUMN ticket_id TEXT");
+    execAddColumn(db, "ALTER TABLE xdr_alerts ADD COLUMN ticket_id TEXT");
   }
   migrateXdrAlertsUnique(db);
   if (demoSeedEnabled()) ensureXdrAlertSeeds(db);
@@ -1076,16 +1112,16 @@ function ensureAgentEnhancementTables(db) {
   ensureDocumentTypeSeeds(db);
 
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
-  if (!ticketColumns.some((c) => c.name === "location_id")) db.exec("ALTER TABLE tickets ADD COLUMN location_id TEXT");
-  if (!ticketColumns.some((c) => c.name === "sla_paused_at")) db.exec("ALTER TABLE tickets ADD COLUMN sla_paused_at TEXT");
+  if (!ticketColumns.some((c) => c.name === "location_id")) execAddColumn(db, "ALTER TABLE tickets ADD COLUMN location_id TEXT");
+  if (!ticketColumns.some((c) => c.name === "sla_paused_at")) execAddColumn(db, "ALTER TABLE tickets ADD COLUMN sla_paused_at TEXT");
 
   const settingsColumns = db.prepare("PRAGMA table_info(system_settings)").all();
   if (!settingsColumns.some((c) => c.name === "remote_provider")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN remote_provider TEXT NOT NULL DEFAULT 'NEXUS_WEBRTC'");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN remote_provider TEXT NOT NULL DEFAULT 'NEXUS_WEBRTC'");
   }
 
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
-  if (!userColumns.some((c) => c.name === "location_id")) db.exec("ALTER TABLE users ADD COLUMN location_id TEXT");
+  if (!userColumns.some((c) => c.name === "location_id")) execAddColumn(db, "ALTER TABLE users ADD COLUMN location_id TEXT");
 
   const orgs = db.prepare("SELECT id FROM organizations").all();
   for (const org of orgs) {
@@ -1112,31 +1148,31 @@ function ensureAgentEnhancementTables(db) {
 function ensureMultiTenantTables(db) {
   const orgColumns = db.prepare("PRAGMA table_info(organizations)").all();
   if (!orgColumns.some((column) => column.name === "slug")) {
-    db.exec("ALTER TABLE organizations ADD COLUMN slug TEXT");
+    execAddColumn(db, "ALTER TABLE organizations ADD COLUMN slug TEXT");
     db.prepare("UPDATE organizations SET slug=LOWER(REPLACE(name, ' ', '-')) WHERE slug IS NULL OR slug=''").run();
   }
 
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
   if (!userColumns.some((column) => column.name === "auth_provider")) {
-    db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'LOCAL'");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'LOCAL'");
   }
   if (!userColumns.some((column) => column.name === "external_id")) {
-    db.exec("ALTER TABLE users ADD COLUMN external_id TEXT");
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN external_id TEXT");
   }
 
   const auditColumns = db.prepare("PRAGMA table_info(audit_logs)").all();
   if (!auditColumns.some((column) => column.name === "branch_id")) {
-    db.exec("ALTER TABLE audit_logs ADD COLUMN branch_id TEXT");
+    execAddColumn(db, "ALTER TABLE audit_logs ADD COLUMN branch_id TEXT");
   }
 
   const problemColumns = db.prepare("PRAGMA table_info(problems)").all();
   if (problemColumns.length && !problemColumns.some((column) => column.name === "branch_id")) {
-    db.exec("ALTER TABLE problems ADD COLUMN branch_id TEXT");
+    execAddColumn(db, "ALTER TABLE problems ADD COLUMN branch_id TEXT");
   }
 
   const changeColumns = db.prepare("PRAGMA table_info(changes)").all();
   if (changeColumns.length && !changeColumns.some((column) => column.name === "branch_id")) {
-    db.exec("ALTER TABLE changes ADD COLUMN branch_id TEXT");
+    execAddColumn(db, "ALTER TABLE changes ADD COLUMN branch_id TEXT");
   }
 
   db.exec(`
@@ -1166,7 +1202,7 @@ function ensureTicketWorkflowTables(db) {
   `);
 
   const typeColumns = db.prepare("PRAGMA table_info(ticket_types)").all();
-  const addTypeCol = (name, ddl) => { if (!typeColumns.some((c) => c.name === name)) db.exec(`ALTER TABLE ticket_types ADD COLUMN ${ddl}`); };
+  const addTypeCol = (name, ddl) => { if (!typeColumns.some((c) => c.name === name)) execAddColumn(db, `ALTER TABLE ticket_types ADD COLUMN ${ddl}`); };
   addTypeCol("requires_approval", "requires_approval INTEGER NOT NULL DEFAULT 0");
   addTypeCol("approval_mode", "approval_mode TEXT NOT NULL DEFAULT 'NONE'");
   addTypeCol("default_approver_id", "default_approver_id TEXT");
@@ -1188,10 +1224,10 @@ function ensureTicketWorkflowTables(db) {
   `);
 
   const termColumns = db.prepare("PRAGMA table_info(equipment_terms)").all();
-  if (!termColumns.some((c) => c.name === "ticket_id")) db.exec("ALTER TABLE equipment_terms ADD COLUMN ticket_id TEXT REFERENCES tickets(id)");
-  if (!termColumns.some((c) => c.name === "term_template_id")) db.exec("ALTER TABLE equipment_terms ADD COLUMN term_template_id TEXT");
-  if (!termColumns.some((c) => c.name === "status")) db.exec("ALTER TABLE equipment_terms ADD COLUMN status TEXT NOT NULL DEFAULT 'ASSINADO'");
-  if (!termColumns.some((c) => c.name === "body_text")) db.exec("ALTER TABLE equipment_terms ADD COLUMN body_text TEXT");
+  if (!termColumns.some((c) => c.name === "ticket_id")) execAddColumn(db, "ALTER TABLE equipment_terms ADD COLUMN ticket_id TEXT REFERENCES tickets(id)");
+  if (!termColumns.some((c) => c.name === "term_template_id")) execAddColumn(db, "ALTER TABLE equipment_terms ADD COLUMN term_template_id TEXT");
+  if (!termColumns.some((c) => c.name === "status")) execAddColumn(db, "ALTER TABLE equipment_terms ADD COLUMN status TEXT NOT NULL DEFAULT 'ASSINADO'");
+  if (!termColumns.some((c) => c.name === "body_text")) execAddColumn(db, "ALTER TABLE equipment_terms ADD COLUMN body_text TEXT");
 
   const org = db.prepare("SELECT id FROM organizations LIMIT 1").get();
   if (!org) return;
@@ -1254,16 +1290,16 @@ function ensureExtendedCatalogTables(db) {
 
   const typeColumns = db.prepare("PRAGMA table_info(ticket_types)").all();
   if (!typeColumns.some((c) => c.name === "category_id")) {
-    db.exec("ALTER TABLE ticket_types ADD COLUMN category_id TEXT REFERENCES ticket_categories(id)");
+    execAddColumn(db, "ALTER TABLE ticket_types ADD COLUMN category_id TEXT REFERENCES ticket_categories(id)");
   }
 
   const templateColumns = db.prepare("PRAGMA table_info(term_templates)").all();
-  const addTemplateCol = (name, ddl) => { if (!templateColumns.some((c) => c.name === name)) db.exec(`ALTER TABLE term_templates ADD COLUMN ${ddl}`); };
+  const addTemplateCol = (name, ddl) => { if (!templateColumns.some((c) => c.name === name)) execAddColumn(db, `ALTER TABLE term_templates ADD COLUMN ${ddl}`); };
   addTemplateCol("body_html", "body_html TEXT");
   addTemplateCol("layout_json", "layout_json TEXT");
 
   const termColumns = db.prepare("PRAGMA table_info(equipment_terms)").all();
-  const addTermCol = (name, ddl) => { if (!termColumns.some((c) => c.name === name)) db.exec(`ALTER TABLE equipment_terms ADD COLUMN ${ddl}`); };
+  const addTermCol = (name, ddl) => { if (!termColumns.some((c) => c.name === name)) execAddColumn(db, `ALTER TABLE equipment_terms ADD COLUMN ${ddl}`); };
   addTermCol("signer_user_id", "signer_user_id TEXT REFERENCES users(id)");
   addTermCol("prepared_by_id", "prepared_by_id TEXT REFERENCES users(id)");
   addTermCol("prepared_at", "prepared_at TEXT");
@@ -1273,7 +1309,7 @@ function ensureExtendedCatalogTables(db) {
   addTermCol("layout_json", "layout_json TEXT");
 
   const inventoryColumns = db.prepare("PRAGMA table_info(inventory_items)").all();
-  const addInventoryCol = (name, ddl) => { if (!inventoryColumns.some((c) => c.name === name)) db.exec(`ALTER TABLE inventory_items ADD COLUMN ${ddl}`); };
+  const addInventoryCol = (name, ddl) => { if (!inventoryColumns.some((c) => c.name === name)) execAddColumn(db, `ALTER TABLE inventory_items ADD COLUMN ${ddl}`); };
   addInventoryCol("auto_reorder", "auto_reorder INTEGER NOT NULL DEFAULT 0");
   addInventoryCol("reorder_ticket_type_id", "reorder_ticket_type_id TEXT");
   addInventoryCol("reorder_assignee_id", "reorder_assignee_id TEXT");
@@ -1281,7 +1317,7 @@ function ensureExtendedCatalogTables(db) {
 
   const settingsColumns = db.prepare("PRAGMA table_info(system_settings)").all();
   if (!settingsColumns.some((c) => c.name === "reorder_ticket_type_id")) {
-    db.exec("ALTER TABLE system_settings ADD COLUMN reorder_ticket_type_id TEXT");
+    execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN reorder_ticket_type_id TEXT");
   }
 
   const org = db.prepare("SELECT id FROM organizations LIMIT 1").get();
@@ -1504,7 +1540,15 @@ function getDb() {
   if (!globalForDb.__nexusDb) {
     globalForDb.__nexusDb = usePostgres ? getPostgresDb() : getSqliteDb();
   }
-  ensureRuntimeMigrations(globalForDb.__nexusDb);
+  // As migrações runtime são idempotentes e só precisam rodar UMA vez por processo
+  // (na primeira query após o boot). Rodá-las a cada request era caro e, pior, quando o
+  // sync-bridge do Postgres tropeçava e uma leitura de colunas voltava vazia, o check
+  // falhava e disparava ALTER ADD COLUMN repetidamente → "column already exists" (42701),
+  // derrubando TODOS os endpoints com 500. Agora roda só na primeira vez.
+  if (!globalForDb.__nexusMigrated) {
+    ensureRuntimeMigrations(globalForDb.__nexusDb);
+    globalForDb.__nexusMigrated = true;
+  }
   return globalForDb.__nexusDb;
 }
 

@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { Copy, KeyRound, Mail, MoreVertical, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { toast } from "sonner";
+import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { ResponsiveSidePanel } from "@/components/responsive-side-panel";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +54,7 @@ function UserSidePanel({ user, onClose, onEdit, onResetPassword, onToggle, onDel
   </Card>;
 }
 
-export function UsersView({ users, currentUserId, createdCredential, onAckCredential, onNew, onEdit, onToggle, onDelete, onResetPassword }) {
+export function UsersView({ users, currentUserId, createdCredential, onAckCredential, onNew, onEdit, onToggle, onDelete, onResetPassword, onImported }) {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -61,6 +63,8 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
   const credential = resetResult || (createdCredential ? { user: { name: createdCredential.name }, password: createdCredential.password, isNew: true } : null);
   function closeCredential() { setResetResult(null); onAckCredential?.(); }
   const filtered = useMemo(() => users.filter((user) => `${user.name} ${user.email} ${user.branches.map((branch) => branch.name).join(" ")}`.toLowerCase().includes(search.toLowerCase())), [users, search]);
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
   const selected = users.find((user) => user.id === selectedId) || null;
   const active = users.filter((user) => user.active).length;
 
@@ -80,7 +84,7 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
             <p className="page-copy max-w-md">Gerencie acessos, perfis e unidades autorizadas.</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2"><Button onClick={onNew}><Plus /> Novo usuário</Button></div>
+        <div className="flex flex-wrap gap-2"><ImportTemplateButtons endpoint="/api/users" templateFile="modelo-usuarios.csv" label="usuário" onImported={onImported} /><Button onClick={onNew}><Plus /> Novo usuário</Button></div>
       </div>
     </div>
     <div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={Users} label="Total" value={users.length} /><MetricCard icon={UserCheck} label="Ativos" value={active} /><MetricCard icon={ShieldCheck} label="Administradores" value={users.filter((user) => user.role === "ADMIN").length} /></div>
@@ -96,7 +100,19 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
             onAction={!search ? onNew : undefined}
           />
         ) : (
-        <div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Usuário</TableHead><TableHead>Perfil</TableHead><TableHead>Unidades</TableHead><TableHead>Equipamento</TableHead><TableHead>Status</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{filtered.map((user) => <TableRow key={user.id} data-state={selectedId === user.id ? "selected" : undefined} className={`cursor-pointer ${selectedId === user.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(user.id)}><TableCell><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name}</p><p className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</p></div></div></TableCell><TableCell><Badge variant="outline">{roleLabels[user.role]}</Badge></TableCell><TableCell><div className="flex max-w-[280px] flex-wrap gap-1">{user.branches.map((branch) => <Badge key={branch.id} variant={branch.primary ? "secondary" : "outline"}>{branch.name}</Badge>)}</div></TableCell><TableCell>{user.hostname || "Não vinculado"}</TableCell><TableCell><Badge variant={user.active ? "success" : "muted"}>{user.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Ações de ${user.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(user.id)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => resetPassword(user)}><KeyRound /> Resetar senha</DropdownMenuItem><DropdownMenuItem onClick={() => onToggle(user.id, !user.active)}>{user.active ? <X /> : <UserCheck />}{user.active ? "Desativar" : "Ativar"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={user.id === currentUserId} onClick={() => setDeleteTarget(user)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
+        <div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Usuário</TableHead><TableHead>Perfil</TableHead><TableHead>Unidades</TableHead><TableHead>Equipamento</TableHead><TableHead>Status</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((user) => <TableRow key={user.id} data-state={selectedId === user.id ? "selected" : undefined} className={`cursor-pointer ${selectedId === user.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(user.id)}><TableCell><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name}</p><p className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</p></div></div></TableCell><TableCell><Badge variant="outline">{roleLabels[user.role]}</Badge></TableCell><TableCell><div className="flex max-w-[280px] flex-wrap gap-1">{user.branches.map((branch) => <Badge key={branch.id} variant={branch.primary ? "secondary" : "outline"}>{branch.name}</Badge>)}</div></TableCell><TableCell>{user.hostname || "Não vinculado"}</TableCell><TableCell><Badge variant={user.active ? "success" : "muted"}>{user.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Ações de ${user.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(user.id)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => resetPassword(user)}><KeyRound /> Resetar senha</DropdownMenuItem><DropdownMenuItem onClick={() => onToggle(user.id, !user.active)}>{user.active ? <X /> : <UserCheck />}{user.active ? "Desativar" : "Ativar"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={user.id === currentUserId} onClick={() => setDeleteTarget(user)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
+        )}
+        {filtered.length > 0 && (
+          <ListPagination
+            totalItems={filtered.length}
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            itemLabel="usuários"
+          />
         )}
       </Card>
       {selected && (

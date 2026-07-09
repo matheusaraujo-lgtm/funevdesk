@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { PageHeader } from "@/components/page-header";
 import { ResponsiveSidePanel } from "@/components/responsive-side-panel";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +208,9 @@ export function ProblemsView({ branchId = "", onNew, onEdit }) {
       && `${p.number} ${p.title} ${p.assignee_name || ""}`.toLowerCase().includes(term);
   }), [problems, search, statusFilter]);
 
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
+
   const selected = problems.find((p) => p.id === selectedId) || null;
   const openCount = problems.filter((p) => p.status === "ABERTO" || p.status === "ANALISE").length;
   const resolvedCount = problems.filter((p) => p.status === "RESOLVIDO").length;
@@ -277,7 +281,7 @@ export function ProblemsView({ branchId = "", onNew, onEdit }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((problem) => (
+                  {paged.map((problem) => (
                     <TableRow
                       key={problem.id}
                       className={`cursor-pointer ${selectedId === problem.id ? "border-l-2 border-l-primary bg-muted" : ""}`}
@@ -307,6 +311,18 @@ export function ProblemsView({ branchId = "", onNew, onEdit }) {
                 </TableBody>
               </Table>
             </div>
+          )}
+          {filtered.length > 0 && (
+            <ListPagination
+              totalItems={filtered.length}
+              page={pagination.page}
+              pageSize={pagination.pageSize}
+              totalPages={pagination.totalPages}
+              start={pagination.start}
+              end={pagination.end}
+              onPageChange={pagination.setPage}
+              itemLabel="problemas"
+            />
           )}
         </Card>
         {selected && (

@@ -1,4 +1,4 @@
-import { requireCurrentUser, requirePermission } from "@/lib/auth";
+import { requireCurrentUser, requirePermission, canManageUser } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { MODULES, sanitizeMatrix } from "@/lib/permissions";
@@ -61,6 +61,11 @@ export async function POST(request) {
   const currentUser = auth.user;
   const parsed = profileSchema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Revise os dados do perfil." }, { status: 400 });
+  // Impede escalonamento: um ator não pode criar um perfil cuja patente (base_role) seja
+  // igual ou superior à sua — senão um Técnico criaria um perfil ADMIN e se atribuiria a ele.
+  if (!canManageUser(currentUser, parsed.data.baseRole)) {
+    return Response.json({ error: "Você não pode criar um perfil de patente igual ou superior à sua." }, { status: 403 });
+  }
   const db = getDb();
 
   let slug = slugify(parsed.data.name);

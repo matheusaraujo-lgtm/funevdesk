@@ -110,7 +110,7 @@ function networkHealthText(device) {
     return device.last_error || `${device.latency_ms ?? "N/D"} ms`;
   }
   if (device.monitor_type === "SMB") {
-    return metrics.smb?.available ? "SMB disponivel" : "SMB sem resposta";
+    return metrics.smb?.available ? "SMB disponível" : "SMB sem resposta";
   }
   return device.last_error || "Monitorado";
 }

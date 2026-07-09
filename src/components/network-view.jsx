@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { timeAgo } from "@/lib/utils";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,6 +128,8 @@ export function NetworkView({ permissions, branchId = "", onNew, onEdit }) {
   // Escopo pela unidade selecionada no topo.
   const branchDevices = useMemo(() => (branchId ? devices.filter((device) => device.branch_id === branchId) : devices), [devices, branchId]);
   const filtered = useMemo(() => branchDevices.filter((device) => `${device.name} ${device.device_type} ${device.monitor_type || ""} ${device.vendor || ""} ${device.ip_address} ${device.branch_name}`.toLowerCase().includes(search.toLowerCase())), [branchDevices, search]);
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
   const selected = branchDevices.find((device) => device.id === selectedId) || null;
   const online = branchDevices.filter((device) => device.status === "ONLINE").length;
   const alerts = branchDevices.filter((device) => device.status === "ALERTA" || device.status === "OFFLINE").length;
@@ -222,7 +225,19 @@ export function NetworkView({ permissions, branchId = "", onNew, onEdit }) {
             onAction={permissions.canConfigure && !search ? onNew : undefined}
           />
         ) : (
-          <div className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Dispositivo</TableHead><TableHead>Perfil</TableHead><TableHead>Unidade</TableHead><TableHead>IP</TableHead><TableHead>Status</TableHead><TableHead>Saúde</TableHead><TableHead>Latência</TableHead><TableHead>Última resposta</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{filtered.map((device) => { const Icon = profileIcon(device.monitor_type); return <TableRow key={device.id} className={`cursor-pointer ${selectedId === device.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(device.id)}><TableCell><p className="font-medium">{device.name}</p><p className="text-xs text-muted-foreground">{device.device_type}</p></TableCell><TableCell><Badge variant="outline"><Icon className="size-3" />{monitorLabels[device.monitor_type] || "Ping/portas"}</Badge></TableCell><TableCell>{device.branch_name}</TableCell><TableCell>{device.ip_address}</TableCell><TableCell><Badge variant={variant(device.status)}>{device.status}</Badge></TableCell><TableCell><HealthSummary device={device} /></TableCell><TableCell><span className="inline-flex items-center gap-1 text-xs"><Activity className="size-3.5 text-muted-foreground" />{device.latency_ms ?? "N/D"} ms</span></TableCell><TableCell><span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3.5" />{timeAgo(device.last_seen_at)}</span></TableCell><TableCell onClick={(event) => event.stopPropagation()}>{permissions.canConfigure && <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(device)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(device)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}</TableCell></TableRow>; })}</TableBody></Table></div>
+          <div className="overflow-x-auto"><Table className="min-w-[1040px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Dispositivo</TableHead><TableHead>Perfil</TableHead><TableHead>Unidade</TableHead><TableHead>IP</TableHead><TableHead>Status</TableHead><TableHead>Saúde</TableHead><TableHead>Latência</TableHead><TableHead>Última resposta</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((device) => { const Icon = profileIcon(device.monitor_type); return <TableRow key={device.id} className={`cursor-pointer ${selectedId === device.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(device.id)}><TableCell><p className="font-medium">{device.name}</p><p className="text-xs text-muted-foreground">{device.device_type}</p></TableCell><TableCell><Badge variant="outline"><Icon className="size-3" />{monitorLabels[device.monitor_type] || "Ping/portas"}</Badge></TableCell><TableCell>{device.branch_name}</TableCell><TableCell>{device.ip_address}</TableCell><TableCell><Badge variant={variant(device.status)}>{device.status}</Badge></TableCell><TableCell><HealthSummary device={device} /></TableCell><TableCell><span className="inline-flex items-center gap-1 text-xs"><Activity className="size-3.5 text-muted-foreground" />{device.latency_ms ?? "N/D"} ms</span></TableCell><TableCell><span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3.5" />{timeAgo(device.last_seen_at)}</span></TableCell><TableCell onClick={(event) => event.stopPropagation()}>{permissions.canConfigure && <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(device)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(device)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}</TableCell></TableRow>; })}</TableBody></Table></div>
+        )}
+        {filtered.length > 0 && (
+          <ListPagination
+            totalItems={filtered.length}
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            itemLabel="dispositivos"
+          />
         )}
       </Card>
       {selected && <DeviceSidePanel device={selected} permissions={permissions} onClose={() => setSelectedId(null)} onEdit={onEdit} onRemove={setDeleteTarget} />}

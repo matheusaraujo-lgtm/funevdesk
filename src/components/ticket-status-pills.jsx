@@ -2,7 +2,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { STATUS_TONE_PILL, ticketStatusTone } from "@/lib/status-colors";
+import { statusColorStyle, STATUS_TONE_PILL, ticketStatusTone } from "@/lib/status-colors";
 
 const statusLabels = {
   ABERTO: "Aberto",
@@ -29,9 +29,9 @@ const pillStyles = {
   mine: "border-blue-200 bg-blue-50 text-blue-700",
 };
 
-function TicketPill({ label, className }) {
+function TicketPill({ label, className, style }) {
   return (
-    <Badge variant="outline" className={cn("h-6 rounded-full px-2.5 text-[11px] font-semibold", className)}>
+    <Badge variant="outline" className={cn("h-6 rounded-full px-2.5 text-[11px] font-semibold", className)} style={style}>
       {label}
     </Badge>
   );
@@ -51,6 +51,8 @@ export function TicketStatusPills({
   const statusMeta = statuses.find((item) => item.code === ticket.status);
   const statusLabel = statusMeta?.label || statusLabels[ticket.status] || ticket.status;
   const statusToneClass = STATUS_TONE_PILL[ticketStatusTone(ticket.status, { isTerminal: statusMeta?.is_terminal || isTerminal })];
+  // Cor personalizada da situação (hex ou tom nomeado) tem prioridade sobre a paleta padrão.
+  const statusColor = statusMeta?.color ? statusColorStyle(statusMeta.color) : null;
   const priority = ticket.priority;
   const sla = ticket.sla_status;
 
@@ -81,9 +83,10 @@ export function TicketStatusPills({
               <button
                 type="button"
                 aria-label={`Situação: ${statusLabel}. Clique para alterar.`}
+                style={statusColor || undefined}
                 className={cn(
                   "inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  statusToneClass
+                  !statusColor && statusToneClass
                 )}
               />
             }
@@ -103,7 +106,7 @@ export function TicketStatusPills({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <TicketPill label={statusLabel} className={statusToneClass} />
+        <TicketPill label={statusLabel} className={statusColor ? undefined : statusToneClass} style={statusColor || undefined} />
       )}
       <TicketPill label={statusLabels[priority] || priority} className={priorityStyle} />
       {sla && <TicketPill label={statusLabels[sla] || sla} className={slaStyle} />}

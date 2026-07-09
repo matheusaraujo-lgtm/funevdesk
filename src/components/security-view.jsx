@@ -51,9 +51,10 @@ export function SecurityView({ permissions, onOpenTicket }) {
   const [data, setData] = useState(null);
   const [analysis, setAnalysis] = useState(null); // { alert, insight, loading }
   const [busy, setBusy] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/security");
+    const response = await fetch("/api/security", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) return toast.error(result.error || "Não foi possível carregar a segurança.");
     setData(result);
@@ -67,6 +68,8 @@ export function SecurityView({ permissions, onOpenTicket }) {
     (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9)
     || (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
   );
+  // Filtro por status: triados (Falso positivo/Resolvido) continuam acessíveis em vez de "sumir".
+  const visibleAlerts = statusFilter === "all" ? alerts : alerts.filter((alert) => alert.status === statusFilter);
   const sev = data?.counts?.bySeverity || {};
   const byStatus = data?.counts?.byStatus || {};
   const newCount = byStatus.NEW || 0;
@@ -156,7 +159,24 @@ export function SecurityView({ permissions, onOpenTicket }) {
         </Card>
       ) : (
         <div className="space-y-3">
-          {alerts.map((alert) => (
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "Todos", count: alerts.length },
+              { id: "NEW", label: "Novos", count: byStatus.NEW || 0 },
+              { id: "INVESTIGATING", label: "Em análise", count: byStatus.INVESTIGATING || 0 },
+              { id: "RESOLVED", label: "Resolvidos", count: byStatus.RESOLVED || 0 },
+              { id: "FALSE_POSITIVE", label: "Falso positivo", count: byStatus.FALSE_POSITIVE || 0 },
+            ].map((preset) => (
+              <Button key={preset.id} variant={statusFilter === preset.id ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(preset.id)}>
+                {preset.label} <Badge variant="secondary" className="ml-1">{preset.count}</Badge>
+              </Button>
+            ))}
+          </div>
+          {visibleAlerts.length === 0 ? (
+            <Card className="rounded-2xl border-0 shadow-none ring-1 ring-foreground/10">
+              <ListEmptyState icon={ShieldCheck} title="Nenhum alerta neste filtro" description="Ajuste o filtro de status para ver outros alertas." />
+            </Card>
+          ) : visibleAlerts.map((alert) => (
             <AlertCard
               key={alert.id}
               alert={alert}

@@ -7,17 +7,17 @@
 <body>
 <script>
 async function runHost(sessionId, sourceId, iceServers, monitors) {
-  const pc = new RTCPeerConnection({
-    iceServers: (Array.isArray(iceServers) && iceServers.length)
-      ? iceServers
-      : [{ urls: "stun:stun.l.google.com:19302" }],
-  });
+  const ice = (Array.isArray(iceServers) && iceServers.length)
+    ? iceServers
+    : [{ urls: "stun:stun.l.google.com:19302" }];
 
   const monitorList = Array.isArray(monitors) && monitors.length ? monitors : [{ id: sourceId, name: "Monitor 1" }];
   let currentSourceId = sourceId;
   let stream = null;
   let videoSender = null;
   let controlChannelRef = null;
+  let pc = null;
+  let currentUfrag = null; // ice-ufrag do offer atual (para detectar viewer novo/reconexão)
 
   // Captura uma tela específica (com fallback sem constraints mandatórias).
   async function captureScreen(id) {
@@ -56,21 +56,6 @@ async function runHost(sessionId, sourceId, iceServers, monitors) {
     sendMonitors();
   }
 
-  stream = await captureScreen(sourceId);
-  const videoTrack = stream.getVideoTracks()[0];
-  console.log("Tracks capturadas:", stream.getTracks().length);
-  videoSender = pc.addTrack(videoTrack, stream);
-
-  // DataChannel de controle (mouse, teclado, arquivos, troca de monitor): o VIEWER (offerer)
-  // cria o canal e o host (answerer) apenas ESCUTA — padrão canônico e confiável de WebRTC.
-  pc.ondatachannel = (event) => {
-    const controlChannel = event.channel;
-    controlChannelRef = controlChannel;
-    controlChannel.onopen = () => { console.log("DataChannel 'control' aberto"); sendMonitors(); };
-    controlChannel.onclose = () => console.log("DataChannel 'control' fechado");
-    controlChannel.onmessage = (msg) => handleControlMessage(msg.data);
-  };
-
   function handleControlMessage(raw) {
     try {
       const msg = JSON.parse(raw);
@@ -98,14 +83,53 @@ async function runHost(sessionId, sourceId, iceServers, monitors) {
     } catch { /* ignore malformed */ }
   }
 
+  // Cria uma nova RTCPeerConnection já com o track de vídeo atual e os handlers.
+  // O VIEWER (offerer) cria o DataChannel de controle; o host (answerer) apenas ESCUTA.
+  function wirePeer() {
+    const peer = new RTCPeerConnection({ iceServers: ice });
+    const track = stream.getVideoTracks()[0];
+    videoSender = peer.addTrack(track, stream);
+
+    peer.ondatachannel = (event) => {
+      const channel = event.channel;
+      controlChannelRef = channel;
+      channel.onopen = () => { console.log("DataChannel 'control' aberto"); sendMonitors(); };
+      channel.onclose = () => console.log("DataChannel 'control' fechado");
+      channel.onmessage = (msg) => handleControlMessage(msg.data);
+    };
+
+    peer.onicecandidate = async (event) => {
+      if (!event.candidate) return;
+      // RTCIceCandidate é objeto nativo (getters no protótipo) e NÃO sobrevive à serialização
+      // do contextBridge do Electron (chega {}); enviamos os campos crus como objeto simples.
+      const c = event.candidate;
+      await window.webrtcBridge.postSignal(sessionId, {
+        type: "ice",
+        candidate: { candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex, usernameFragment: c.usernameFragment },
+      });
+    };
+
+    return peer;
+  }
+
+  // (Re)cria a conexão para o viewer que enviou este offer e responde. Chamado tanto no
+  // primeiro offer quanto quando um viewer NOVO aparece (ex.: "abrir em nova aba") ou reconecta.
+  async function answerOffer(sdp) {
+    if (pc) { try { pc.close(); } catch { /* ignore */ } }
+    controlChannelRef = null;
+    pc = wirePeer();
+    await pc.setRemoteDescription({ type: "offer", sdp });
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await window.webrtcBridge.postSignal(sessionId, { type: "answer", sdp: answer.sdp });
+    console.log("Resposta enviada, aguardando ICE...");
+  }
+
+  stream = await captureScreen(sourceId);
+  console.log("Tela capturada.");
+
   let lastSignalAt = "";
   let polling = false;
-  let offerReceived = false;
-
-  pc.onicecandidate = async (event) => {
-    if (!event.candidate) return;
-    await window.webrtcBridge.postSignal(sessionId, { type: "ice", candidate: event.candidate });
-  };
 
   async function pollViewer() {
     if (polling) return;
@@ -116,15 +140,18 @@ async function runHost(sessionId, sourceId, iceServers, monitors) {
         lastSignalAt = signal.createdAt;
         const payload = signal.payload || {};
         if (payload.type === "offer" && payload.sdp) {
-          if (offerReceived || pc.signalingState !== "stable") continue;
-          offerReceived = true;
+          const match = payload.sdp.match(/a=ice-ufrag:(\S+)/);
+          const ufrag = match ? match[1] : String(payload.sdp.length);
+          if (ufrag === currentUfrag) continue; // já respondemos este offer
+          currentUfrag = ufrag;
           console.log("Oferta recebida, criando resposta...");
-          await pc.setRemoteDescription({ type: "offer", sdp: payload.sdp });
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await window.webrtcBridge.postSignal(sessionId, { type: "answer", sdp: answer.sdp });
-          console.log("Resposta enviada, aguardando ICE...");
-        } else if (payload.type === "ice" && payload.candidate) {
+          try {
+            await answerOffer(payload.sdp);
+          } catch (e) {
+            console.error("Falha ao responder oferta:", e.message);
+            currentUfrag = null; // permite tentar de novo
+          }
+        } else if (payload.type === "ice" && payload.candidate && pc) {
           try { await pc.addIceCandidate(payload.candidate); } catch { /* ignore */ }
         }
       }

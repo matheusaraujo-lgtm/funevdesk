@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +45,8 @@ export function TermsView({ permissions, onNew, onOpen }) {
 
   const branchOptions = useMemo(() => Array.from(new Set(terms.map((term) => term.branch_name).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [terms]);
   const filtered = useMemo(() => terms.filter((term) => (branchFilter === "all" || term.branch_name === branchFilter) && `${term.signer_name} ${term.hostname} ${term.branch_name}`.toLowerCase().includes(search.toLowerCase())), [terms, search, branchFilter]);
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
 
   async function remove(term) {
     const response = await fetch(`/api/terms/${term.id}`, { method: "DELETE" });
@@ -79,7 +82,19 @@ export function TermsView({ permissions, onNew, onOpen }) {
           onAction={!search && branchFilter === "all" ? onNew : undefined}
         />
       ) : (
-        <div className="overflow-x-auto"><Table className="min-w-[760px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Assinante</TableHead><TableHead>Equipamento</TableHead><TableHead>Unidade</TableHead><TableHead>Data</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{filtered.map((term) => <TableRow key={term.id} className="cursor-pointer" onClick={() => onOpen?.(term)}><TableCell><p className="font-medium">{term.signer_name}</p><p className="text-xs text-muted-foreground">{term.signer_document || "Sem documento"}</p></TableCell><TableCell>{term.hostname}</TableCell><TableCell>{term.branch_name}</TableCell><TableCell className="text-xs text-muted-foreground">{new Date(term.created_at).toLocaleString("pt-BR")}</TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onOpen?.(term)}><Eye /> Abrir</DropdownMenuItem><DropdownMenuItem asChild><a href={term.pdf_url} target="_blank" rel="noreferrer"><ExternalLink /> Abrir PDF</a></DropdownMenuItem>{permissions?.canConfigure && <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(term)}><Trash2 /> Excluir</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
+        <div className="overflow-x-auto"><Table className="min-w-[760px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Assinante</TableHead><TableHead>Equipamento</TableHead><TableHead>Unidade</TableHead><TableHead>Data</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((term) => <TableRow key={term.id} className="cursor-pointer" onClick={() => onOpen?.(term)}><TableCell><p className="font-medium">{term.signer_name}</p><p className="text-xs text-muted-foreground">{term.signer_document || "Sem documento"}</p></TableCell><TableCell>{term.hostname}</TableCell><TableCell>{term.branch_name}</TableCell><TableCell className="text-xs text-muted-foreground">{new Date(term.created_at).toLocaleString("pt-BR")}</TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onOpen?.(term)}><Eye /> Abrir</DropdownMenuItem><DropdownMenuItem asChild><a href={term.pdf_url} target="_blank" rel="noreferrer"><ExternalLink /> Abrir PDF</a></DropdownMenuItem>{permissions?.canConfigure && <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(term)}><Trash2 /> Excluir</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
+      )}
+      {filtered.length > 0 && (
+        <ListPagination
+          totalItems={filtered.length}
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          start={pagination.start}
+          end={pagination.end}
+          onPageChange={pagination.setPage}
+          itemLabel="termos"
+        />
       )}
     </Card>
     <ConfirmDialog

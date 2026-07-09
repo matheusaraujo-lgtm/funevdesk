@@ -18,11 +18,19 @@ export function NotificationsBell({ onOpenTicket } = {}) {
   }, []);
 
   useEffect(() => {
-    // Polling de notificações: carrega ao montar e revalida a cada 60s.
+    // Polling de notificações: carrega ao montar e revalida a cada 30s.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    const timer = setInterval(load, 60000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, 30000);
+    // Revalidação instantânea ao voltar o foco à aba (não espera o próximo ciclo).
+    function onVisible() { if (document.visibilityState === "visible") load(); }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", load);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", load);
+    };
   }, [load]);
 
   async function markAllRead() {

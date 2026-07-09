@@ -77,8 +77,13 @@ export async function DELETE(request, { params }) {
   if (!problem) return Response.json({ error: "Problema não encontrado." }, { status: 404 });
   const accessError = assertBranchAccess(auth.user, problem.branch_id);
   if (accessError) return Response.json({ error: accessError.message }, { status: 403 });
-  const linked = db.prepare("SELECT COUNT(*) count FROM tickets WHERE problem_id=?").get(id).count;
-  if (linked > 0) return Response.json({ error: "Problema com chamados vinculados não pode ser excluído." }, { status: 409 });
-  db.prepare("DELETE FROM problems WHERE id=?").run(id);
-  return Response.json({ ok: true });
+  // Excluir SEM travar: os chamados vinculados apenas são desvinculados (problem_id=NULL) e
+  // o problema é removido. Antes retornava 409 e impedia a exclusão quando havia vínculos.
+  const remove = db.transaction(() => {
+    const unlinked = db.prepare("UPDATE tickets SET problem_id=NULL WHERE problem_id=?").run(id).changes;
+    db.prepare("DELETE FROM problems WHERE id=?").run(id);
+    return unlinked;
+  });
+  const unlinked = remove();
+  return Response.json({ ok: true, unlinked });
 }

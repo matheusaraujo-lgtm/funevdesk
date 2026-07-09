@@ -5,6 +5,7 @@ import { BookOpen, Eye, FileText, Globe, Layers, MoreVertical, Pencil, Plus, Sea
 import { toast } from "sonner";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -90,6 +91,8 @@ export function KnowledgeView({ permissions, onNew, onEdit, onOpen }) {
 
   const categories = useMemo(() => Array.from(new Set(articles.map((article) => article.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [articles]);
   const filtered = useMemo(() => articles.filter((article) => (category === "all" || article.category === category) && `${article.title} ${article.category} ${plainTextPreview(article.content, 500)}`.toLowerCase().includes(search.toLowerCase())), [articles, search, category]);
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
 
   async function remove(article) {
     const response = await fetch(`/api/knowledge/${article.id}`, { method: "DELETE" });
@@ -150,10 +153,25 @@ export function KnowledgeView({ permissions, onNew, onEdit, onOpen }) {
         />
       </Card>
     ) : (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((article) => (
-          <ArticleCard key={article.id} article={article} onOpen={onOpen} onEdit={onEdit} onRemove={setDeleteTarget} permissions={permissions} />
-        ))}
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {paged.map((article) => (
+            <ArticleCard key={article.id} article={article} onOpen={onOpen} onEdit={onEdit} onRemove={setDeleteTarget} permissions={permissions} />
+          ))}
+        </div>
+        {filtered.length > 0 && (
+          <ListPagination
+            totalItems={filtered.length}
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            className="rounded-2xl border ring-1 ring-foreground/10"
+            itemLabel="artigos"
+          />
+        )}
       </div>
     )}
     <ConfirmDialog

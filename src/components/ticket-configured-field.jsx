@@ -12,6 +12,7 @@ import {
   MapPin,
   Package,
   Type,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,12 +95,13 @@ export function enrichTicketField(response) {
   };
 }
 
-function FileDisplay({ field, attachment, readOnly, onUpload, uploading }) {
+function FileDisplay({ field, attachment, readOnly, onUpload, uploading, onRemove }) {
   const inputRef = useRef(null);
   const isScreenshot = field.field_type === "SCREENSHOT";
   const Icon = isScreenshot ? ImagePlus : FileUp;
-  const fileName = attachment?.original_name || field.value_text || "";
-  const fileUrl = attachment?.public_url;
+  // Aceita os dois formatos: upload recém-feito (camelCase da API) e anexo persistido (snake_case do banco).
+  const fileName = attachment?.originalName || attachment?.original_name || field.value_text || "";
+  const fileUrl = attachment?.publicUrl || attachment?.public_url;
 
   if (readOnly) {
     return (
@@ -132,10 +134,13 @@ function FileDisplay({ field, attachment, readOnly, onUpload, uploading }) {
           ) : (
             <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></span>
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <a href={fileUrl} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-primary underline underline-offset-2">{fileName || "Abrir arquivo"}</a>
             <p className="text-xs text-muted-foreground">Anexado — clique para visualizar</p>
           </div>
+          {!readOnly && onRemove && (
+            <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0 text-muted-foreground" onClick={onRemove} aria-label="Remover anexo"><X /></Button>
+          )}
         </div>
       ) : (
         <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
@@ -243,6 +248,7 @@ export function TicketConfiguredFieldInput({
   readOnly = false,
   attachment,
   onUpload,
+  onRemove,
   uploading = false,
   showStatusDot = false,
   branchId,
@@ -292,6 +298,7 @@ export function TicketConfiguredFieldInput({
         attachment={attachment}
         readOnly={readOnly}
         onUpload={onUpload}
+        onRemove={onRemove}
         uploading={uploading}
       />
     );

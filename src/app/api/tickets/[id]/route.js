@@ -17,6 +17,7 @@ const patchSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   teamId: z.string().nullable().optional(),
   problemId: z.string().nullable().optional(),
+  changeId: z.string().nullable().optional(),
   csatScore: z.number().int().min(1).max(5).optional(),
   csatComment: z.string().max(500).optional(),
   assume: z.boolean().optional(),
@@ -199,6 +200,9 @@ export async function PATCH(request, { params }) {
   if (parsed.data.problemId && !belongsToOrg("problems", parsed.data.problemId)) {
     return Response.json({ error: "Problema inválido." }, { status: 400 });
   }
+  if (parsed.data.changeId && !belongsToOrg("changes", parsed.data.changeId)) {
+    return Response.json({ error: "Mudança inválida." }, { status: 400 });
+  }
 
   // Isolamento por filial: actor sem all_branches não pode atribuir equipe/responsável fora do seu escopo.
   if (!currentUser.all_branches) {
@@ -301,6 +305,9 @@ export async function PATCH(request, { params }) {
     }
     if (parsed.data.problemId !== undefined && permissions.canManageTickets) {
       db.prepare("UPDATE tickets SET problem_id=?, updated_at=? WHERE id=?").run(parsed.data.problemId, now, id);
+    }
+    if (parsed.data.changeId !== undefined && permissions.canManageTickets) {
+      db.prepare("UPDATE tickets SET change_id=?, updated_at=? WHERE id=?").run(parsed.data.changeId, now, id);
     }
     if (parsed.data.csatScore) {
       // CSAT só pelo solicitante, em chamado RESOLVIDO e sem nota anterior (anti-tampering de métrica).

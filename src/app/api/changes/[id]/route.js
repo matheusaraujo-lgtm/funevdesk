@@ -1,9 +1,35 @@
 import { requireCurrentUser, getPermissions } from "@/lib/auth";
-import { assertBranchAccess } from "@/lib/branch-scope";
+import { assertBranchAccess, getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(request, { params }) {
+  const { id } = await params;
+  const auth = requireCurrentUser(request);
+  if (auth.error) return auth.error;
+  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  const db = getDb();
+  const change = db.prepare("SELECT * FROM changes WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  if (!change) return Response.json({ error: "Mudança não encontrada." }, { status: 404 });
+  const accessError = assertBranchAccess(auth.user, change.branch_id);
+  if (accessError) return Response.json({ error: accessError.message }, { status: 403 });
+  const linkedTickets = db.prepare(
+    `SELECT t.id, t.number, t.title, t.status, u.name requester_name
+     FROM tickets t LEFT JOIN users u ON u.id = t.requester_id
+     WHERE t.change_id=? ORDER BY t.number DESC`
+  ).all(id);
+  // Candidatos a vincular: só chamados das unidades que o usuário pode ver.
+  const candScope = branchFilterClause(getAllowedBranchIds(auth.user, db), "t.branch_id");
+  const candidates = db.prepare(
+    `SELECT t.id, t.number, t.title, t.status, u.name requester_name
+     FROM tickets t LEFT JOIN users u ON u.id = t.requester_id
+     WHERE t.organization_id=? AND ${candScope.clause} AND (t.change_id IS NULL OR t.change_id='')
+     ORDER BY t.number DESC LIMIT 50`
+  ).all(auth.user.organization_id, ...candScope.params);
+  return Response.json({ change, linkedTickets, candidates });
+}
 
 const schema = z.object({
   status: z.enum(["SOLICITADO", "ANALISE", "APROVADO", "IMPLEMENTANDO", "CONCLUIDO", "REJEITADO"]).optional(),
@@ -82,6 +108,7 @@ export async function DELETE(request, { params }) {
     return Response.json({ error: "Mudanças em implementação ou concluídas não podem ser excluídas." }, { status: 409 });
   }
   db.transaction(() => {
+    db.prepare("UPDATE tickets SET change_id=NULL WHERE change_id=?").run(id);
     db.prepare("DELETE FROM change_approvals WHERE change_id=?").run(id);
     db.prepare("DELETE FROM changes WHERE id=?").run(id);
   })();

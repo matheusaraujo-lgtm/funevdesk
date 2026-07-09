@@ -4,16 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Expand, ExternalLink, Keyboard, Minimize2, Monitor, MousePointer, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
+export function RemoteConsoleEmbed({ sessionId, hostname, onClose, fill = false }) {
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const pcRef = useRef(null);
   const dcRef = useRef(null);
   const [status, setStatus] = useState("Conectando…");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [controlMode, setControlMode] = useState("view"); // "view" | "mouse" | "keyboard"
+  const [controlMode, setControlMode] = useState("view"); // "view" | "control" (mouse + teclado juntos)
   const [dcOpen, setDcOpen] = useState(false);
-  const [textInput, setTextInput] = useState("");
   const [monitors, setMonitors] = useState([]);
   const [activeMonitor, setActiveMonitor] = useState("");
   const lastSignalAtRef = useRef("");
@@ -82,13 +81,13 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   }
 
   function handleMouseMove(e) {
-    if (controlMode !== "mouse") return;
+    if (controlMode !== "control") return;
     const coords = getVideoCoords(e);
     if (coords) sendControl({ type: "mouse_move", ...coords });
   }
 
   function handleMouseDown(e) {
-    if (controlMode !== "mouse") return;
+    if (controlMode !== "control") return;
     e.preventDefault();
     const coords = getVideoCoords(e);
     if (coords) sendControl({ type: "mouse_move", ...coords });
@@ -97,33 +96,27 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   }
 
   function handleMouseUp(e) {
-    if (controlMode !== "mouse") return;
+    if (controlMode !== "control") return;
     const btn = e.button === 2 ? "right" : e.button === 1 ? "middle" : "left";
     sendControl({ type: "mouse_up", button: btn });
   }
 
   function handleWheel(e) {
-    if (controlMode !== "mouse") return;
+    if (controlMode !== "control") return;
     e.preventDefault();
     sendControl({ type: "mouse_wheel", delta: e.deltaY > 0 ? -1 : 1 });
   }
 
   function handleKeyDown(e) {
-    if (controlMode !== "keyboard") return;
+    if (controlMode !== "control") return;
     e.preventDefault();
     sendControl({ type: "key_down", key: e.key, code: e.code });
   }
 
   function handleKeyUp(e) {
-    if (controlMode !== "keyboard") return;
+    if (controlMode !== "control") return;
     e.preventDefault();
     sendControl({ type: "key_up", key: e.key, code: e.code });
-  }
-
-  function sendText() {
-    if (!textInput.trim()) return;
-    sendControl({ type: "type_text", text: textInput });
-    setTextInput("");
   }
 
   function handleFileUpload(e) {
@@ -145,9 +138,12 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
 
   // Key event listener on the container
   useEffect(() => {
-    if (controlMode !== "keyboard") return;
+    if (controlMode !== "control") return;
     const el = containerRef.current;
     if (!el) return;
+    // Foca o container para capturar o teclado assim que entra em modo controle
+    // (mouse e teclado ficam ativos juntos, sem precisar de campo de texto).
+    el.focus();
     el.addEventListener("keydown", handleKeyDown);
     el.addEventListener("keyup", handleKeyUp);
     return () => {
@@ -222,7 +218,7 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
 
         function bindControlChannel(dc) {
           dcRef.current = dc;
-          dc.onopen = () => { setDcOpen(true); setStatus("Conectado (controles ativos)"); setControlMode("mouse"); };
+          dc.onopen = () => { setDcOpen(true); setStatus("Conectado (controles ativos)"); setControlMode("control"); };
           dc.onclose = () => { setDcOpen(false); setControlMode("view"); };
           // O host envia a lista de monitores (e qual está ativo) para o seletor de tela.
           dc.onmessage = (event) => {
@@ -282,7 +278,7 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
   return (
     <div
       ref={containerRef}
-      className={`overflow-hidden rounded-xl border bg-zinc-950 text-white shadow-2xl ${isFullscreen ? "flex h-full flex-col" : ""}`}
+      className={`overflow-hidden rounded-xl border bg-zinc-950 text-white shadow-2xl ${isFullscreen || fill ? "flex h-full flex-col" : ""}`}
       tabIndex={0}
     >
       {/* Header */}
@@ -308,7 +304,7 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
       </div>
 
       {/* Video area */}
-      <div className={`relative flex items-center justify-center bg-black p-2 ${isFullscreen ? "flex-1 min-h-0" : "min-h-[320px]"}`}>
+      <div className={`relative flex items-center justify-center bg-black p-2 ${isFullscreen || fill ? "flex-1 min-h-0" : "min-h-[320px]"}`}>
         <video
           ref={videoRef}
           autoPlay
@@ -318,7 +314,7 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
           onContextMenu={(e) => e.preventDefault()}
-          className={`rounded-md ${isFullscreen ? "max-h-full max-w-full" : "max-h-[480px] max-w-full"} ${controlMode === "mouse" ? "cursor-none" : ""}`}
+          className={`rounded-md ${isFullscreen || fill ? "max-h-full max-w-full" : "max-h-[480px] max-w-full"} ${controlMode === "control" ? "cursor-none" : ""}`}
         />
         {ended && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center">
@@ -331,29 +327,19 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
 
       {/* Control toolbar */}
       <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
+        {/* Um único botão liga o controle (mouse + teclado juntos). Ctrl+C/V e demais atalhos
+            são capturados e enviados à máquina remota. */}
         <Button
           type="button"
-          variant={controlMode === "mouse" ? "default" : "ghost"}
+          variant={controlMode === "control" ? "default" : "ghost"}
           size="sm"
-          className={`h-7 text-xs ${controlMode === "mouse" ? "bg-blue-600 hover:bg-blue-700" : "text-zinc-400 hover:text-white"}`}
-          onClick={() => setControlMode(controlMode === "mouse" ? "view" : "mouse")}
+          className={`h-7 text-xs ${controlMode === "control" ? "bg-blue-600 hover:bg-blue-700" : "text-zinc-400 hover:text-white"}`}
+          onClick={() => setControlMode(controlMode === "control" ? "view" : "control")}
           disabled={!dcOpen}
-          title="Controle do mouse"
+          title="Controlar mouse e teclado da máquina remota"
         >
-          <MousePointer className="size-3 mr-1" />
-          Mouse
-        </Button>
-        <Button
-          type="button"
-          variant={controlMode === "keyboard" ? "default" : "ghost"}
-          size="sm"
-          className={`h-7 text-xs ${controlMode === "keyboard" ? "bg-blue-600 hover:bg-blue-700" : "text-zinc-400 hover:text-white"}`}
-          onClick={() => setControlMode(controlMode === "keyboard" ? "view" : "keyboard")}
-          disabled={!dcOpen}
-          title="Controle do teclado"
-        >
-          <Keyboard className="size-3 mr-1" />
-          Teclado
+          {controlMode === "control" ? <MousePointer className="size-3 mr-1" /> : <Keyboard className="size-3 mr-1" />}
+          {controlMode === "control" ? "Controlando" : "Controlar"}
         </Button>
 
         {monitors.length > 1 && (
@@ -373,20 +359,6 @@ export function RemoteConsoleEmbed({ sessionId, hostname, onClose }) {
                 {index + 1}
               </Button>
             ))}
-          </div>
-        )}
-
-        {controlMode === "keyboard" && (
-          <div className="flex items-center gap-1 ml-auto">
-            <input
-              type="text"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendText(); } }}
-              placeholder="Digite algo e pressione Enter..."
-              className="h-7 rounded bg-zinc-800 border border-zinc-700 px-2 text-xs text-white placeholder:text-zinc-500 outline-none focus:border-blue-500 w-56"
-            />
-            <Button type="button" size="sm" className="h-7 text-xs" onClick={sendText}>Enviar</Button>
           </div>
         )}
 

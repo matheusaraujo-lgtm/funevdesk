@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, canManageUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { MODULES, sanitizeMatrix } from "@/lib/permissions";
@@ -34,6 +34,11 @@ export async function PUT(request, { params }) {
   const matrix = sanitizeMatrix(parsed.data.permissions);
   // Perfis de sistema mantêm o base_role e o nome originais (evita lockout/confusão); só a matriz é editável.
   const baseRole = profile.is_system ? profile.base_role : parsed.data.baseRole;
+  // Impede escalonamento: o ator não pode editar (nem repatentear) um perfil de patente igual
+  // ou superior à sua. Vale para o base_role atual e para o novo pretendido.
+  if (!canManageUser(currentUser, profile.base_role) || !canManageUser(currentUser, baseRole)) {
+    return Response.json({ error: "Você não pode editar um perfil de patente igual ou superior à sua." }, { status: 403 });
+  }
   const name = profile.is_system ? profile.name : parsed.data.name;
   const save = db.transaction(() => {
     db.prepare("UPDATE profiles SET name=?, description=?, base_role=? WHERE id=?")

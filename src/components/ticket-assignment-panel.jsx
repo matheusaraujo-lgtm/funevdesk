@@ -62,9 +62,9 @@ export function TicketAssignmentPanel({
   }
 
   async function handleAssume() {
+    // O toast de sucesso é emitido uma única vez pelo handler do page.js (assumeTicket).
     await run("assume", async () => {
-      const ok = await onAssume?.(ticket.id);
-      if (ok) toast.success(isMine ? "Chamado atualizado." : "Chamado assumido. Você é o responsável.");
+      await onAssume?.(ticket.id);
     });
   }
 

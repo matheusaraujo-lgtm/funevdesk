@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { isTicketStatusCode, STATUS_TONE_BADGE, ticketStatusTone } from "@/lib/status-colors";
+import { isTicketStatusCode, statusColorStyle, STATUS_TONE_BADGE, ticketStatusTone } from "@/lib/status-colors";
 
 const labels = {
   ABERTO: "Aberto",
@@ -48,6 +48,11 @@ export function StatusBadge({ value, statuses }) {
   // Status de chamado seguem a paleta padrão (verde/azul/amarelo/cinza); demais
   // (prioridade, SLA, ativo) mantêm os variants temáticos.
   if (isTicketStatusCode(value, statuses)) {
+    // Cor personalizada da situação (hex ou tom nomeado) tem prioridade; senão cai na paleta padrão.
+    const colorStyle = fromConfig?.color ? statusColorStyle(fromConfig.color) : null;
+    if (colorStyle) {
+      return <Badge variant="outline" className="border" style={colorStyle}>{label}</Badge>;
+    }
     const isTerminal = fromConfig ? fromConfig.is_terminal : value === "RESOLVIDO";
     const tone = ticketStatusTone(value, { isTerminal });
     return <Badge variant="outline" className={cn(STATUS_TONE_BADGE[tone])}>{label}</Badge>;

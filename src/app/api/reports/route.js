@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getSlaStatus } from "@/lib/sla";
+import { getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,19 @@ export async function GET(request) {
   const { branchId } = parsed.data;
   const { from, to } = resolveRange(parsed.data);
 
-  let ticketQuery = `SELECT t.*, b.name branch_name FROM tickets t JOIN branches b ON b.id=t.branch_id WHERE t.organization_id=?`;
-  const ticketParams = [orgId];
-  if (branchId) { ticketQuery += " AND t.branch_id=?"; ticketParams.push(branchId); }
+  // Isolamento por unidade: relatórios só agregam as unidades às quais o usuário tem acesso.
+  // all_branches → todas as filiais da org; caso contrário → apenas as atribuídas.
+  const allowedBranchIds = getAllowedBranchIds(auth.user, db);
+  if (branchId && !allowedBranchIds.includes(branchId)) {
+    return Response.json({ error: "Unidade fora do seu acesso." }, { status: 403 });
+  }
+  const effectiveBranchIds = branchId ? [branchId] : allowedBranchIds;
+  const scopeT = branchFilterClause(effectiveBranchIds, "t.branch_id");
+  const scopeB = branchFilterClause(effectiveBranchIds, "b.id");
+  const scopePlain = branchFilterClause(effectiveBranchIds, "branch_id");
+
+  let ticketQuery = `SELECT t.*, b.name branch_name FROM tickets t JOIN branches b ON b.id=t.branch_id WHERE t.organization_id=? AND ${scopeT.clause}`;
+  const ticketParams = [orgId, ...scopeT.params];
   if (from) { ticketQuery += " AND t.created_at>=?"; ticketParams.push(from); }
   if (to) { ticketQuery += " AND t.created_at<=?"; ticketParams.push(to); }
   const tickets = db.prepare(ticketQuery).all(...ticketParams);
@@ -76,9 +87,8 @@ export async function GET(request) {
   const byBranchParams = [orgId];
   if (from) { byBranchQuery += " AND t.created_at>=?"; byBranchParams.push(from); }
   if (to) { byBranchQuery += " AND t.created_at<=?"; byBranchParams.push(to); }
-  byBranchQuery += " WHERE b.organization_id=?";
-  byBranchParams.push(orgId);
-  if (branchId) { byBranchQuery += " AND b.id=?"; byBranchParams.push(branchId); }
+  byBranchQuery += ` WHERE b.organization_id=? AND ${scopeB.clause}`;
+  byBranchParams.push(orgId, ...scopeB.params);
   byBranchQuery += " GROUP BY b.id ORDER BY total DESC";
 
   // Série temporal: criados vs. resolvidos por dia (até 90 pontos) para o gráfico de tendência.
@@ -101,9 +111,8 @@ export async function GET(request) {
   if (from) {
     const dur = (to ? new Date(to).getTime() : Date.now()) - new Date(from).getTime();
     const prevFrom = new Date(new Date(from).getTime() - dur).toISOString();
-    let q = "SELECT COUNT(*) total, SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) resolved FROM tickets WHERE organization_id=? AND created_at>=? AND created_at<?";
-    const p = [orgId, prevFrom, from];
-    if (branchId) { q += " AND branch_id=?"; p.push(branchId); }
+    const q = `SELECT COUNT(*) total, SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) resolved FROM tickets WHERE organization_id=? AND ${scopePlain.clause} AND created_at>=? AND created_at<?`;
+    const p = [orgId, ...scopePlain.params, prevFrom, from];
     const row = db.prepare(q).get(...p);
     previous = { totalTickets: row.total || 0, resolved: row.resolved || 0 };
   }
@@ -111,9 +120,8 @@ export async function GET(request) {
   // Produtividade por responsável (top 8 técnicos no período).
   let agentQuery = `SELECT u.name, COUNT(t.id) total,
       SUM(CASE WHEN t.status='RESOLVIDO' THEN 1 ELSE 0 END) resolved
-    FROM tickets t JOIN users u ON u.id=t.assignee_id WHERE t.organization_id=?`;
-  const agentParams = [orgId];
-  if (branchId) { agentQuery += " AND t.branch_id=?"; agentParams.push(branchId); }
+    FROM tickets t JOIN users u ON u.id=t.assignee_id WHERE t.organization_id=? AND ${scopeT.clause}`;
+  const agentParams = [orgId, ...scopeT.params];
   if (from) { agentQuery += " AND t.created_at>=?"; agentParams.push(from); }
   if (to) { agentQuery += " AND t.created_at<=?"; agentParams.push(to); }
   agentQuery += " GROUP BY u.id, u.name ORDER BY total DESC LIMIT 8";

@@ -171,11 +171,11 @@ export function AuthView({ mode = "login", user, onAuthenticated, onPasswordChan
                 <fieldset disabled={loading} className="space-y-4">
                   {requiresSlug && (
                     <div className="space-y-2">
-                      <Label htmlFor="forgot-org">Código da empresa</Label>
-                      <Input id="forgot-org" required value={organizationSlug} onChange={(event) => setOrganizationSlug(event.target.value)} onBlur={(event) => loadOrgBySlug(event.target.value)} placeholder="ex: minha-empresa" className="h-11 rounded-xl" />
+                      <Label htmlFor="forgot-org">Código da unidade</Label>
+                      <Input id="forgot-org" required value={organizationSlug} onChange={(event) => setOrganizationSlug(event.target.value)} onBlur={(event) => loadOrgBySlug(event.target.value)} placeholder="ex: minha-unidade" className="h-11 rounded-xl" />
                     </div>
                   )}
-                  <div className="space-y-2"><Label htmlFor="forgot-email">E-mail</Label><div className="relative"><Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="forgot-email" type="email" autoComplete="username" required value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} placeholder="nome@empresa.com" className="h-11 rounded-xl pl-10" /></div></div>
+                  <div className="space-y-2"><Label htmlFor="forgot-email">E-mail ou usuário</Label><div className="relative"><Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="forgot-email" type="text" autoComplete="username" required value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} placeholder="nome@empresa.com ou nome.sobrenome" className="h-11 rounded-xl pl-10" /></div></div>
                 </fieldset>
                 <Button className="h-11 w-full text-sm font-semibold" type="submit" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : <Mail />}{loading ? "Enviando..." : "Solicitar redefinição"}</Button>
                 <button type="button" onClick={() => setForgotMode(false)} className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" /> Voltar ao login</button>
@@ -195,11 +195,11 @@ export function AuthView({ mode = "login", user, onAuthenticated, onPasswordChan
                 <fieldset disabled={loading} className="space-y-4">
                   {requiresSlug && (
                     <div className="space-y-2">
-                      <Label htmlFor="organization">Código da empresa</Label>
-                      <Input id="organization" required value={organizationSlug} onChange={(event) => setOrganizationSlug(event.target.value)} onBlur={(event) => loadOrgBySlug(event.target.value)} placeholder="ex: minha-empresa" className="h-11 rounded-xl" />
+                      <Label htmlFor="organization">Código da unidade</Label>
+                      <Input id="organization" required value={organizationSlug} onChange={(event) => setOrganizationSlug(event.target.value)} onBlur={(event) => loadOrgBySlug(event.target.value)} placeholder="ex: minha-unidade" className="h-11 rounded-xl" />
                     </div>
                   )}
-                  <div className="space-y-2"><Label htmlFor="email">E-mail</Label><div className="relative"><Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nome@empresa.com" className="h-11 rounded-xl pl-10" /></div></div>
+                  <div className="space-y-2"><Label htmlFor="email">E-mail ou usuário</Label><div className="relative"><Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="email" type="text" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nome@empresa.com ou nome.sobrenome" className="h-11 rounded-xl pl-10" /></div></div>
                   <div className="space-y-2"><Label htmlFor="password">Senha</Label><PasswordInput id="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className="h-11" /></div>
                 </fieldset>
                 <Button className="h-11 w-full text-sm font-semibold" type="submit" disabled={loading}>{loading ? <LoaderCircle className="animate-spin" /> : <LockKeyhole />}{loading ? "Entrando..." : "Entrar"}</Button>

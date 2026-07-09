@@ -94,7 +94,10 @@ export function ingestPostureAlerts(db, asset, epp) {
     VALUES (?, ?, ?, 'AGENT_POSTURE', ?, ?, ?, ?, 'NEW', ?, ?, ?)
     ON CONFLICT(organization_id, provider, external_id) DO UPDATE SET
       severity=excluded.severity, title=excluded.title, description=excluded.description,
-      raw_json=excluded.raw_json, asset_id=excluded.asset_id
+      raw_json=excluded.raw_json, asset_id=excluded.asset_id,
+      -- Se o risco reaparecer depois de resolvido, volta a NEW para ser triado de novo.
+      -- Mantém INVESTIGATING/FALSE_POSITIVE (triagem humana) intactos.
+      status=CASE WHEN xdr_alerts.status='RESOLVED' THEN 'NEW' ELSE xdr_alerts.status END
   `);
   const resolve = db.prepare("UPDATE xdr_alerts SET status='RESOLVED' WHERE organization_id=? AND asset_id=? AND provider='AGENT_POSTURE' AND external_id=? AND status NOT IN ('RESOLVED','FALSE_POSITIVE')");
   let count = 0;

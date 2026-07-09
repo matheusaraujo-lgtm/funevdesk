@@ -91,7 +91,7 @@ function SoftwareDeployCard({ asset }) {
     reload();
   }
 
-  const filtered = catalog.filter((app) => app.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = catalog.filter((app) => (app.name || "").toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
@@ -176,7 +176,7 @@ function SoftwareDeployCard({ asset }) {
   );
 }
 
-export function AssetDetailView({ asset, tickets = [], permissions, onBack, onRemoteAsset, onOpenTicket, onReload }) {
+export function AssetDetailView({ asset, tickets = [], statuses = [], permissions, onBack, onRemoteAsset, onOpenTicket, onReload }) {
   const [inventory, setInventory] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [editingPatrimony, setEditingPatrimony] = useState(false);
@@ -287,7 +287,7 @@ export function AssetDetailView({ asset, tickets = [], permissions, onBack, onRe
                   >
                     <span className="font-mono text-[11px] text-muted-foreground">#{ticket.number}</span>
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">{ticket.title}</span>
-                    <StatusBadge value={ticket.status} />
+                    <StatusBadge value={ticket.status} statuses={statuses} />
                   </button>
                 ))
               )}

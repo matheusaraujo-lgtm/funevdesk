@@ -19,7 +19,7 @@ export async function PUT(request, { params }) {
   if (duplicate) return Response.json({ error: "Já existe outro usuário com este e-mail." }, { status: 409 });
   const branchError = validateBranches(db, currentUser.organization_id, parsed.data.branchIds, parsed.data.primaryBranchId, parsed.data.assetId);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
-  const scopeError = actorBranchScopeError(currentUser, parsed.data);
+  const scopeError = actorBranchScopeError(currentUser, parsed.data, Boolean(user.all_branches));
   if (scopeError) return Response.json({ error: scopeError }, { status: 403 });
   const resolved = resolveProfile(db, currentUser.organization_id, parsed.data);
   if (resolved.error) return Response.json({ error: resolved.error }, { status: 400 });

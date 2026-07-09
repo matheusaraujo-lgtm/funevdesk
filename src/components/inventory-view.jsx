@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Boxes, Layers, Package, PackageMinus, Pencil, Plus, RefreshCcw, Search, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ListEmptyState } from "@/components/list-empty-state";
+import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,9 @@ export function InventoryView({ branches = [], canConfigure = true, defaultBranc
       return `${item.name} ${item.sku || ""} ${item.category || ""}`.toLowerCase().includes(term);
     });
   }, [items, search, onlyLow]);
+
+  const pagination = useListPagination(filtered.length, 10);
+  const paged = pagination.sliceItems(filtered);
 
   async function createItem(event) {
     event.preventDefault();
@@ -261,7 +265,7 @@ export function InventoryView({ branches = [], canConfigure = true, defaultBranc
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
+              {paged.map((item) => (
                 <TableRow key={item.id} data-low={item.lowStock || undefined} className="data-[low]:bg-amber-50/40">
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -310,6 +314,18 @@ export function InventoryView({ branches = [], canConfigure = true, defaultBranc
               ))}
             </TableBody>
           </Table>
+        )}
+        {filtered.length > 0 && (
+          <ListPagination
+            totalItems={filtered.length}
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            start={pagination.start}
+            end={pagination.end}
+            onPageChange={pagination.setPage}
+            itemLabel="itens"
+          />
         )}
       </Card>
 

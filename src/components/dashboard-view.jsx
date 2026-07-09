@@ -228,18 +228,24 @@ export function DashboardView({ data, currentUser, openTicket, onNavigate, onNav
     return buckets;
   }, [data.tickets, now]);
 
+  // Situações terminais (Resolvido, Cancelado e quaisquer customizadas) não entram na
+  // visão geral de "chamados recentes" — ela mostra o que está em andamento.
+  const terminalCodes = useMemo(
+    () => new Set((data.ticketStatuses || []).filter((s) => s.is_terminal).map((s) => s.code).concat(["RESOLVIDO", "CANCELADO"])),
+    [data.ticketStatuses],
+  );
   const filteredTickets = useMemo(
-    () => periodFilteredTickets.filter((ticket) => ticket.status !== "RESOLVIDO" && (status === "all" || ticket.status === status)),
-    [periodFilteredTickets, status],
+    () => periodFilteredTickets.filter((ticket) => !terminalCodes.has(ticket.status) && (status === "all" || ticket.status === status)),
+    [periodFilteredTickets, status, terminalCodes],
   );
 
   const pagination = useListPagination(filteredTickets.length, 5);
   const pagedTickets = pagination.sliceItems(filteredTickets);
 
   const inProgress = periodFilteredTickets.filter((ticket) => ticket.status === "EM_ATENDIMENTO").length;
-  const critical = periodFilteredTickets.filter((ticket) => ticket.status !== "RESOLVIDO" && (ticket.priority === "CRITICA" || ticket.priority === "ALTA")).length;
-  const unassigned = periodFilteredTickets.filter((ticket) => !ticket.assignee_id && ticket.status !== "RESOLVIDO").length;
-  const mine = periodFilteredTickets.filter((ticket) => ticket.assignee_id === currentUser?.id && ticket.status !== "RESOLVIDO").length;
+  const critical = periodFilteredTickets.filter((ticket) => !terminalCodes.has(ticket.status) && (ticket.priority === "CRITICA" || ticket.priority === "ALTA")).length;
+  const unassigned = periodFilteredTickets.filter((ticket) => !ticket.assignee_id && !terminalCodes.has(ticket.status)).length;
+  const mine = periodFilteredTickets.filter((ticket) => ticket.assignee_id === currentUser?.id && !terminalCodes.has(ticket.status)).length;
   const slaViolations = periodFilteredTickets.filter((ticket) => ticket.sla_status === "VIOLADO").length;
 
   // Painéis da direita só aparecem quando têm conteúdo; se nenhum tiver, "Chamados
@@ -347,7 +353,7 @@ export function DashboardView({ data, currentUser, openTicket, onNavigate, onNav
                             <div className="min-w-0"><p className="truncate text-xs font-medium">{name}</p><p className="truncate text-[10px] text-muted-foreground">{ticket.branch_name}</p></div>
                           </div>
                         </TableCell>
-                        <TableCell className="overflow-hidden px-2"><StatusBadge value={ticket.status} /></TableCell>
+                        <TableCell className="overflow-hidden px-2"><StatusBadge value={ticket.status} statuses={data.ticketStatuses} /></TableCell>
                         <TableCell className="px-2">
                           <div className="flex items-center gap-1.5 text-xs">
                             <i className={`size-1.5 shrink-0 rounded-full ${ticket.priority === "ALTA" || ticket.priority === "CRITICA" ? "bg-destructive" : ticket.priority === "MEDIA" ? "bg-primary" : "bg-muted-foreground"}`} />
