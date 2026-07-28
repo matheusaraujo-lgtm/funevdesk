@@ -144,6 +144,20 @@ servidor via SSH, atualiza o código e reconstrói os containers.
 
 Deploy manual (fallback): `bash scripts/deploy.sh`
 
+### Deploy automático via systemd (ativo)
+
+Alternativa ao GitHub Actions, rodando **no próprio servidor** e sem depender de
+secrets/SSH. Um timer systemd faz *polling* da `main` a cada ~1 min e, ao detectar
+commit novo, faz `git pull` (fast-forward) + `docker compose up -d --build app`.
+
+- Script: `/home/funevdesk/deploy/funevdesk-deploy.sh`
+- Unidades: `/etc/systemd/system/funevdesk-deploy.{service,timer}`
+- Log: `/home/funevdesk/deploy/deploy.log` · Marcador: `/home/funevdesk/deploy/.last-deployed`
+- Acompanhar: `journalctl -u funevdesk-deploy.service -f` ou `tail -f` no log acima.
+
+> Se o Actions (§3 acima) também estiver ativo, os dois vão tentar deployar — use
+> apenas um. Para publicar, basta `git push origin main`.
+
 ## 4. Atualizar a versão do agente
 
 Os instaladores **só compilam no Windows** — o servidor Linux apenas serve o
