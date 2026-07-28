@@ -361,6 +361,11 @@ function ensureRuntimeMigrations(db) {
   if (!userColumns.some((column) => column.name === "password_reset_required")) {
     execAddColumn(db, "ALTER TABLE users ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0");
   }
+  // Foto de perfil (opcional, definida pelo próprio usuário). Guarda só o caminho canônico
+  // "/uploads/<arquivo>"; os bytes ficam no volume app-uploads, igual à logo da organização.
+  if (!userColumns.some((column) => column.name === "avatar_url")) {
+    execAddColumn(db, "ALTER TABLE users ADD COLUMN avatar_url TEXT");
+  }
   db.prepare(`INSERT OR IGNORE INTO user_branches (user_id, branch_id, is_primary)
     SELECT id, branch_id, 1 FROM users WHERE branch_id IS NOT NULL`).run();
   // Visibilidade por unidade: por padrão TODO usuário (inclusive admin) enxerga apenas as
@@ -426,6 +431,9 @@ function ensureRuntimeMigrations(db) {
   ensureItilTables(db);
   ensureSystemSettings(db);
   ensurePerformanceIndexes(db);
+  // Público-alvo do artigo de conhecimento: ALL = todos (portal do usuário + técnicos),
+  // STAFF = apenas técnicos/suporte. Default ALL preserva os artigos já existentes.
+  execAddColumn(db, "ALTER TABLE knowledge_articles ADD COLUMN audience TEXT NOT NULL DEFAULT 'ALL'");
 }
 
 // Índices para as colunas filtradas/ordenadas/juntadas nas rotas quentes (dashboard, listas).

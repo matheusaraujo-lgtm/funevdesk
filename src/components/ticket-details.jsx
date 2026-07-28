@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, PanelRightClose, PanelRightOpen, Star } from "lucide-react";
 import { toast } from "sonner";
+import { AttachmentViewer } from "@/components/attachment-viewer";
 import { CancelTicketDialog } from "@/components/cancel-ticket-dialog";
 import { RemoteConsoleEmbed } from "@/components/remote-console-embed";
 import { ResolveTicketDialog } from "@/components/resolve-ticket-dialog";
@@ -38,6 +39,7 @@ export function TicketDetails({
   const [transferTarget, setTransferTarget] = useState("");
   const [busy, setBusy] = useState("");
   const [asideCollapsed, setAsideCollapsed] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
 
   if (!details) {
     return (
@@ -84,14 +86,15 @@ export function TicketDetails({
     return acc;
   }, []);
 
+  const openableAttachments = attachments.filter((item) => item?.id || item?.public_url);
   function handleViewAttachments() {
-    const openable = attachments.filter((item) => item?.id || item?.public_url);
-    if (!openable.length) {
+    if (!openableAttachments.length) {
       toast.info("Nenhum anexo disponível.");
       return;
     }
-    // Baixa pela rota autenticada e escopada por organização; cai para o link legado só se faltar id.
-    openable.forEach((item) => window.open(item.id ? `/api/attachments/${item.id}` : item.public_url, "_blank", "noopener,noreferrer"));
+    // Abre o visualizador em modal (imagens/PDF/vídeo direto na tela) — sem nova aba, que
+    // dava 404 no /uploads sob "standalone". O modal serve pela rota autenticada /api/attachments.
+    setAttachmentsOpen(true);
   }
 
   async function connectRemote() {
@@ -336,6 +339,8 @@ export function TicketDetails({
       <ResolveTicketDialog open={resolveOpen} onOpenChange={setResolveOpen} onConfirm={handleResolve} loading={resolving} stockEntries={stockEntries} branchId={ticket.branch_id} />
 
       <CancelTicketDialog open={cancelOpen} onOpenChange={setCancelOpen} onConfirm={handleCancel} loading={busy === "cancel"} ticketNumber={ticket.number} />
+
+      <AttachmentViewer attachments={openableAttachments} open={attachmentsOpen} onOpenChange={setAttachmentsOpen} />
     </div>
   );
 }

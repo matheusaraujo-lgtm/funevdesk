@@ -14,13 +14,15 @@ import {
   Type,
   X,
 } from "lucide-react";
+import { AttachmentViewer } from "@/components/attachment-viewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { attachmentKind, attachmentUrl } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 
-export function TicketFormField({ label, required, children, className = "" }) {
+export function TicketFormField({ label, required, hint, children, className = "" }) {
   return (
     <div className={className}>
       <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
@@ -28,6 +30,7 @@ export function TicketFormField({ label, required, children, className = "" }) {
         {required ? <span className="text-destructive">*</span> : null}
       </p>
       {children}
+      {hint ? <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -97,11 +100,14 @@ export function enrichTicketField(response) {
 
 function FileDisplay({ field, attachment, readOnly, onUpload, uploading, onRemove }) {
   const inputRef = useRef(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const isScreenshot = field.field_type === "SCREENSHOT";
   const Icon = isScreenshot ? ImagePlus : FileUp;
   // Aceita os dois formatos: upload recém-feito (camelCase da API) e anexo persistido (snake_case do banco).
   const fileName = attachment?.originalName || attachment?.original_name || field.value_text || "";
-  const fileUrl = attachment?.publicUrl || attachment?.public_url;
+  // URL servível: persistido (com id) vai pela rota autenticada /api/attachments/<id>; o
+  // link cru /uploads/<uuid> dá 404 sob "standalone". A visualização abre em modal, não em nova aba.
+  const fileUrl = attachmentUrl(attachment);
 
   if (readOnly) {
     return (
@@ -109,38 +115,40 @@ function FileDisplay({ field, attachment, readOnly, onUpload, uploading, onRemov
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Icon className="size-4 shrink-0 text-primary" />
           {fileUrl ? (
-            <a href={fileUrl} target="_blank" rel="noreferrer" className="truncate font-medium text-primary underline underline-offset-2">
+            <button type="button" onClick={() => setViewerOpen(true)} className="truncate text-left font-medium text-primary underline underline-offset-2">
               {fileName || "Abrir arquivo"}
-            </a>
+            </button>
           ) : (
             <span>{fileName || "Nenhum arquivo anexado"}</span>
           )}
         </div>
+        {fileUrl && <AttachmentViewer attachments={[attachment]} open={viewerOpen} onOpenChange={setViewerOpen} />}
       </div>
     );
   }
 
   const accept = isScreenshot ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,application/pdf,text/plain";
-  const isImage = (attachment?.mimeType || "").startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(fileUrl || "");
+  const isImage = attachmentKind(attachment) === "image";
   return (
     <div className="rounded-xl border border-dashed bg-muted/15 p-4">
       {fileUrl ? (
-        // Após anexar: mostra miniatura (imagem) ou chip do arquivo, clicável para visualizar.
+        // Após anexar: mostra miniatura (imagem) ou chip do arquivo, clicável para visualizar em modal.
         <div className="mb-3 flex items-center gap-3">
           {isImage ? (
-            <a href={fileUrl} target="_blank" rel="noreferrer" className="shrink-0">
+            <button type="button" onClick={() => setViewerOpen(true)} className="shrink-0">
               <img src={fileUrl} alt={fileName} className="size-14 rounded-lg border object-cover" />
-            </a>
+            </button>
           ) : (
             <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></span>
           )}
           <div className="min-w-0 flex-1">
-            <a href={fileUrl} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-primary underline underline-offset-2">{fileName || "Abrir arquivo"}</a>
+            <button type="button" onClick={() => setViewerOpen(true)} className="block max-w-full truncate text-left text-sm font-medium text-primary underline underline-offset-2">{fileName || "Abrir arquivo"}</button>
             <p className="text-xs text-muted-foreground">Anexado — clique para visualizar</p>
           </div>
           {!readOnly && onRemove && (
             <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0 text-muted-foreground" onClick={onRemove} aria-label="Remover anexo"><X /></Button>
           )}
+          <AttachmentViewer attachments={[attachment]} open={viewerOpen} onOpenChange={setViewerOpen} />
         </div>
       ) : (
         <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">

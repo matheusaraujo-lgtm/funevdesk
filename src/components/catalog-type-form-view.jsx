@@ -116,9 +116,11 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
       branchIds: form.scopeMode === "SELECTED" ? form.branchIds : [],
       targetBranchMode: form.targetBranchMode,
       targetBranchId: form.targetBranchMode === "SPECIFIC" && form.targetBranchId !== "none" ? form.targetBranchId : null,
-      fields: form.fields.map((field) => ({
+      // Campos em branco (sem rótulo) são ignorados — permite tipos SEM formulário,
+      // e evita salvar a linha vazia inicial quando o tipo não precisa de campos.
+      fields: form.fields.filter((field) => field.label.trim()).map((field) => ({
         id: field.id,
-        label: field.label,
+        label: field.label.trim(),
         fieldType: field.fieldType,
         placeholder: field.placeholder,
         required: field.required,
@@ -230,7 +232,7 @@ export function CatalogTypeFormView({ ticketType, branches = [], onCreateType, o
         <div className="flex items-center justify-between"><div><p className="font-semibold">Campos do formulário</p><p className="text-xs text-muted-foreground">A ordem abaixo será usada na abertura. Campos já usados em chamados não podem ser removidos.</p></div><Button type="button" variant="outline" size="sm" onClick={() => update("fields", [...form.fields, blankField()])}><Plus /> Adicionar campo</Button></div>
         {form.fields.map((field, index) => (
           <div className="rounded-xl border p-4" key={field.id || `new-${index}`}>
-            <div className="mb-3 flex items-center gap-2"><GripVertical className="size-4 text-muted-foreground" /><p className="text-sm font-semibold">Campo {index + 1}</p><Button type="button" variant="ghost" size="icon" className="ml-auto" disabled={form.fields.length === 1} onClick={() => removeField(index)}><Trash2 /></Button></div>
+            <div className="mb-3 flex items-center gap-2"><GripVertical className="size-4 text-muted-foreground" /><p className="text-sm font-semibold">Campo {index + 1}</p><Button type="button" variant="ghost" size="icon" className="ml-auto" onClick={() => removeField(index)}><Trash2 /></Button></div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Input required aria-label={`Nome do campo ${index + 1}`} value={field.label} onChange={(event) => updateField(index, "label", event.target.value)} placeholder="Nome do campo" />
               <Select value={field.fieldType} onValueChange={(value) => updateField(index, "fieldType", value)}><SelectTrigger aria-label={`Tipo do campo ${index + 1}`}><SelectValue placeholder="Tipo de campo">{(value) => fieldTypeLabels[value]}</SelectValue></SelectTrigger><SelectContent>{Object.entries(fieldTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>

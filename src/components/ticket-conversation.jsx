@@ -10,7 +10,7 @@ import {
   Shield,
   X,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -73,6 +73,10 @@ function ConversationMessage({ message, requesterId, currentUserId, isLast, tick
     >
       <div className="flex gap-2.5">
         <Avatar className="size-8 shrink-0">
+          {/* Mensagem do sistema/agente não tem autor humano — segue nas iniciais. */}
+          {!isSystem && message.author_avatar_url && (
+            <AvatarImage src={message.author_avatar_url} alt={message.author_name} />
+          )}
           <AvatarFallback
             className={cn(
               "text-[10px] font-semibold",

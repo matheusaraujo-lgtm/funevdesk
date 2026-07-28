@@ -56,7 +56,7 @@ const typeSchema = z.object({
     placeholder: z.string().max(160).optional(),
     required: z.boolean(),
     options: z.array(z.string().min(1)).optional(),
-  })).min(1),
+  })).default([]),
   requiresApproval: z.boolean().optional().default(false),
   approvalMode: z.enum(["NONE", "FIXED", "SELECT"]).optional().default("NONE"),
   defaultApproverId: z.string().nullable().optional(),

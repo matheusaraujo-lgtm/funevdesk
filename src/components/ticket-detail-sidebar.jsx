@@ -4,7 +4,7 @@ import { ArrowRightLeft, CheckCircle2, Computer, HandMetal, Headset, Radar, Rota
 import { getFirstResponseStatus } from "@/lib/sla";
 import { StatusBadge } from "@/components/status-badge";
 import { TicketAnalystPanel } from "@/components/ticket-analyst-panel";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
@@ -69,6 +69,7 @@ export function TicketDetailSidebar({ ticket, permissions, isMine, isTerminal, c
         <div className="flex items-center gap-2">
           {!isUnassigned && (
             <Avatar className="size-8">
+              {ticket.assignee_avatar_url && <AvatarImage src={ticket.assignee_avatar_url} alt={ticket.assignee_name} />}
               <AvatarFallback className={cn(isMine ? "bg-primary text-primary-foreground text-[10px]" : "bg-muted text-[10px]")}>
                 {initials(ticket.assignee_name)}
               </AvatarFallback>
@@ -147,6 +148,7 @@ export function TicketDetailSidebar({ ticket, permissions, isMine, isTerminal, c
         <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Solicitante</p>
         <div className="mb-1.5 flex items-center gap-2">
           <Avatar className="size-7">
+            {ticket.requester_avatar_url && <AvatarImage src={ticket.requester_avatar_url} alt={ticket.requester_name || ticket.logged_user} />}
             <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">{initials(ticket.requester_name || ticket.logged_user)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">

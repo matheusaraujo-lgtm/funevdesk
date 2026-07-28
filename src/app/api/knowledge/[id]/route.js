@@ -10,6 +10,7 @@ const schema = z.object({
   title: z.string().min(3).max(160),
   category: z.string().min(2).max(80),
   content: z.string().min(5).max(100000),
+  audience: z.enum(["ALL", "STAFF"]).optional().default("ALL"),
 });
 
 export async function GET(request, { params }) {
@@ -28,6 +29,10 @@ export async function GET(request, { params }) {
   if (!article) return Response.json({ error: "Artigo não encontrado." }, { status: 404 });
   if (article.branch_id && !permissions.canViewAllBranches && !currentUser.branchIds.includes(article.branch_id)) {
     return Response.json({ error: "Acesso negado." }, { status: 403 });
+  }
+  // Artigo só para técnicos não é acessível pelo usuário-final (portal).
+  if (article.audience === "STAFF" && !permissions.canManageTickets) {
+    return Response.json({ error: "Artigo não encontrado." }, { status: 404 });
   }
   return Response.json({ article });
 }
@@ -54,9 +59,9 @@ export async function PUT(request, { params }) {
   }
 
   const result = db.prepare(`
-    UPDATE knowledge_articles SET branch_id=?, title=?, category=?, content=?, updated_at=?
+    UPDATE knowledge_articles SET branch_id=?, title=?, category=?, content=?, audience=?, updated_at=?
     WHERE id=? AND organization_id=?
-  `).run(parsed.data.branchId || null, parsed.data.title, parsed.data.category, parsed.data.content, new Date().toISOString(), id, currentUser.organization_id);
+  `).run(parsed.data.branchId || null, parsed.data.title, parsed.data.category, parsed.data.content, parsed.data.audience, new Date().toISOString(), id, currentUser.organization_id);
   if (!result.changes) return Response.json({ error: "Artigo não encontrado." }, { status: 404 });
   return Response.json({ ok: true });
 }

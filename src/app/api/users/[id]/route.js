@@ -1,6 +1,6 @@
 import { requireCurrentUser, can, canManageUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listUsers, userSchema, validateBranches, resolveProfile, actorBranchScopeError } from "@/app/api/users/route";
+import { listUsers, userSchema, validateBranches, resolveProfile, actorBranchScopeError, normalizeLogin } from "@/app/api/users/route";
 
 export async function PUT(request, { params }) {
   const { id } = await params;
@@ -15,7 +15,7 @@ export async function PUT(request, { params }) {
   const user = db.prepare("SELECT * FROM users WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
   if (!user) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
   if (!canManageUser(currentUser, user.role)) return Response.json({ error: "Você não pode gerenciar um usuário de igual ou maior privilégio." }, { status: 403 });
-  const duplicate = db.prepare("SELECT id FROM users WHERE organization_id=? AND email=? AND id<>?").get(currentUser.organization_id, parsed.data.email.toLowerCase(), id);
+  const duplicate = db.prepare("SELECT id FROM users WHERE organization_id=? AND email=? AND id<>?").get(currentUser.organization_id, normalizeLogin(parsed.data.email), id);
   if (duplicate) return Response.json({ error: "Já existe outro usuário com este e-mail." }, { status: 409 });
   const branchError = validateBranches(db, currentUser.organization_id, parsed.data.branchIds, parsed.data.primaryBranchId, parsed.data.assetId);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
@@ -28,7 +28,7 @@ export async function PUT(request, { params }) {
   const authProvider = parsed.data.authProvider || "LOCAL";
   const save = db.transaction(() => {
     db.prepare("UPDATE users SET name=?, email=?, role=?, profile_id=?, branch_id=?, asset_id=?, auth_provider=?, all_branches=? WHERE id=?")
-      .run(parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, parsed.data.primaryBranchId, parsed.data.assetId || null, authProvider, parsed.data.allBranches ? 1 : 0, id);
+      .run(parsed.data.name, normalizeLogin(parsed.data.email), resolved.role, resolved.profileId, parsed.data.primaryBranchId, parsed.data.assetId || null, authProvider, parsed.data.allBranches ? 1 : 0, id);
     db.prepare("DELETE FROM user_branches WHERE user_id=?").run(id);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));

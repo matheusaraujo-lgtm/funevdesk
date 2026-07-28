@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser, roleLabel } from "@/lib/auth";
+import { toServableAvatarUrl } from "@/lib/avatar";
 import { listTicketStatuses } from "@/lib/ticket-statuses";
 
 export const dynamic = "force-dynamic";
@@ -40,15 +41,21 @@ export async function GET(request) {
   `).all(...allowedBranchIds);
   const tickets = db.prepare(`
     SELECT t.*, b.name branch_name, a.hostname, a.mesh_node_id,
-      u.name requester_name, u.email requester_email, tt.name ticket_type_name,
-      assignee.name assignee_name, team.name team_name
+      u.name requester_name, u.email requester_email, u.avatar_url requester_avatar_url,
+      tt.name ticket_type_name,
+      assignee.name assignee_name, assignee.avatar_url assignee_avatar_url, team.name team_name
     FROM tickets t JOIN branches b ON b.id=t.branch_id
     LEFT JOIN assets a ON a.id=t.asset_id LEFT JOIN users u ON u.id=t.requester_id
     LEFT JOIN users assignee ON assignee.id=t.assignee_id
     LEFT JOIN teams team ON team.id=t.team_id
     LEFT JOIN ticket_types tt ON tt.id=t.ticket_type_id
     WHERE ${ticketConditions.join(" AND ")} ORDER BY t.updated_at DESC
-  `).all(...ticketParams);
+  `).all(...ticketParams).map((ticket) => ({
+    ...ticket,
+    // O banco guarda "/uploads/<arquivo>"; o navegador só consegue carregar via /api/avatars.
+    requester_avatar_url: toServableAvatarUrl(ticket.requester_avatar_url),
+    assignee_avatar_url: toServableAvatarUrl(ticket.assignee_avatar_url),
+  }));
   const assets = db.prepare(`
     SELECT a.*, b.name branch_name, b.type branch_type
     FROM assets a JOIN branches b ON b.id=a.branch_id
@@ -112,9 +119,13 @@ export async function GET(request) {
     currentUser: {
       id: currentUser.id,
       name: currentUser.name,
+      email: currentUser.email,
       role: currentUser.role,
       roleLabel: currentUser.profile?.name || roleLabel(currentUser.role),
       profile: currentUser.profile,
+      avatarUrl: toServableAvatarUrl(currentUser.avatar_url),
+      // A tela "Meu perfil" esconde a troca de senha para contas LDAP (senha é do diretório).
+      authProvider: currentUser.auth_provider || "LOCAL",
       branchId: currentUser.branch_id,
       branchIds: currentUser.branchIds,
       branchName: currentUser.branch_name,

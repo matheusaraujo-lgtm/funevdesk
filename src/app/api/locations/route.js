@@ -4,10 +4,21 @@ import { getDb, makeId } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// Importação em lote de localizações. Regras: nome obrigatório; unidade (branchId) válida;
-// upsert por (organização, unidade, nome) — reimportar atualiza o código.
+// Importação em lote de localizações. Regras: nome obrigatório; unidade aceita ID, NOME ou
+// CÓDIGO da unidade; upsert por (organização, unidade, nome) — reimportar atualiza o código.
 function importLocationRows(db, organizationId, rows, user) {
-  const validBranches = new Set(db.prepare("SELECT id FROM branches WHERE organization_id=?").all(organizationId).map((b) => b.id));
+  // Resolve a unidade por ID, nome ou código (tudo normalizado em minúsculas/trim).
+  const branchRows = db.prepare("SELECT id, name, code FROM branches WHERE organization_id=?").all(organizationId);
+  const branchByKey = new Map();
+  for (const b of branchRows) {
+    branchByKey.set(b.id, b.id);
+    branchByKey.set(String(b.name || "").trim().toLowerCase(), b.id);
+    if (b.code) branchByKey.set(String(b.code).trim().toLowerCase(), b.id);
+  }
+  const resolveBranch = (raw) => {
+    const value = String(raw || "").trim();
+    return branchByKey.get(value) || branchByKey.get(value.toLowerCase()) || null;
+  };
   const now = new Date().toISOString();
   let imported = 0;
   const run = db.transaction(() => {
@@ -16,9 +27,10 @@ function importLocationRows(db, organizationId, rows, user) {
     const update = db.prepare("UPDATE locations SET code=?, active=1 WHERE id=?");
     rows.forEach((row, index) => {
       const name = String(row.name || "").trim();
-      const branchId = String(row.branchId || "").trim();
+      // Aceita "branchId", "branch" ou "unidade" como cabeçalho da coluna.
+      const branchId = resolveBranch(row.branchId ?? row.branch ?? row.unidade);
       if (!name) throw new Error(`Linha ${index + 2}: o nome da localização é obrigatório.`);
-      if (!validBranches.has(branchId)) throw new Error(`Linha ${index + 2}: unidade (branchId) inválida para "${name}".`);
+      if (!branchId) throw new Error(`Linha ${index + 2}: unidade "${String(row.branchId ?? row.branch ?? row.unidade ?? "").trim()}" não encontrada (use o nome, o código ou o ID da unidade) para "${name}".`);
       if (!canAccessBranch(user, branchId)) throw new Error("Uma ou mais unidades estão fora do seu acesso.");
       const code = String(row.code || "").trim() || null;
       const existing = find.get(organizationId, branchId, name);
@@ -34,19 +46,31 @@ function importLocationRows(db, organizationId, rows, user) {
 export async function GET(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
-  // Localizações alimentam telas operacionais (formulário de ativo). Libera quem gere
-  // localizações OU ativos; bloqueia o portal do colaborador (sem nenhum dos dois).
-  if (!can(auth.user, "locations", "read") && !can(auth.user, "assets", "read")) {
+  // Localizações alimentam telas operacionais (formulário de ativo) E o campo "Localização"
+  // ao abrir chamado. Libera quem gere localizações, ativos OU pode abrir chamado — sempre
+  // com escopo por unidade (a query abaixo restringe às unidades do próprio usuário).
+  if (!can(auth.user, "locations", "read") && !can(auth.user, "assets", "read") && !can(auth.user, "tickets", "create")) {
     return Response.json({ error: "Acesso negado." }, { status: 403 });
   }
   const db = getDb();
   const url = new URL(request.url);
 
+  // O modelo de importação é só para quem gerencia localizações.
+  if (url.searchParams.get("mode") === "template" && !can(auth.user, "locations", "read")) {
+    return Response.json({ error: "Acesso negado." }, { status: 403 });
+  }
+
   if (url.searchParams.get("mode") === "template") {
     const branches = db.prepare("SELECT id, name FROM branches WHERE organization_id=? ORDER BY name").all(auth.user.organization_id);
+    const unidade = branches[0]?.name || "Nome da unidade";
     return Response.json({
-      columns: ["name", "branchId", "code"],
-      example: { name: "Sala 101", branchId: branches[0]?.id || "ID_DA_UNIDADE", code: "S101" },
+      // "name" = nome da localização · "unidade" = nome/código/ID da unidade · "code" = sigla opcional.
+      columns: ["name", "unidade", "code"],
+      examples: [
+        { name: "Recepção", unidade, code: "REC" },
+        { name: "Sala de Medicação", unidade, code: "MED" },
+        { name: "Triagem", unidade, code: "TRI" },
+      ],
       branches,
     });
   }

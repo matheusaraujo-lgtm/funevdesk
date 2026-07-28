@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRightLeft, HandMetal, Headset, Loader2, UserMinus, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -111,6 +111,7 @@ export function TicketAssignmentPanel({
         <div className="flex items-center gap-3">
           {!isUnassigned && (
             <Avatar className="size-10">
+              {ticket.assignee_avatar_url && <AvatarImage src={ticket.assignee_avatar_url} alt={ticket.assignee_name} />}
               <AvatarFallback className={isMine ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}>
                 {initials(ticket.assignee_name)}
               </AvatarFallback>

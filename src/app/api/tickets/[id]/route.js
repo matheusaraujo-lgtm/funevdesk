@@ -1,4 +1,5 @@
 import { canAccessTicket, getPermissions, requireCurrentUser } from "@/lib/auth";
+import { toServableAvatarUrl } from "@/lib/avatar";
 import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
@@ -30,11 +31,12 @@ const patchSchema = z.object({
 });
 
 function getTicket(db, id) {
-  return db.prepare(`
+  const ticket = db.prepare(`
     SELECT t.*, b.name branch_name, b.type branch_type,
       ob.name origin_branch_name, ob.type origin_branch_type,
       loc.name location_name,
-      u.name requester_name, u.email requester_email,
+      u.name requester_name, u.email requester_email, u.avatar_url requester_avatar_url,
+      assignee.avatar_url assignee_avatar_url,
       tt.name ticket_type_name, tt.description ticket_type_description, tt.checklist_json type_checklist_json,
       a.hostname, a.asset_type, a.os_name, a.ip_address, a.logged_user,
       a.status asset_status, a.cpu_percent, a.memory_percent, a.disk_percent,
@@ -52,6 +54,13 @@ function getTicket(db, id) {
     LEFT JOIN ticket_types tt ON tt.id=t.ticket_type_id
     WHERE t.id=?
   `).get(id);
+  if (!ticket) return ticket;
+  // O banco guarda "/uploads/<arquivo>"; o navegador só carrega via /api/avatars.
+  return {
+    ...ticket,
+    requester_avatar_url: toServableAvatarUrl(ticket.requester_avatar_url),
+    assignee_avatar_url: toServableAvatarUrl(ticket.assignee_avatar_url),
+  };
 }
 
 export async function GET(request, { params }) {

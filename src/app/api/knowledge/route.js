@@ -10,6 +10,8 @@ const articleSchema = z.object({
   title: z.string().min(3).max(160),
   category: z.string().min(2).max(80),
   content: z.string().min(5).max(100000),
+  // ALL = visível no portal do usuário e para técnicos; STAFF = apenas técnicos/suporte.
+  audience: z.enum(["ALL", "STAFF"]).optional().default("ALL"),
 });
 
 export async function GET(request) {
@@ -19,11 +21,13 @@ export async function GET(request) {
   const currentUser = auth.user;
   const permissions = getPermissions(currentUser);
   const branchFilter = permissions.canViewAllBranches ? "" : `AND (branch_id IS NULL OR branch_id IN (${currentUser.branchIds.map(() => "?").join(",")}))`;
+  // Usuário-final (sem gestão de chamados) só enxerga artigos marcados para o portal (audience='ALL').
+  const audienceFilter = permissions.canManageTickets ? "" : "AND ka.audience='ALL'";
   const params = permissions.canViewAllBranches ? [currentUser.organization_id] : [currentUser.organization_id, ...currentUser.branchIds];
   const articles = db.prepare(`
     SELECT ka.*, b.name branch_name
     FROM knowledge_articles ka LEFT JOIN branches b ON b.id=ka.branch_id
-    WHERE ka.organization_id=? ${branchFilter}
+    WHERE ka.organization_id=? ${branchFilter} ${audienceFilter}
     ORDER BY ka.updated_at DESC
   `).all(...params);
   return Response.json({ articles });
@@ -41,8 +45,8 @@ export async function POST(request) {
   const now = new Date().toISOString();
   const id = makeId("kb");
   db.prepare(`INSERT INTO knowledge_articles
-    (id, organization_id, branch_id, title, category, content, created_by, updated_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, currentUser.organization_id, parsed.data.branchId || null, parsed.data.title, parsed.data.category, parsed.data.content, currentUser.id, now, now);
+    (id, organization_id, branch_id, title, category, content, audience, created_by, updated_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, currentUser.organization_id, parsed.data.branchId || null, parsed.data.title, parsed.data.category, parsed.data.content, parsed.data.audience, currentUser.id, now, now);
   return Response.json({ id }, { status: 201 });
 }

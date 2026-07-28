@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown, LogOut, Menu, Plus, Ticket } from "lucide-react";
+import { BookOpen, ChevronDown, LogOut, Menu, Plus, Ticket, UserRound } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
@@ -68,11 +68,14 @@ export function EmployeePortalNavbar({ view, setView, currentUser, onLogout }) {
     </Sheet>
   );
 
-  // Menu do avatar com logout — mesmo padrão do admin/técnico.
+  // Menu do avatar com perfil e logout — mesmo padrão do admin/técnico.
   const userMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-transparent px-1.5 transition-colors hover:border-border/60 hover:bg-accent/60">
-        <Avatar className="size-8"><AvatarFallback>{initials(currentUser.name)}</AvatarFallback></Avatar>
+        <Avatar className="size-8">
+          {currentUser.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
+          <AvatarFallback>{initials(currentUser.name)}</AvatarFallback>
+        </Avatar>
         <ChevronDown className="hidden size-3 text-muted-foreground sm:block" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -82,6 +85,7 @@ export function EmployeePortalNavbar({ view, setView, currentUser, onLogout }) {
           <span className="font-normal text-muted-foreground">{currentUser.branchName}</span>
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate("profile")}><UserRound /> Meu perfil</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={onLogout}><LogOut /> Sair</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

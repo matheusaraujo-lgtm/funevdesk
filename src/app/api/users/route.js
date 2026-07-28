@@ -1,4 +1,5 @@
 import { requireCurrentUser, roleLabel, getPermissions, can, canManageUser } from "@/lib/auth";
+import { toServableAvatarUrl } from "@/lib/avatar";
 import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 import { z } from "zod";
@@ -15,7 +16,13 @@ const DEFAULT_USER_PASSWORD = "funev@2026";
 // ponto separando as partes e só letras/números/._- (ex.: joao.silva, ana.paula.souza).
 const USERNAME_RE = /^[a-z0-9]+([._-][a-z0-9]+)+$/i;
 function normalizeLogin(value) {
-  return String(value || "").trim().toLowerCase();
+  // Remove acentos/diacríticos: "érico.morais" -> "erico.morais", "arthur.frança" -> "arthur.franca".
+  // Deixa o login limpo em ASCII, que é o formato ideal para o usuário digitar.
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
 }
 function isValidLogin(value) {
   const v = normalizeLogin(value);
@@ -31,7 +38,9 @@ const userSchema = z.object({
   name: z.string().min(3).max(120),
   email: loginField,
   role: z.enum(["ADMIN", "TECHNICIAN", "EMPLOYEE"]).optional(),
-  profileId: z.string().min(1).optional(),
+  // "" chega quando a lista de perfis não carregou no cliente; trata como ausente para cair
+  // no papel legado em resolveProfile() em vez de reprovar a validação inteira.
+  profileId: z.preprocess((value) => (value === "" ? undefined : value), z.string().min(1).optional()),
   branchIds: z.array(z.string().min(1)).min(1),
   primaryBranchId: z.string().min(1),
   allBranches: z.boolean().optional().default(false),
@@ -79,7 +88,8 @@ function resolveProfile(db, organizationId, data) {
 export function listUsers(db, organizationId, branchIds = null) {
   const users = db.prepare(`
     SELECT u.id, u.name, u.email, u.role, u.profile_id, u.branch_id, u.asset_id, u.active,
-      u.password_reset_required, u.auth_provider, u.all_branches, u.created_at, b.name branch_name, a.hostname,
+      u.password_reset_required, u.auth_provider, u.all_branches, u.avatar_url, u.created_at,
+      b.name branch_name, a.hostname,
       p.name profile_name
     FROM users u
     LEFT JOIN branches b ON b.id=u.branch_id
@@ -96,6 +106,7 @@ export function listUsers(db, organizationId, branchIds = null) {
   return users.map((user) => ({
     ...user,
     active: Boolean(user.active),
+    avatarUrl: toServableAvatarUrl(user.avatar_url),
     passwordResetRequired: Boolean(user.password_reset_required),
     allBranches: Boolean(user.all_branches),
     authProvider: user.auth_provider || "LOCAL",
@@ -189,7 +200,7 @@ export async function POST(request) {
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
   const scopeError = actorBranchScopeError(currentUser, parsed.data);
   if (scopeError) return Response.json({ error: scopeError }, { status: 403 });
-  if (db.prepare("SELECT id FROM users WHERE organization_id=? AND email=?").get(currentUser.organization_id, parsed.data.email.toLowerCase())) return Response.json({ error: "Já existe um usuário com este e-mail." }, { status: 409 });
+  if (db.prepare("SELECT id FROM users WHERE organization_id=? AND email=?").get(currentUser.organization_id, normalizeLogin(parsed.data.email))) return Response.json({ error: "Já existe um usuário com este e-mail." }, { status: 409 });
   const resolved = resolveProfile(db, currentUser.organization_id, parsed.data);
   if (resolved.error) return Response.json({ error: resolved.error }, { status: 400 });
   // Impede escalonamento: não-admin não pode criar usuário de patente igual ou maior à sua.
@@ -200,7 +211,7 @@ export async function POST(request) {
     db.prepare(`INSERT INTO users
       (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active, password_hash, password_reset_required, auth_provider, all_branches)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`)
-      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, parsed.data.email.toLowerCase(), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider, parsed.data.allBranches ? 1 : 0);
+      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, normalizeLogin(parsed.data.email), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider, parsed.data.allBranches ? 1 : 0);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));
   });
@@ -208,10 +219,11 @@ export async function POST(request) {
   return Response.json({ userId: id, temporaryPassword: DEFAULT_USER_PASSWORD, users: listUsers(db, currentUser.organization_id) }, { status: 201 });
 }
 
-// Importação em lote. Só admin. Resolve unidade por código OU nome, cria com senha padrão
-// (troca no 1º login) e IGNORA e-mails/logins que já existem (conta em "skipped").
+// Importação em lote. Quem pode criar usuários (admin ou técnico) pode importar — o loop
+// abaixo aplica o isolamento por unidade e o anti-escalonamento por linha. Resolve unidade
+// por código OU nome, cria com senha padrão (troca no 1º login) e IGNORA e-mails/logins
+// que já existem (conta em "skipped").
 function importUsers(currentUser, body) {
-  if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem importar usuários." }, { status: 403 });
   const parsed = importSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Planilha inválida. Confira as colunas do modelo." }, { status: 400 });
   const db = getDb();
@@ -267,4 +279,4 @@ function importUsers(currentUser, body) {
   return Response.json({ imported, skipped, temporaryPassword: DEFAULT_USER_PASSWORD, users: listUsers(db, org) });
 }
 
-export { userSchema, validateBranches, resolveProfile, actorBranchScopeError };
+export { userSchema, validateBranches, resolveProfile, actorBranchScopeError, normalizeLogin };

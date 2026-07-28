@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TicketConfiguredFieldInput, TicketFormField } from "@/components/ticket-configured-field";
+import { LocationCombobox } from "@/components/location-combobox";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { isRichTextEmpty } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
@@ -396,14 +397,14 @@ export function TicketCreateView({
               {errors.description && <p className="mt-1.5 text-xs text-destructive">{errors.description}</p>}
             </Field>
             {locations.length > 0 && (
-              <Field label="Localização">
-                <Select value={locationId || "none"} onValueChange={(value) => setLocationId(value === "none" ? "" : value)}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Selecione o local">{(value) => value === "none" ? "Selecione o local" : locations.find((loc) => loc.id === value)?.name}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Selecione…</SelectItem>
-                    {locations.map((loc) => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <Field label="Localização" hint="Busque pelo setor onde você está.">
+                <LocationCombobox
+                  locations={locations}
+                  value={locationId}
+                  onChange={setLocationId}
+                  placeholder="Selecione o setor"
+                  searchPlaceholder="Buscar setor..."
+                />
               </Field>
             )}
             {selectedType.requiresApproval && selectedType.approvalMode === "SELECT" && (

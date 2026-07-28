@@ -32,6 +32,8 @@ export function KnowledgeFormView({ item, branches, permissions, onCancel, onSav
 
     content: item?.content || "",
 
+    audience: item?.audience || "ALL",
+
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -99,6 +101,8 @@ export function KnowledgeFormView({ item, branches, permissions, onCancel, onSav
       icon={BookOpen}>
 
       <div><p className="mb-2 text-sm font-medium">Escopo</p><Select value={form.branchId} onValueChange={(branchId) => setForm((current) => ({ ...current, branchId }))}><SelectTrigger><SelectValue>{(value) => value === "global" ? "Global" : branches.find((branch) => branch.id === value)?.name}</SelectValue></SelectTrigger><SelectContent><SelectItem value="global">Global</SelectItem>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select></div>
+
+      <div className="sm:col-span-2"><p className="mb-2 text-sm font-medium">Quem pode ver</p><Select value={form.audience} onValueChange={(audience) => setForm((current) => ({ ...current, audience }))}><SelectTrigger><SelectValue>{(value) => value === "STAFF" ? "Somente técnicos" : "Todos (portal do usuário)"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="ALL">Todos (portal do usuário)</SelectItem><SelectItem value="STAFF">Somente técnicos</SelectItem></SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">“Somente técnicos” não aparece na Central de Ajuda do usuário.</p></div>
 
       <div><p className="mb-2 text-sm font-medium">Categoria</p><Input aria-invalid={errors.category ? true : undefined} value={form.category} onChange={(event) => { setForm((current) => ({ ...current, category: event.target.value })); if (errors.category) setErrors((p) => ({ ...p, category: undefined })); }} />{errors.category && <p className="mt-1.5 text-xs text-destructive">{errors.category}</p>}</div>
 

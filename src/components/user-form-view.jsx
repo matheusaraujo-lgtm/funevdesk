@@ -15,8 +15,17 @@ const roleLabels = { ADMIN: "Administrador", TECHNICIAN: "Técnico", EMPLOYEE: "
 // Aceita e-mail completo OU login no formato nome.sobrenome (mesmo critério do backend).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-z0-9]+([._-][a-z0-9]+)+$/i;
+// Espelha normalizeLogin() de /api/users: remove acentos antes de validar, senão o form
+// barra logins que o backend aceita ("arthur.França" -> "arthur.franca").
+function normalizeLogin(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
 function isValidLogin(value) {
-  const v = String(value || "").trim().toLowerCase();
+  const v = normalizeLogin(value);
   if (!v || v.length > 180) return false;
   return EMAIL_RE.test(v) || USERNAME_RE.test(v);
 }
@@ -89,7 +98,13 @@ export function UserFormView({ userId, users, branches, assets, profiles = [], c
       return;
     }
     setSubmitting(true);
-    const payload = { ...form, assetId: form.assetId === "none" ? null : form.assetId };
+    // profileId vazio = a lista de perfis não carregou (ex.: técnico não tem profiles:read e o
+    // form caiu no seletor de papel legado). Envia ausente, não "", senão o schema rejeita.
+    const payload = {
+      ...form,
+      profileId: form.profileId || undefined,
+      assetId: form.assetId === "none" ? null : form.assetId,
+    };
     const success = userId ? await onSave(userId, payload) : await onCreate(payload);
     setSubmitting(false);
     if (success) onCancel();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { BookOpen, Eye, FileText, Globe, Layers, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, Eye, FileText, Globe, Layers, Lock, MoreVertical, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
@@ -73,6 +73,11 @@ function ArticleCard({ article, onOpen, onEdit, onRemove, permissions }) {
           {!article.branch_name && <Globe className="size-3" />}
           {scope}
         </Badge>
+        {permissions.canManageTickets && (
+          article.audience === "STAFF"
+            ? <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600"><Lock className="size-3" /> Somente técnicos</Badge>
+            : <Badge variant="outline" className="gap-1 border-emerald-500/40 text-emerald-600"><Users className="size-3" /> Portal do usuário</Badge>
+        )}
       </div>
     </div>
   );

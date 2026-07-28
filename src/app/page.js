@@ -56,6 +56,7 @@ import { isRichTextEmpty } from "@/lib/rich-text";
 import { EmployeePortalNavbar } from "@/components/employee-portal-navbar";
 import { UsersView } from "@/components/users-view";
 import { ProfilesView } from "@/components/profiles-view";
+import { ProfileView } from "@/components/profile-view";
 
 export default function Home() {
   const [authStatus, setAuthStatus] = useState("loading");
@@ -576,6 +577,10 @@ export default function Home() {
   // Checagem granular de permissão por tela/ação, a partir da matriz do perfil (GLPI-like).
   const can = (module, action = "read") => Boolean(data.permissionMap?.[module]?.[action]);
 
+  // Reflete a foto recém-enviada no avatar do topo sem recarregar o dashboard inteiro.
+  const updateOwnAvatar = (avatarUrl) =>
+    setData((current) => (current ? { ...current, currentUser: { ...current.currentUser, avatarUrl } } : current));
+
   const themeStyle = {
     "--primary": data.currentUser.primaryColor || "#102033",
     "--primary-foreground": "#ffffff",
@@ -583,15 +588,16 @@ export default function Home() {
     "--secondary-foreground": "#102033",
   };
   const isSidebar = data.currentUser.navigationMode === "SIDEBAR";
-  const mainClassName = isSidebar ? "px-4 py-6 md:px-6 md:py-8 lg:ml-60 lg:px-6" : "app-container py-6 md:py-8";
+  // Transição suave: cada troca de view (via key) refaz a entrada com fade+slide leve.
+  const mainClassName = `${isSidebar ? "px-4 py-6 md:px-6 md:py-8 lg:ml-60 lg:px-6" : "app-container py-6 md:py-8"} animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none`;
 
   if (data.currentUser.role === "EMPLOYEE") {
-    const employeeViews = ["new-ticket", "my-tickets", "details", "knowledge", "knowledge-detail"];
+    const employeeViews = ["new-ticket", "my-tickets", "details", "knowledge", "knowledge-detail", "profile"];
     const safeView = employeeViews.includes(view) ? view : "new-ticket";
 
     return <div className="min-h-screen" style={themeStyle}>
       <EmployeePortalNavbar view={safeView} setView={setView} currentUser={data.currentUser} onLogout={logout} />
-      <main className={mainClassName}>
+      <main key={safeView} className={mainClassName}>
         {safeView === "my-tickets" && (
           // O agente já abre os chamados de incidente automaticamente — sem alerta de saúde aqui.
           <MyTicketsView
@@ -600,6 +606,9 @@ export default function Home() {
             onOpenTicket={openTicket}
             onNewTicket={() => setView("new-ticket")}
           />
+        )}
+        {safeView === "profile" && (
+          <ProfileView currentUser={data.currentUser} onBack={() => setView("my-tickets")} onAvatarChanged={updateOwnAvatar} />
         )}
         {safeView === "knowledge" && (
           <KnowledgeView
@@ -650,7 +659,7 @@ export default function Home() {
   return <div className="min-h-screen" style={themeStyle}>
     <CommandPalette can={can} permissions={data.permissions} setView={setView} onNewTicket={() => setView("new-ticket")} />
     <AppNavbar view={view} setView={setView} ticketCount={activeTickets.length} branches={data.branches} branchId={branchId} setBranchId={setBranchId} onNewTicket={() => setView("new-ticket")} currentUser={data.currentUser} permissions={data.permissions} can={can} onLogout={logout} />
-    <main className={mainClassName}>
+    <main key={view} className={mainClassName}>
       {view === "dashboard" && <DashboardView data={data} currentUser={data.currentUser} openTicket={openTicket} onNavigate={setView} onNavigateQueue={goToTicketsQueue} onNewTicket={() => setView("new-ticket")} />}
       {view === "tickets" && can("tickets", "read") && <TicketsView tickets={data.tickets} catalog={catalog} users={users} currentUser={data.currentUser} permissions={data.permissions} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} initialQueue={ticketsQueue} onQueueApplied={() => setTicketsQueue(null)} onOpenTicket={openTicket} onRemoteAccess={remoteAccess} onStatusChange={changeStatus} onAssumeTicket={assumeTicket} onBulkPatch={bulkPatchTickets} />}
       {view === "assets" && data.permissions.canViewAssets && <AssetsView assets={data.assets} allAssets={data.assets} networkDevices={data.networkDevices || []} tickets={data.tickets} permissions={data.permissions} onNewTicket={() => setView("new-ticket")} onRemoteAccess={remoteAccess} onRemoteAsset={assetRemoteAccess} onOpenTicket={openTicket} onImported={loadData} onOpenMonitoring={() => setView("network")} onOpenAsset={openAsset} />}
@@ -671,6 +680,8 @@ export default function Home() {
       {view === "details" && <TicketDetails details={ticketDetails} users={users} assets={data.assets} currentUser={data.currentUser} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} onBack={() => setView("tickets")} onStatusChange={changeStatus} onRemoteAccess={remoteAccess} onPatchTicket={patchTicket} onAssumeTicket={assumeTicket} onReload={() => { const id = selectedTicket?.id || ticketDetails?.ticket?.id; if (id) loadTicketDetails(id); }} />}
       {view === "users" && can("users", "read") && <UsersView users={users} currentUserId={data.currentUser.id} createdCredential={createdCredential} onAckCredential={() => setCreatedCredential(null)} onNew={() => { setUserEditId(null); setView("users-form"); }} onEdit={(id) => { setUserEditId(id); setView("users-form"); }} onToggle={toggleUser} onDelete={deleteUser} onResetPassword={resetUserPassword} onImported={reloadUsers} />}
       {view === "users-form" && can("users", "read") && <UserFormView userId={userEditId} users={users} branches={data.branches} assets={data.assets} profiles={profiles} canGrantAllBranches={data.currentUser?.role === "ADMIN" && Boolean(data.permissions?.canViewAllBranches)} onCreate={createUser} onSave={saveUser} onCancel={closeUserForm} />}
+      {/* "profile" = conta do próprio usuário (foto + senha); "profiles" = perfis de permissão. */}
+      {view === "profile" && <ProfileView currentUser={data.currentUser} onBack={() => setView("dashboard")} onAvatarChanged={updateOwnAvatar} />}
       {view === "profiles" && can("profiles", "read") && <ProfilesView can={can} onProfilesChanged={setProfiles} />}
       {view === "settings" && can("settings", "read") && <SettingsGeneralView settings={settings} agentAssets={agentAssets} onSave={saveSettings} onRefreshSettings={loadData} />}
       {view === "settings-branches" && can("branches", "read") && <BranchesView branches={branches} onNew={() => { setBranchEditId(null); setView("settings-branches-form"); }} onEdit={(id) => { setBranchEditId(id); setView("settings-branches-form"); }} onDelete={deleteBranch} />}

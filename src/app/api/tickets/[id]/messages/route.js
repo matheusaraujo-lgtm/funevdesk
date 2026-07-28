@@ -1,4 +1,5 @@
 import { canAccessTicket, getPermissions, requireCurrentUser } from "@/lib/auth";
+import { toServableAvatarUrl } from "@/lib/avatar";
 import { createNotification } from "@/lib/notifications";
 import { getDb, makeId } from "@/lib/db";
 import { isRichTextEmpty, plainTextPreview, sanitizeHtml } from "@/lib/rich-text";
@@ -22,8 +23,15 @@ export async function GET(request, { params }) {
   if (!ticket) return Response.json({ error: "Chamado não encontrado." }, { status: 404 });
   if (!canAccessTicket(auth.user, ticket)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const canSeeInternal = getPermissions(auth.user).canManageTickets;
-  const messages = db.prepare("SELECT * FROM ticket_messages WHERE ticket_id=? ORDER BY created_at").all(id)
-    .filter((m) => m.visibility === "PUBLIC" || canSeeInternal);
+  // JOIN em users só para a foto do autor; mensagens do sistema/agente têm author_id nulo e
+  // seguem caindo nas iniciais.
+  const messages = db.prepare(`
+    SELECT m.*, u.avatar_url author_avatar_url
+    FROM ticket_messages m LEFT JOIN users u ON u.id=m.author_id
+    WHERE m.ticket_id=? ORDER BY m.created_at
+  `).all(id)
+    .filter((m) => m.visibility === "PUBLIC" || canSeeInternal)
+    .map((message) => ({ ...message, author_avatar_url: toServableAvatarUrl(message.author_avatar_url) }));
   return Response.json({ messages });
 }
 

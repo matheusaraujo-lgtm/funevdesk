@@ -9,6 +9,11 @@ export async function POST(request) {
   if (!user) return Response.json({ error: "Não autenticado." }, { status: 401 });
   const limit = rateLimit(`change-password:${user.id}:${clientIp(request)}`, { limit: 10, windowMs: 10 * 60_000 });
   if (!limit.allowed) return tooManyRequests(limit.retryAfterMs);
+  // Conta LDAP tem a senha no diretório: não há hash local para conferir nem o que atualizar.
+  // A tela "Meu perfil" já esconde a opção, mas a rota não pode depender disso.
+  if ((user.auth_provider || "LOCAL") !== "LOCAL") {
+    return Response.json({ error: "Sua senha é gerenciada pelo diretório (LDAP) da sua unidade." }, { status: 400 });
+  }
   const parsed = z.object({
     currentPassword: z.string().min(1),
     newPassword: z.string().min(8).regex(/[A-Z]/).regex(/[a-z]/).regex(/[0-9]/).regex(/[^A-Za-z0-9]/),

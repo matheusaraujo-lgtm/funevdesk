@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MonitorCog, Network, Package, Plus, Printer, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, Users, Webhook, Workflow, Wrench } from "lucide-react";
+import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MonitorCog, Network, Package, Plus, Printer, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -285,7 +285,7 @@ function VerticalNav({ view, setView, ticketCount, permissions, can }) {
 // (já dentro de um chamado), onde a própria tela já tem seu CTA (detalhe do ativo)
 // ou em contexto de configuração/administração e formulários — evita CTAs competindo.
 const NEW_TICKET_HIDDEN_VIEWS = new Set([
-  "new-ticket", "details", "asset-detail",
+  "new-ticket", "details", "asset-detail", "profile",
   "audit", "automations", "profiles", "teams", "webhooks", "users",
   "term-templates", "term-templates-detail", "terms", "terms-detail",
 ]);
@@ -328,6 +328,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
       <DropdownMenu>
         <DropdownMenuTrigger className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-transparent px-1.5 transition-colors hover:border-border/60 hover:bg-accent/60">
           <Avatar className="size-8">
+            {currentUser.avatarUrl && <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} />}
             <AvatarFallback>{initials(currentUser.name)}</AvatarFallback>
           </Avatar>
           <ChevronDown className="hidden size-3 text-muted-foreground sm:block" />
@@ -359,6 +360,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
             </>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate("profile")}><UserRound /> Meu perfil</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={onLogout}><LogOut /> Sair</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

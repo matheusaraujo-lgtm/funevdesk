@@ -6,7 +6,7 @@ import {
   HardDrive, LayoutDashboard, Monitor, MoreVertical, Printer, Server, ShieldAlert, ShieldCheck,
   TicketCheck, Tickets, UserRound, Wrench
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -349,7 +349,7 @@ export function DashboardView({ data, currentUser, openTicket, onNavigate, onNav
                         <TableCell className="px-2"><p className="truncate text-xs font-medium">{ticket.title}</p></TableCell>
                         <TableCell className="px-2">
                           <div className="flex min-w-0 items-center gap-2">
-                            <Avatar className="size-7 shrink-0"><AvatarFallback className={avatarTones[index % avatarTones.length]}>{initials(name)}</AvatarFallback></Avatar>
+                            <Avatar className="size-7 shrink-0">{ticket.requester_avatar_url && <AvatarImage src={ticket.requester_avatar_url} alt={name} />}<AvatarFallback className={avatarTones[index % avatarTones.length]}>{initials(name)}</AvatarFallback></Avatar>
                             <div className="min-w-0"><p className="truncate text-xs font-medium">{name}</p><p className="truncate text-[10px] text-muted-foreground">{ticket.branch_name}</p></div>
                           </div>
                         </TableCell>
