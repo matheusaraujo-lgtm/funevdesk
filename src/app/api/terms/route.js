@@ -21,8 +21,10 @@ export async function GET(request) {
   const currentUser = auth.user;
   // Termos contêm PII (nome/documento do responsável). Exige permissão de leitura do módulo.
   if (!can(currentUser, "terms", "read")) return Response.json({ error: "Acesso negado." }, { status: 403 });
-  // Isolamento por unidade: só lista termos das unidades que o usuário pode ver.
-  const branchScope = branchFilterClause(getAllowedBranchIds(currentUser, db), "et.branch_id");
+  // Isolamento por unidade: só lista termos das unidades que o usuário pode ver. Aceita
+  // ?branchId= do seletor global (topo do app) e revalida contra o escopo permitido.
+  const requestedBranchId = new URL(request.url).searchParams.get("branchId") || null;
+  const branchScope = branchFilterClause(getAllowedBranchIds(currentUser, db, requestedBranchId), "et.branch_id");
   const terms = db.prepare(`
     SELECT et.*, a.hostname, a.patrimony_number, b.name branch_name
     FROM equipment_terms et

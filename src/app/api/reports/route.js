@@ -1,8 +1,14 @@
 import { z } from "zod";
-import { requireCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getSlaStatus } from "@/lib/sla";
 import { getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
+
+// Hora local (America/Sao_Paulo, sem DST) a partir de um timestamp ISO em UTC —
+// evita que o pico de horário saia errado quando o servidor roda em outro fuso.
+function brHour(iso) {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "2-digit", hourCycle: "h23" }).format(new Date(iso)));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +35,8 @@ function resolveRange({ period, from, to }) {
 }
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "reports", "read");
   if (auth.error) return auth.error;
-  if (auth.user.role !== "ADMIN") return Response.json({ error: "Acesso restrito." }, { status: 403 });
   const db = getDb();
   const orgId = auth.user.organization_id;
 
@@ -56,6 +61,24 @@ export async function GET(request) {
   if (from) { ticketQuery += " AND t.created_at>=?"; ticketParams.push(from); }
   if (to) { ticketQuery += " AND t.created_at<=?"; ticketParams.push(to); }
   const tickets = db.prepare(ticketQuery).all(...ticketParams);
+
+  // Situações reais da organização (configuráveis) — usadas para "em aberto" (não-terminal)
+  // e para a quebra por status, em vez de assumir o código fixo "RESOLVIDO".
+  const statuses = db.prepare("SELECT code, label, color, is_terminal FROM ticket_statuses WHERE organization_id=? AND active=1 ORDER BY sort_order ASC").all(orgId);
+  const terminalCodes = new Set(statuses.filter((s) => s.is_terminal).map((s) => s.code));
+  const openCount = tickets.filter((t) => !terminalCodes.has(t.status)).length;
+  const byStatus = statuses.map((s) => ({ code: s.code, label: s.label, color: s.color, count: tickets.filter((t) => t.status === s.code).length }));
+
+  // Horário de criação em fuso do Brasil: histograma por hora (0-23) e por período do dia.
+  const hourBuckets = Array.from({ length: 24 }, () => 0);
+  for (const t of tickets) hourBuckets[brHour(t.created_at)] += 1;
+  const peakHour = hourBuckets.reduce((best, count, hour) => (count > hourBuckets[best] ? hour : best), 0);
+  const byPeriodOfDay = [
+    { key: "madrugada", label: "Madrugada (0h–5h)", count: hourBuckets.slice(0, 6).reduce((a, b) => a + b, 0) },
+    { key: "manha", label: "Manhã (6h–11h)", count: hourBuckets.slice(6, 12).reduce((a, b) => a + b, 0) },
+    { key: "tarde", label: "Tarde (12h–17h)", count: hourBuckets.slice(12, 18).reduce((a, b) => a + b, 0) },
+    { key: "noite", label: "Noite (18h–23h)", count: hourBuckets.slice(18, 24).reduce((a, b) => a + b, 0) },
+  ];
 
   const resolved = tickets.filter((t) => t.status === "RESOLVIDO");
   const mttrHours = resolved.length ? resolved.reduce((sum, t) => {
@@ -126,14 +149,32 @@ export async function GET(request) {
   if (to) { agentQuery += " AND t.created_at<=?"; agentParams.push(to); }
   agentQuery += " GROUP BY u.id, u.name ORDER BY total DESC LIMIT 8";
 
+  // Por tipo de chamado — a partir do array já carregado (sem nova query ao banco).
+  const typeIds = db.prepare("SELECT id, name FROM ticket_types WHERE organization_id=?").all(orgId);
+  const typeNameById = Object.fromEntries(typeIds.map((t) => [t.id, t.name]));
+  const typeCounts = new Map();
+  for (const t of tickets) {
+    const name = typeNameById[t.ticket_type_id] || "Sem tipo definido";
+    const entry = typeCounts.get(name) || { name, total: 0, resolved: 0 };
+    entry.total += 1;
+    if (t.status === "RESOLVIDO") entry.resolved += 1;
+    typeCounts.set(name, entry);
+  }
+  const byType = [...typeCounts.values()].sort((a, b) => b.total - a.total);
+
   return Response.json({
     range: { from, to },
     trend,
     previous,
     byAgent: db.prepare(agentQuery).all(...agentParams),
+    byType,
+    byStatus,
+    byHour: hourBuckets,
+    byPeriodOfDay,
+    peakHour,
     summary: {
       totalTickets: tickets.length,
-      open: tickets.filter((t) => t.status !== "RESOLVIDO").length,
+      open: openCount,
       resolved: resolved.length,
       mttrHours: Math.round(mttrHours * 10) / 10,
       firstResponseHours: Math.round(firstResponseHours * 10) / 10,

@@ -1,6 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { can, getPermissions, requireCurrentUser } from "@/lib/auth";
-import { canAccessBranch } from "@/lib/branch-scope";
+import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +20,16 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   const permissions = getPermissions(currentUser);
-  const branchFilter = permissions.canViewAllBranches ? "" : `AND (branch_id IS NULL OR branch_id IN (${currentUser.branchIds.map(() => "?").join(",")}))`;
+  // Seletor de unidade global (topo do app): aceita ?branchId= e revalida contra o
+  // conjunto de unidades permitidas ao usuário — mesmo padrão de reports/audit/dashboard.
+  const requestedBranchId = new URL(request.url).searchParams.get("branchId") || null;
+  const scopedBranchIds = requestedBranchId ? getAllowedBranchIds(currentUser, db, requestedBranchId) : currentUser.branchIds;
+  const branchFilter = permissions.canViewAllBranches && !requestedBranchId
+    ? ""
+    : `AND (branch_id IS NULL OR branch_id IN (${scopedBranchIds.map(() => "?").join(",")}))`;
   // Usuário-final (sem gestão de chamados) só enxerga artigos marcados para o portal (audience='ALL').
   const audienceFilter = permissions.canManageTickets ? "" : "AND ka.audience='ALL'";
-  const params = permissions.canViewAllBranches ? [currentUser.organization_id] : [currentUser.organization_id, ...currentUser.branchIds];
+  const params = permissions.canViewAllBranches && !requestedBranchId ? [currentUser.organization_id] : [currentUser.organization_id, ...scopedBranchIds];
   const articles = db.prepare(`
     SELECT ka.*, b.name branch_name
     FROM knowledge_articles ka LEFT JOIN branches b ON b.id=ka.branch_id

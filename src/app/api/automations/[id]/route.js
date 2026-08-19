@@ -32,10 +32,14 @@ function clean(obj) {
   return out;
 }
 
+// Ver justificativa em src/app/api/automations/route.js: regras de automação afetam
+// chamados de qualquer unidade, então exigem all_branches além do papel ADMIN.
 function requireAdmin(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth;
-  if (auth.user.role !== "ADMIN") return { error: Response.json({ error: "Acesso restrito a administradores." }, { status: 403 }) };
+  if (auth.user.role !== "ADMIN" || !auth.user.all_branches) {
+    return { error: Response.json({ error: "Acesso restrito a administradores com acesso a todas as unidades." }, { status: 403 }) };
+  }
   return auth;
 }
 

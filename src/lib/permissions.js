@@ -27,6 +27,7 @@ export const MODULES = [
   // ITSM
   { key: "problems", label: "Problemas", actions: CRUD },
   { key: "changes", label: "Mudanças", actions: CRUD },
+  { key: "projects", label: "Projetos", actions: CRUD },
   // Conhecimento
   { key: "knowledge", label: "Base de conhecimento", actions: CRUD },
   { key: "documentation", label: "Documentação", actions: CRUD },
@@ -59,7 +60,7 @@ export const MODULE_KEYS = MODULES.map((module) => module.key);
 export const MODULE_GROUPS = [
   { label: "Geral", modules: ["tickets"] },
   { label: "Ativos", modules: ["assets", "printers"] },
-  { label: "ITSM", modules: ["problems", "changes"] },
+  { label: "ITSM", modules: ["problems", "changes", "projects"] },
   { label: "Conhecimento", modules: ["knowledge", "documentation"] },
   { label: "Monitoramento", modules: ["network", "security"] },
   { label: "Administração", modules: ["inventory", "terms", "teams", "reports", "audit"] },
@@ -85,7 +86,7 @@ export const SEED_PROFILES = [
     baseRole: "ADMIN",
     grants: {
       tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r",
-      knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu",
+      knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", projects: "rcu",
       teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r",
     },
   },
@@ -96,7 +97,7 @@ export const SEED_PROFILES = [
     baseRole: "TECHNICIAN",
     grants: {
       tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r",
-      knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu",
+      knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", projects: "rcu",
       teams: "r", remote: "r",
     },
   },

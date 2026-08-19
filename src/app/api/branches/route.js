@@ -21,11 +21,15 @@ export function listBranches(db, organizationId) {
     SELECT b.id, b.organization_id, b.name, b.code, b.type, b.city, b.state, b.created_at,
       (SELECT COUNT(*) FROM user_branches ub WHERE ub.branch_id=b.id) user_count,
       (SELECT COUNT(*) FROM assets a WHERE a.branch_id=b.id) asset_count,
-      (SELECT COUNT(*) FROM tickets t WHERE t.branch_id=b.id) ticket_count
+      (SELECT COUNT(*) FROM tickets t WHERE t.branch_id=b.id) ticket_count,
+      -- Cada unidade pode ter seu próprio AD (ou nenhum) — o form de usuário usa isto pra
+      -- avisar/bloquear quando LDAP é escolhido para alguém cuja unidade principal não tem
+      -- diretório configurado, evitando criar um acesso que nunca vai conseguir logar.
+      COALESCE((SELECT bas.ldap_enabled FROM branch_auth_settings bas WHERE bas.branch_id=b.id), 0) ldap_enabled
     FROM branches b
     WHERE b.organization_id=?
     ORDER BY CASE b.type WHEN 'MATRIZ' THEN 0 ELSE 1 END, b.name
-  `).all(organizationId);
+  `).all(organizationId).map((branch) => ({ ...branch, ldap_enabled: Boolean(branch.ldap_enabled) }));
 }
 
 export function branchDependencies(db, branchId) {

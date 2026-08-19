@@ -47,18 +47,19 @@ function MetricCard({ icon: Icon, label, value, tone }) {
   );
 }
 
-export function SecurityView({ permissions, onOpenTicket }) {
+export function SecurityView({ permissions, branchId = "", onOpenTicket }) {
   const [data, setData] = useState(null);
   const [analysis, setAnalysis] = useState(null); // { alert, insight, loading }
   const [busy, setBusy] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/security", { cache: "no-store" });
+    const params = branchId ? `?branchId=${branchId}` : "";
+    const response = await fetch(`/api/security${params}`, { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) return toast.error(result.error || "Não foi possível carregar a segurança.");
     setData(result);
-  }, []));
+  }, [branchId]));
 
   const canManage = data?.permissions?.canManageTickets;
   // Triagem por severidade: críticos primeiro (NEW antes de resolvidos no mesmo nível).

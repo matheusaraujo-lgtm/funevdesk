@@ -13,6 +13,9 @@ import { ChangesView } from "@/components/changes-view";
 import { AuditView } from "@/components/audit-view";
 import { ProblemFormView } from "@/components/problem-form-view";
 import { ProblemsView } from "@/components/problems-view";
+import { ProjectBoardView } from "@/components/project-board-view";
+import { ProjectFormView } from "@/components/project-form-view";
+import { ProjectsView } from "@/components/projects-view";
 import { ReportsView } from "@/components/reports-view";
 import { TeamFormView } from "@/components/team-form-view";
 import { TeamsView } from "@/components/teams-view";
@@ -369,8 +372,8 @@ export default function Home() {
     return true;
   }
 
-  async function resetUserPassword(userId) {
-    const result = await requestJson(`/api/users/${userId}/reset-password`, { method: "POST" }, "Não foi possível resetar a senha.");
+  async function resetUserPassword(userId, password) {
+    const result = await requestJson(`/api/users/${userId}/reset-password`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: password || undefined }) }, "Não foi possível resetar a senha.");
     if (!result) return null;
     setUsers((current) => current.map((user) => user.id === userId ? { ...user, passwordResetRequired: true } : user));
     return result;
@@ -587,9 +590,8 @@ export default function Home() {
     "--secondary": data.currentUser.secondaryColor || "#bff2e6",
     "--secondary-foreground": "#102033",
   };
-  const isSidebar = data.currentUser.navigationMode === "SIDEBAR";
   // Transição suave: cada troca de view (via key) refaz a entrada com fade+slide leve.
-  const mainClassName = `${isSidebar ? "px-4 py-6 md:px-6 md:py-8 lg:ml-60 lg:px-6" : "app-container py-6 md:py-8"} animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none`;
+  const mainClassName = "px-4 py-6 md:px-6 md:py-8 lg:ml-72 lg:px-6 animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none";
 
   if (data.currentUser.role === "EMPLOYEE") {
     const employeeViews = ["new-ticket", "my-tickets", "details", "knowledge", "knowledge-detail", "profile"];
@@ -667,18 +669,18 @@ export default function Home() {
       {view === "documentation" && can("documentation", "read") && <DocumentationView key={listRefreshKey} branches={data.branches} branchId={branchId} permissions={data.permissions} onNew={() => { setFormDraft(null); setView("documentation-form"); }} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onOpen={(item) => { setFormDraft(item); setView("documentation-detail"); }} />}
       {view === "documentation-form" && <DocumentationFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("documentation")} onSaved={refreshLists} />}
       {view === "documentation-detail" && formDraft && <DocumentationDetailView item={formDraft} permissions={data.permissions} onBack={() => closeDraftForm("documentation")} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onDeleted={refreshLists} onSaved={refreshLists} />}
-      {view === "knowledge" && can("knowledge", "read") && <KnowledgeView key={listRefreshKey} permissions={data.permissions} onNew={() => { setFormDraft(null); setView("knowledge-form"); }} onEdit={(item) => { setFormDraft(item); setView("knowledge-form"); }} onOpen={(item) => { setFormDraft(item); setView("knowledge-detail"); }} />}
+      {view === "knowledge" && can("knowledge", "read") && <KnowledgeView key={`${listRefreshKey}-${branchId}`} permissions={data.permissions} branchId={branchId} onNew={() => { setFormDraft(null); setView("knowledge-form"); }} onEdit={(item) => { setFormDraft(item); setView("knowledge-form"); }} onOpen={(item) => { setFormDraft(item); setView("knowledge-detail"); }} />}
       {view === "knowledge-form" && <KnowledgeFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("knowledge")} onSaved={refreshLists} />}
       {view === "knowledge-detail" && formDraft && <KnowledgeDetailView item={formDraft} permissions={data.permissions} onBack={() => closeDraftForm("knowledge")} onEdit={(item) => { setFormDraft(item); setView("knowledge-form"); }} onDeleted={refreshLists} onSaved={refreshLists} />}
-      {view === "terms" && can("terms", "read") && <TermsView key={listRefreshKey} permissions={data.permissions} onNew={() => setView("terms-form")} onOpen={(item) => { setFormDraft(item); setView("terms-detail"); }} />}
+      {view === "terms" && can("terms", "read") && <TermsView key={`${listRefreshKey}-${branchId}`} permissions={data.permissions} branchId={branchId} onNew={() => setView("terms-form")} onOpen={(item) => { setFormDraft(item); setView("terms-detail"); }} />}
       {view === "terms-form" && <TermFormView assets={data.assets} users={users} onCancel={() => closeDraftForm("terms")} onSigned={refreshLists} />}
       {view === "terms-detail" && formDraft && <TermDetailView item={formDraft} permissions={data.permissions} onBack={() => closeDraftForm("terms")} onDeleted={refreshLists} />}
       {view === "printers" && can("printers", "read") && <PrintersView branches={data.branches} branchId={branchId} defaultBranchId={branchId || data.currentUser.branchId} permissions={data.permissions} />}
       {view === "network" && can("network", "read") && <NetworkView key={listRefreshKey} permissions={data.permissions} branchId={branchId} onNew={() => { setFormDraft(null); setView("network-form"); }} onEdit={(item) => { setFormDraft(item); setView("network-form"); }} />}
       {view === "network-form" && <NetworkFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("network")} onSaved={refreshLists} />}
-      {view === "security" && can("security", "read") && <SecurityView permissions={data.permissions} onOpenTicket={openTicketById} />}
+      {view === "security" && can("security", "read") && <SecurityView key={`security-${branchId}`} permissions={data.permissions} branchId={branchId} onOpenTicket={openTicketById} />}
       {view === "details" && <TicketDetails details={ticketDetails} users={users} assets={data.assets} currentUser={data.currentUser} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} onBack={() => setView("tickets")} onStatusChange={changeStatus} onRemoteAccess={remoteAccess} onPatchTicket={patchTicket} onAssumeTicket={assumeTicket} onReload={() => { const id = selectedTicket?.id || ticketDetails?.ticket?.id; if (id) loadTicketDetails(id); }} />}
-      {view === "users" && can("users", "read") && <UsersView users={users} currentUserId={data.currentUser.id} createdCredential={createdCredential} onAckCredential={() => setCreatedCredential(null)} onNew={() => { setUserEditId(null); setView("users-form"); }} onEdit={(id) => { setUserEditId(id); setView("users-form"); }} onToggle={toggleUser} onDelete={deleteUser} onResetPassword={resetUserPassword} onImported={reloadUsers} />}
+      {view === "users" && can("users", "read") && <UsersView users={users} branchId={branchId} currentUserId={data.currentUser.id} createdCredential={createdCredential} onAckCredential={() => setCreatedCredential(null)} onNew={() => { setUserEditId(null); setView("users-form"); }} onEdit={(id) => { setUserEditId(id); setView("users-form"); }} onToggle={toggleUser} onDelete={deleteUser} onResetPassword={resetUserPassword} onImported={reloadUsers} />}
       {view === "users-form" && can("users", "read") && <UserFormView userId={userEditId} users={users} branches={data.branches} assets={data.assets} profiles={profiles} canGrantAllBranches={data.currentUser?.role === "ADMIN" && Boolean(data.permissions?.canViewAllBranches)} onCreate={createUser} onSave={saveUser} onCancel={closeUserForm} />}
       {/* "profile" = conta do próprio usuário (foto + senha); "profiles" = perfis de permissão. */}
       {view === "profile" && <ProfileView currentUser={data.currentUser} onBack={() => setView("dashboard")} onAvatarChanged={updateOwnAvatar} />}
@@ -699,6 +701,9 @@ export default function Home() {
       {view === "teams-form" && (can("teams", "create") || can("teams", "update")) && <TeamFormView teamId={teamEditId} branches={branches.length ? branches : data.branches} users={users} onCancel={closeTeamForm} onSaved={refreshLists} />}
       {view === "problems" && can("problems", "read") && <ProblemsView key={`${listRefreshKey}-${branchId}`} branchId={branchId} onNew={() => { setFormDraft(null); setView("problems-form"); }} onEdit={(item) => { setFormDraft(item); setView("problems-form"); }} />}
       {view === "problems-form" && (can("problems", "create") || can("problems", "update")) && <ProblemFormView item={formDraft} branches={data.branches} defaultBranchId={branchId || data.currentUser.branchId} users={users} onCancel={() => closeDraftForm("problems")} onSaved={refreshLists} />}
+      {view === "projects" && can("projects", "read") && <ProjectsView key={`${listRefreshKey}-${branchId}`} branchId={branchId} onNew={() => { setFormDraft(null); setView("projects-form"); }} onEdit={(item) => { setFormDraft(item); setView("projects-form"); }} onOpen={(item) => { setFormDraft(item); setView("projects-board"); }} />}
+      {view === "projects-form" && (can("projects", "create") || can("projects", "update")) && <ProjectFormView item={formDraft} branches={data.branches} defaultBranchId={branchId || data.currentUser.branchId} users={users} onCancel={() => closeDraftForm("projects")} onSaved={refreshLists} />}
+      {view === "projects-board" && formDraft && <ProjectBoardView item={formDraft} users={users} can={can} onBack={() => closeDraftForm("projects")} onEdit={(item) => { setFormDraft(item); setView("projects-form"); }} onDeleted={refreshLists} />}
       {view === "changes" && can("changes", "read") && <ChangesView key={`${listRefreshKey}-${branchId}`} branchId={branchId} onNew={() => { setFormDraft(null); setView("changes-form"); }} onEdit={(item) => { setFormDraft(item); setView("changes-form"); }} />}
       {view === "changes-form" && (can("changes", "create") || can("changes", "update")) && <ChangeFormView item={formDraft} branches={data.branches} defaultBranchId={branchId || data.currentUser.branchId} users={users} onCancel={() => closeDraftForm("changes")} onSaved={refreshLists} />}
       {view === "reports" && data.permissions.canViewReports && <ReportsView branchId={branchId} branches={data.branches} />}

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock3, Download, Eye, FileCheck2, Flag, PenLine, UserCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, Download, Eye, FileCheck2, Flag, PenLine, Send, UserCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { TicketTermPrepareDialog, TicketTermSignDialog } from "@/components/ticket-term-workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,8 @@ export function TicketWorkflowSection({
   const [comments, setComments] = useState({});
   const [prepareOpen, setPrepareOpen] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
+  const [requestApproverId, setRequestApproverId] = useState("none");
+  const [requestBusy, setRequestBusy] = useState(false);
 
   if (!pendingApproval && !requiresTerm && !equipmentTerm && !approvals.length) return null;
 
@@ -98,6 +101,25 @@ export function TicketWorkflowSection({
     setBusy("");
     if (!response.ok) return toast.error(result.error || "Não foi possível registrar a aprovação.");
     toast.success(status === "APROVADO" ? "Chamado aprovado e atendimento liberado." : "Chamado reprovado.");
+    onReload?.();
+  }
+
+  // Depois de uma reprovação não havia nenhum jeito, pela tela, de pedir uma nova decisão —
+  // a única saída era o solicitante cancelar o chamado. Reaproveita o mesmo POST que a
+  // abertura do chamado já usa para gerar a 1ª aprovação, agora acessível pra quem gerencia.
+  async function requestNewApproval() {
+    if (requestApproverId === "none") return toast.error("Selecione um aprovador.");
+    setRequestBusy(true);
+    const response = await fetch(`/api/tickets/${ticketId}/approvals`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ approverId: requestApproverId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    setRequestBusy(false);
+    if (!response.ok) return toast.error(result.error || "Não foi possível solicitar a aprovação.");
+    toast.success("Nova aprovação solicitada.");
+    setRequestApproverId("none");
     onReload?.();
   }
 
@@ -162,6 +184,21 @@ export function TicketWorkflowSection({
             </div>
           );
         })}
+
+        {!pendingApproval && approvalRejected && permissions?.canManageTickets && (
+          <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+            <p className="text-[11px] text-destructive">Reprovado — o chamado continua parado até uma nova aprovação. Envie para o mesmo aprovador ou escolha outro.</p>
+            <div className="flex gap-2">
+              <Select value={requestApproverId} onValueChange={setRequestApproverId}>
+                <SelectTrigger className="h-8 flex-1 bg-card text-xs"><SelectValue placeholder="Selecione o aprovador">{(value) => value === "none" ? "Selecione o aprovador" : users.find((u) => u.id === value)?.name}</SelectValue></SelectTrigger>
+                <SelectContent>{users.filter((u) => u.id !== currentUserId && u.role !== "EMPLOYEE").map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button size="sm" className="h-8 shrink-0 text-xs" disabled={requestBusy} onClick={requestNewApproval}>
+                <Send className="size-3.5" /> Solicitar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {pendingApproval && !approvals.some((a) => a.status === "PENDENTE" && (a.approver_id === currentUserId || permissions?.canManageTickets)) && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">

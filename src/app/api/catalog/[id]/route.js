@@ -1,8 +1,22 @@
 import { can, requireCurrentUser } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
-import { saveTicketTypeBranches } from "@/lib/ticket-type-routing";
-import { listCatalog } from "@/app/api/catalog/route";
+import { mapTicketTypeBranches, saveTicketTypeBranches } from "@/lib/ticket-type-routing";
+import { listCatalog, validateBranchScopeForActor, visibleCatalogForUser } from "@/app/api/catalog/route";
 import { z } from "zod";
+
+// Mesma regra de visibilidade do GET de /api/catalog: um admin restrito a unidades só
+// pode enxergar/mexer num tipo se ele estiver disponível pra pelo menos uma das suas
+// unidades. Usada para bloquear PUT/PATCH em tipos de outras unidades (antes não havia
+// nenhuma checagem de unidade nessas duas rotas).
+function accessibleToUser(db, type, currentUser) {
+  if (currentUser.all_branches) return true;
+  const links = db.prepare(`
+    SELECT ttb.ticket_type_id, ttb.branch_id
+    FROM ticket_type_branches ttb WHERE ttb.ticket_type_id=?
+  `).all(type.id);
+  const routing = mapTicketTypeBranches(type, links);
+  return Boolean(type.active) && (routing.allBranches || routing.branchIds.some((id) => currentUser.branchIds.includes(id)));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +93,9 @@ export async function PUT(request, { params }) {
   const db = getDb();
   const type = db.prepare("SELECT * FROM ticket_types WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!type) return Response.json({ error: "Tipo não encontrado." }, { status: 404 });
+  if (!accessibleToUser(db, type, auth.user)) return Response.json({ error: "Tipo não encontrado." }, { status: 404 });
 
-  const branchError = validateBranchConfig(parsed.data, auth.user.organization_id, db);
+  const branchError = validateBranchConfig(parsed.data, auth.user.organization_id, db) || validateBranchScopeForActor(parsed.data, auth.user);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
 
   const requiresApproval = parsed.data.requiresApproval;
@@ -138,7 +153,7 @@ export async function PUT(request, { params }) {
     for (const fieldId of removedIds) db.prepare("DELETE FROM ticket_fields WHERE id=?").run(fieldId);
   });
   save();
-  return Response.json({ catalog: listCatalog(db, auth.user.organization_id) });
+  return Response.json({ catalog: visibleCatalogForUser(listCatalog(db, auth.user.organization_id), auth.user) });
 }
 
 const workflowSchema = z.object({
@@ -159,6 +174,7 @@ export async function PATCH(request, { params }) {
   const db = getDb();
   const type = db.prepare("SELECT * FROM ticket_types WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!type) return Response.json({ error: "Tipo não encontrado." }, { status: 404 });
+  if (!accessibleToUser(db, type, auth.user)) return Response.json({ error: "Tipo não encontrado." }, { status: 404 });
 
   const requiresApproval = parsed.data.requiresApproval !== undefined ? parsed.data.requiresApproval : Boolean(type.requires_approval);
   let approvalMode = parsed.data.approvalMode ?? type.approval_mode ?? "NONE";

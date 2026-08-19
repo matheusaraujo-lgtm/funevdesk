@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, ShieldCheck } from "lucide-react";
+import { Building2, PlugZap, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { CrudFormLayout } from "@/components/crud-form-layout";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +36,7 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
   } : emptyForm());
   const [codeEdited, setCodeEdited] = useState(Boolean(branchId));
   const [submitting, setSubmitting] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (!branchId) return;
@@ -60,6 +63,35 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
       if (key === "name" && !codeEdited && !branchId) next.code = slugCode(value);
       return next;
     });
+  }
+
+  // Testa a conexão com o AD sem depender de nenhum usuário final — valida URL, Base DN e
+  // credenciais de serviço antes de qualquer colaborador tentar logar de verdade.
+  async function testConnection() {
+    if (!form.ldapUrl || !form.ldapBaseDn) {
+      toast.error("Informe URL e Base DN antes de testar.");
+      return;
+    }
+    setTesting(true);
+    try {
+      const response = await fetch(`/api/branches/${branchId}/ldap-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ldapUrl: form.ldapUrl,
+          ldapBaseDn: form.ldapBaseDn,
+          ldapBindDn: form.ldapBindDn,
+          ldapBindPassword: form.ldapBindPassword,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result.ok) toast.success(result.message || "Conexão LDAP bem-sucedida.");
+      else toast.error(result.error || "Falha ao testar a conexão LDAP.");
+    } catch {
+      toast.error("Não foi possível testar a conexão.");
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function submit(event) {
@@ -108,6 +140,13 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
           <Input value={form.ldapBindDn} onChange={(event) => update("ldapBindDn", event.target.value)} placeholder="Bind DN (opcional, para busca)" />
           <Input type="password" value={form.ldapBindPassword} onChange={(event) => update("ldapBindPassword", event.target.value)} placeholder="Senha do bind (deixe vazio para manter)" />
           <Input value={form.ldapUserFilter} onChange={(event) => update("ldapUserFilter", event.target.value)} placeholder="Filtro LDAP (use {{email}})" />
+          {branchId ? (
+            <Button type="button" variant="outline" size="sm" onClick={testConnection} disabled={testing}>
+              <PlugZap className="size-3.5" /> {testing ? "Testando..." : "Testar conexão"}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">Salve a unidade para poder testar a conexão com o diretório.</p>
+          )}
         </>}
       </div>
     </CrudFormLayout>

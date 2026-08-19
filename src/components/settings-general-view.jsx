@@ -15,7 +15,6 @@ import {
   LayoutPanelTop,
   Monitor,
   Package,
-  PanelLeft,
   Plus,
   RefreshCw,
   Save,
@@ -107,7 +106,6 @@ export function SettingsGeneralView({ settings, onSave }) {
   const [logoPreview, setLogoPreview] = useState("");
   const [primaryColor, setPrimaryColor] = useState(() => settings?.primaryColor || "#102033");
   const [secondaryColor, setSecondaryColor] = useState(() => settings?.secondaryColor || "#bff2e6");
-  const [navigationMode, setNavigationMode] = useState(() => settings?.navigationMode || "NAVBAR");
   const [slaHours, setSlaHours] = useState(() => String(settings?.slaHours || 8));
   const [remoteAccessEnabled, setRemoteAccessEnabled] = useState(() => settings?.remoteAccessEnabled ?? true);
   const [automaticTicketsEnabled, setAutomaticTicketsEnabled] = useState(() => settings?.automaticTicketsEnabled ?? true);
@@ -141,7 +139,6 @@ export function SettingsGeneralView({ settings, onSave }) {
     logoUrl !== (settings?.logoUrl || "") ||
     primaryColor !== (settings?.primaryColor || "#102033") ||
     secondaryColor !== (settings?.secondaryColor || "#bff2e6") ||
-    navigationMode !== (settings?.navigationMode || "NAVBAR") ||
     Number(slaHours) !== Number(settings?.slaHours || 8) ||
     remoteAccessEnabled !== (settings?.remoteAccessEnabled ?? true) ||
     automaticTicketsEnabled !== (settings?.automaticTicketsEnabled ?? true) ||
@@ -340,7 +337,6 @@ export function SettingsGeneralView({ settings, onSave }) {
       logoUrl,
       primaryColor,
       secondaryColor,
-      navigationMode,
       slaHours: Number(slaHours),
       remoteAccessEnabled,
       automaticTicketsEnabled,
@@ -412,20 +408,13 @@ export function SettingsGeneralView({ settings, onSave }) {
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><LayoutPanelTop className="size-[18px]" /></span>
                 <div className="min-w-0">
                   <CardTitle className="text-[15px]">Aparência</CardTitle>
-                  <CardDescription>Cores e navegação usadas em todo o sistema.</CardDescription>
+                  <CardDescription>Cores usadas em todo o sistema.</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="grid gap-5 pt-1 sm:grid-cols-2">
               <div><Label htmlFor="settings-primary-color" className="mb-2 block">Cor primária</Label><div className="flex gap-2"><Input type="color" aria-label="Cor primária (seletor)" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} className="h-10 w-14 p-1" /><Input id="settings-primary-color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} className="font-mono text-xs" /></div></div>
               <div><Label htmlFor="settings-secondary-color" className="mb-2 block">Cor secundária</Label><div className="flex gap-2"><Input type="color" aria-label="Cor secundária (seletor)" value={secondaryColor} onChange={(event) => setSecondaryColor(event.target.value)} className="h-10 w-14 p-1" /><Input id="settings-secondary-color" value={secondaryColor} onChange={(event) => setSecondaryColor(event.target.value)} className="font-mono text-xs" /></div></div>
-              <div className="sm:col-span-2">
-                <p className="mb-2 text-sm font-medium">Navegação</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button type="button" variant={navigationMode === "NAVBAR" ? "secondary" : "outline"} className="justify-start" onClick={() => setNavigationMode("NAVBAR")}><LayoutPanelTop /> Navbar superior</Button>
-                  <Button type="button" variant={navigationMode === "SIDEBAR" ? "secondary" : "outline"} className="justify-start" onClick={() => setNavigationMode("SIDEBAR")}><PanelLeft /> Sidebar lateral</Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
           </>)}
@@ -637,7 +626,6 @@ export function SettingsGeneralView({ settings, onSave }) {
           </CardHeader>
           <CardContent className="space-y-4 pt-1">
             <div className="flex gap-3"><Clock3 className="size-4 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">SLA padrão</p><p className="font-medium">{slaHours || 0} horas · {businessStart}-{businessEnd}</p></div></div>
-            <div className="flex gap-3"><LayoutPanelTop className="size-4 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Navegação</p><p className="font-medium">{navigationMode === "SIDEBAR" ? "Sidebar lateral" : "Navbar superior"}</p></div></div>
             {isDirty && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300" role="status">
                 <AlertTriangle className="size-4 shrink-0" />

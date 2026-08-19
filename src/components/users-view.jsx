@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, KeyRound, Mail, MoreVertical, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
+import { Copy, Eye, EyeOff, KeyRound, Mail, MoreVertical, Pencil, Plus, Search, Shuffle, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { ImportTemplateButtons } from "@/components/import-template-buttons";
 import { ListEmptyState } from "@/components/list-empty-state";
@@ -14,10 +14,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const roleLabels = { ADMIN: "Administrador", TECHNICIAN: "Técnico", EMPLOYEE: "Usuário" };
+// Mesma regra de src/lib/security.js · STRONG_PASSWORD_REGEX (duplicada — form roda no cliente).
+const STRONG_PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/;
+
+function generateStrongPassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%*?";
+  const pick = (set) => set[Math.floor(Math.random() * set.length)];
+  const required = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+  const rest = Array.from({ length: 8 }, () => pick(upper + lower + digits + symbols));
+  return [...required, ...rest].sort(() => Math.random() - 0.5).join("");
+}
 
 function initials(name) {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
@@ -54,23 +68,47 @@ function UserSidePanel({ user, onClose, onEdit, onResetPassword, onToggle, onDel
   </Card>;
 }
 
-export function UsersView({ users, currentUserId, createdCredential, onAckCredential, onNew, onEdit, onToggle, onDelete, onResetPassword, onImported }) {
+export function UsersView({ users, branchId = "", currentUserId, createdCredential, onAckCredential, onNew, onEdit, onToggle, onDelete, onResetPassword, onImported }) {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [resetResult, setResetResult] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetPasswordError, setResetPasswordError] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
   // Mesmo diálogo de credencial serve reset (estado interno) e criação (vinda por prop).
   const credential = resetResult || (createdCredential ? { user: { name: createdCredential.name }, password: createdCredential.password, isNew: true } : null);
   function closeCredential() { setResetResult(null); onAckCredential?.(); }
-  const filtered = useMemo(() => users.filter((user) => `${user.name} ${user.email} ${user.branches.map((branch) => branch.name).join(" ")}`.toLowerCase().includes(search.toLowerCase())), [users, search]);
+  // Respeita o seletor de unidade global: `users` já vem escopado pelo servidor às
+  // unidades que o próprio ator enxerga; aqui só restringe à unidade escolhida no topo.
+  const scoped = useMemo(() => (branchId ? users.filter((user) => user.branches.some((branch) => branch.id === branchId)) : users), [users, branchId]);
+  const filtered = useMemo(() => scoped.filter((user) => `${user.name} ${user.email} ${user.branches.map((branch) => branch.name).join(" ")}`.toLowerCase().includes(search.toLowerCase())), [scoped, search]);
   const pagination = useListPagination(filtered.length, 10);
   const paged = pagination.sliceItems(filtered);
-  const selected = users.find((user) => user.id === selectedId) || null;
-  const active = users.filter((user) => user.active).length;
+  const selected = scoped.find((user) => user.id === selectedId) || null;
+  const active = scoped.filter((user) => user.active).length;
 
-  async function resetPassword(user) {
-    const result = await onResetPassword(user.id);
-    if (result) setResetResult({ user, password: result.temporaryPassword });
+  function openResetDialog(user) {
+    setResetTarget(user);
+    setResetPasswordValue("");
+    setResetPasswordError("");
+    setShowResetPassword(false);
+  }
+
+  async function confirmResetPassword() {
+    if (resetPasswordValue && !STRONG_PASSWORD_REGEX.test(resetPasswordValue)) {
+      setResetPasswordError("A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula, número e símbolo.");
+      return;
+    }
+    setResetSubmitting(true);
+    const result = await onResetPassword(resetTarget.id, resetPasswordValue || undefined);
+    setResetSubmitting(false);
+    if (result) {
+      setResetResult({ user: resetTarget, password: result.temporaryPassword });
+      setResetTarget(null);
+    }
   }
 
   return <div className="space-y-5 pb-6">
@@ -87,7 +125,7 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
         <div className="flex flex-wrap gap-2"><ImportTemplateButtons endpoint="/api/users" templateFile="modelo-usuarios.csv" label="usuário" onImported={onImported} /><Button onClick={onNew}><Plus /> Novo usuário</Button></div>
       </div>
     </div>
-    <div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={Users} label="Total" value={users.length} /><MetricCard icon={UserCheck} label="Ativos" value={active} /><MetricCard icon={ShieldCheck} label="Administradores" value={users.filter((user) => user.role === "ADMIN").length} /></div>
+    <div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={Users} label="Total" value={scoped.length} /><MetricCard icon={UserCheck} label="Ativos" value={active} /><MetricCard icon={ShieldCheck} label="Administradores" value={scoped.filter((user) => user.role === "ADMIN").length} /></div>
     <div className={`grid items-start gap-4 ${selected ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
       <Card className="overflow-hidden gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
         <div className="flex items-center justify-between gap-4 border-b p-4"><div className="relative flex-1 max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar usuário ou unidade..." className="pl-9" /></div></div>
@@ -100,7 +138,7 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
             onAction={!search ? onNew : undefined}
           />
         ) : (
-        <div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Usuário</TableHead><TableHead>Perfil</TableHead><TableHead>Unidades</TableHead><TableHead>Equipamento</TableHead><TableHead>Status</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((user) => <TableRow key={user.id} data-state={selectedId === user.id ? "selected" : undefined} className={`cursor-pointer ${selectedId === user.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(user.id)}><TableCell><div className="flex items-center gap-3"><Avatar>{user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}<AvatarFallback>{initials(user.name)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name}</p><p className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</p></div></div></TableCell><TableCell><Badge variant="outline">{roleLabels[user.role]}</Badge></TableCell><TableCell><div className="flex max-w-[280px] flex-wrap gap-1">{user.branches.map((branch) => <Badge key={branch.id} variant={branch.primary ? "secondary" : "outline"}>{branch.name}</Badge>)}</div></TableCell><TableCell>{user.hostname || "Não vinculado"}</TableCell><TableCell><Badge variant={user.active ? "success" : "muted"}>{user.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Ações de ${user.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(user.id)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => resetPassword(user)}><KeyRound /> Resetar senha</DropdownMenuItem><DropdownMenuItem onClick={() => onToggle(user.id, !user.active)}>{user.active ? <X /> : <UserCheck />}{user.active ? "Desativar" : "Ativar"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={user.id === currentUserId} onClick={() => setDeleteTarget(user)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
+        <div className="overflow-x-auto"><Table className="min-w-[900px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Usuário</TableHead><TableHead>Perfil</TableHead><TableHead>Unidades</TableHead><TableHead>Equipamento</TableHead><TableHead>Status</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((user) => <TableRow key={user.id} data-state={selectedId === user.id ? "selected" : undefined} className={`cursor-pointer ${selectedId === user.id ? "border-l-2 border-l-primary bg-muted" : ""}`} onClick={() => setSelectedId(user.id)}><TableCell><div className="flex items-center gap-3"><Avatar>{user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}<AvatarFallback>{initials(user.name)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name}</p><p className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</p></div></div></TableCell><TableCell><Badge variant="outline">{roleLabels[user.role]}</Badge></TableCell><TableCell><div className="flex max-w-[280px] flex-wrap gap-1">{user.branches.map((branch) => <Badge key={branch.id} variant={branch.primary ? "secondary" : "outline"}>{branch.name}</Badge>)}</div></TableCell><TableCell>{user.hostname || "Não vinculado"}</TableCell><TableCell><Badge variant={user.active ? "success" : "muted"}>{user.active ? "Ativo" : "Inativo"}</Badge></TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Ações de ${user.name}`} />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onEdit(user.id)}><Pencil /> Editar</DropdownMenuItem><DropdownMenuItem onClick={() => openResetDialog(user)}><KeyRound /> Resetar senha</DropdownMenuItem><DropdownMenuItem onClick={() => onToggle(user.id, !user.active)}>{user.active ? <X /> : <UserCheck />}{user.active ? "Desativar" : "Ativar"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={user.id === currentUserId} onClick={() => setDeleteTarget(user)}><Trash2 /> Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>
         )}
         {filtered.length > 0 && (
           <ListPagination
@@ -117,11 +155,43 @@ export function UsersView({ users, currentUserId, createdCredential, onAckCreden
       </Card>
       {selected && (
         <ResponsiveSidePanel open onOpenChange={(open) => !open && setSelectedId(null)}>
-          <UserSidePanel user={selected} onClose={() => setSelectedId(null)} onEdit={onEdit} onResetPassword={resetPassword} onToggle={onToggle} onDelete={setDeleteTarget} currentUserId={currentUserId} />
+          <UserSidePanel user={selected} onClose={() => setSelectedId(null)} onEdit={onEdit} onResetPassword={openResetDialog} onToggle={onToggle} onDelete={setDeleteTarget} currentUserId={currentUserId} />
         </ResponsiveSidePanel>
       )}
     </div>
     <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}><DialogContent><DialogHeader><DialogTitle>Excluir usuário</DialogTitle><DialogDescription>Esta ação só será concluída se o usuário não possuir histórico de chamados ou auditoria.</DialogDescription></DialogHeader><p className="text-sm">Excluir <strong>{deleteTarget?.name}</strong>?</p><DialogFooter><Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancelar</Button><Button variant="destructive" onClick={async () => { if (await onDelete(deleteTarget.id)) setDeleteTarget(null); }}><Trash2 /> Excluir definitivamente</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(resetTarget)} onOpenChange={(open) => !open && setResetTarget(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Redefinir senha</DialogTitle>
+          <DialogDescription>{resetTarget?.name} continuará precisando trocar a senha no próximo acesso — você só escolhe o valor dela, se quiser.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="reset-password-input" className="sr-only">Nova senha</Label>
+          <div className="relative">
+            <Input
+              id="reset-password-input"
+              type={showResetPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={resetPasswordValue}
+              onChange={(event) => { setResetPasswordValue(event.target.value); setResetPasswordError(""); }}
+              placeholder="Opcional"
+              aria-invalid={resetPasswordError ? true : undefined}
+              className="pr-20"
+            />
+            <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              <Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => setResetPasswordValue(generateStrongPassword())} aria-label="Gerar senha forte"><Shuffle className="size-3.5" /></Button>
+              <Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => setShowResetPassword((value) => !value)} aria-label={showResetPassword ? "Ocultar senha" : "Mostrar senha"}>{showResetPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}</Button>
+            </div>
+          </div>
+          {resetPasswordError ? <p className="text-xs font-medium text-destructive">{resetPasswordError}</p> : <p className="text-xs text-muted-foreground">Em branco, o sistema gera uma senha temporária automaticamente.</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetSubmitting}>Cancelar</Button>
+          <Button onClick={confirmResetPassword} disabled={resetSubmitting}><KeyRound /> {resetSubmitting ? "Redefinindo..." : "Redefinir senha"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(credential)} onOpenChange={(open) => !open && closeCredential()}><DialogContent><DialogHeader><DialogTitle>{credential?.isNew ? "Usuário criado" : "Senha temporária gerada"}</DialogTitle><DialogDescription>Anote a senha temporária — ela só aparece agora. O usuário deverá trocá-la no primeiro acesso.</DialogDescription></DialogHeader><div className="space-y-3"><p className="text-sm font-medium">{credential?.user.name}</p><div className="flex gap-2"><Input readOnly value={credential?.password || ""} /><Button variant="outline" size="icon" aria-label="Copiar senha" onClick={async () => { await navigator.clipboard.writeText(credential.password); toast.success("Senha copiada."); }}><Copy /></Button></div></div><DialogFooter><Button onClick={closeCredential}>Concluir</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }

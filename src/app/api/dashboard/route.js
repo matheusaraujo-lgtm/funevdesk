@@ -34,11 +34,14 @@ export async function GET(request) {
   }
   const branches = db.prepare(`
     SELECT b.*, COUNT(a.id) asset_count,
-      SUM(CASE WHEN a.status = 'ONLINE' THEN 1 ELSE 0 END) online_count
+      SUM(CASE WHEN a.status = 'ONLINE' THEN 1 ELSE 0 END) online_count,
+      -- Usado pelo formulário de usuário para avisar/bloquear quando LDAP é escolhido numa
+      -- unidade sem AD configurado (cada unidade pode ter o seu, ou nenhum).
+      COALESCE((SELECT bas.ldap_enabled FROM branch_auth_settings bas WHERE bas.branch_id=b.id), 0) ldap_enabled
     FROM branches b LEFT JOIN assets a ON a.branch_id = b.id
     WHERE b.id${allowedBranchClause}
     GROUP BY b.id ORDER BY CASE b.type WHEN 'MATRIZ' THEN 0 ELSE 1 END, b.name
-  `).all(...allowedBranchIds);
+  `).all(...allowedBranchIds).map((branch) => ({ ...branch, ldap_enabled: Boolean(branch.ldap_enabled) }));
   const tickets = db.prepare(`
     SELECT t.*, b.name branch_name, a.hostname, a.mesh_node_id,
       u.name requester_name, u.email requester_email, u.avatar_url requester_avatar_url,

@@ -2,6 +2,7 @@ import { requireCurrentUser, roleLabel, getPermissions, can, canManageUser } fro
 import { toServableAvatarUrl } from "@/lib/avatar";
 import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
+import { STRONG_PASSWORD_REGEX } from "@/lib/security";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -46,6 +47,9 @@ const userSchema = z.object({
   allBranches: z.boolean().optional().default(false),
   assetId: z.string().nullable().optional(),
   authProvider: z.enum(["LOCAL", "LDAP"]).optional().default("LOCAL"),
+  // Opcional: quem cria escolhe a senha em vez de receber a padrão gerada pelo sistema.
+  // "" chega quando o campo do form fica vazio (== "deixa o sistema gerar") — trata como ausente.
+  password: z.preprocess((value) => (value === "" ? undefined : value), z.string().regex(STRONG_PASSWORD_REGEX).optional()),
 });
 
 // Import por planilha (mesmo contrato de rede/ativos): cada linha traz nome, login/e-mail,
@@ -175,9 +179,12 @@ export async function GET(request) {
     });
   }
 
-  const branchIds = permissions.canViewAllBranches
+  // Seletor de unidade global (topo do app): aceita ?branchId= e revalida contra o
+  // conjunto de unidades permitidas ao usuário — mesmo padrão de reports/audit/dashboard.
+  const requestedBranchId = new URL(request.url).searchParams.get("branchId") || null;
+  const branchIds = permissions.canViewAllBranches && !requestedBranchId
     ? null
-    : getAllowedBranchIds(currentUser, db);
+    : getAllowedBranchIds(currentUser, db, requestedBranchId);
   return Response.json({ users: listUsers(db, currentUser.organization_id, branchIds) });
 }
 
@@ -207,16 +214,21 @@ export async function POST(request) {
   if (!canManageUser(currentUser, resolved.role)) return Response.json({ error: "Você não pode criar um usuário de igual ou maior privilégio." }, { status: 403 });
   const id = makeId("usr");
   const authProvider = parsed.data.authProvider || "LOCAL";
+  // Se quem cria escolheu a senha, ela já é a senha "de verdade" do usuário — não força troca
+  // no 1º login (isso invalidaria a senha que acabou de ser combinada com ele). A senha padrão
+  // gerada pelo sistema continua exigindo troca, como sempre.
+  const customPassword = authProvider === "LOCAL" ? parsed.data.password : undefined;
+  const effectivePassword = customPassword || DEFAULT_USER_PASSWORD;
   const create = db.transaction(() => {
     db.prepare(`INSERT INTO users
       (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active, password_hash, password_reset_required, auth_provider, all_branches)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`)
-      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, normalizeLogin(parsed.data.email), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(DEFAULT_USER_PASSWORD, 12) : null, authProvider === "LOCAL" ? 1 : 0, authProvider, parsed.data.allBranches ? 1 : 0);
+      .run(id, currentUser.organization_id, parsed.data.primaryBranchId, parsed.data.name, normalizeLogin(parsed.data.email), resolved.role, resolved.profileId, new Date().toISOString(), parsed.data.assetId || null, authProvider === "LOCAL" ? bcrypt.hashSync(effectivePassword, 12) : null, authProvider === "LOCAL" ? (customPassword ? 0 : 1) : 0, authProvider, parsed.data.allBranches ? 1 : 0);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));
   });
   create();
-  return Response.json({ userId: id, temporaryPassword: DEFAULT_USER_PASSWORD, users: listUsers(db, currentUser.organization_id) }, { status: 201 });
+  return Response.json({ userId: id, temporaryPassword: effectivePassword, chosenByCreator: Boolean(customPassword), users: listUsers(db, currentUser.organization_id) }, { status: 201 });
 }
 
 // Importação em lote. Quem pode criar usuários (admin ou técnico) pode importar — o loop

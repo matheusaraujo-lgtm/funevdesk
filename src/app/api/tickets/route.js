@@ -108,6 +108,18 @@ export async function POST(request) {
     approverId = parsed.data.approverId;
   }
 
+  // Valida o aprovador ANTES de decidir o status inicial: sem isso, um aprovador padrão
+  // (modo FIXED) desativado/excluído depois de configurado fazia o chamado nascer travado em
+  // PENDENTE (SLA pausado) sem nenhuma linha de aprovação — ninguém via o motivo nem tinha
+  // como agir, porque a seção de fluxo só aparece quando existe uma aprovação de verdade.
+  let approver = null;
+  if (approverId) {
+    approver = db.prepare("SELECT id, name FROM users WHERE id=? AND organization_id=? AND active=1").get(approverId, currentUser.organization_id);
+    if (!approver) {
+      return Response.json({ error: ticketType.requires_approval ? "O aprovador configurado para este tipo de chamado não está mais disponível. Peça a um administrador para atualizá-lo em Configurações > Tipos de chamado." : "Aprovador inválido." }, { status: 400 });
+    }
+  }
+
   if (ticketType.requires_term && !assetId) {
     return Response.json({ error: "Este tipo exige um equipamento vinculado para o termo." }, { status: 400 });
   }
@@ -157,15 +169,12 @@ export async function POST(request) {
       db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'ROUTED', ?, ?)")
         .run(makeId("evt"), id, currentUser.id, currentUser.name, `Chamado encaminhado para a fila de ${handlingBranch.name}.`, now);
     }
-    if (approverId) {
-      const approver = db.prepare("SELECT id, name FROM users WHERE id=? AND organization_id=? AND active=1").get(approverId, currentUser.organization_id);
-      if (approver) {
-        db.prepare("INSERT INTO ticket_approvals (id, ticket_id, approver_id, status, requested_at) VALUES (?, ?, ?, 'PENDENTE', ?)")
-          .run(makeId("apv"), id, approver.id, now);
-        db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'APPROVAL_REQUESTED', ?, ?)")
-          .run(makeId("evt"), id, currentUser.id, currentUser.name, `Aprovação solicitada para ${approver.name}.`, now);
-        createNotification(db, { organizationId: branch.organization_id, userId: approver.id, eventType: "TICKET_APPROVAL", title: `Aprovação · Chamado #${number}`, body: parsed.data.title, referenceId: id, referenceType: "TICKET" });
-      }
+    if (approver) {
+      db.prepare("INSERT INTO ticket_approvals (id, ticket_id, approver_id, status, requested_at) VALUES (?, ?, ?, 'PENDENTE', ?)")
+        .run(makeId("apv"), id, approver.id, now);
+      db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'APPROVAL_REQUESTED', ?, ?)")
+        .run(makeId("evt"), id, currentUser.id, currentUser.name, `Aprovação solicitada para ${approver.name}.`, now);
+      createNotification(db, { organizationId: branch.organization_id, userId: approver.id, eventType: "TICKET_APPROVAL", title: `Aprovação · Chamado #${number}`, body: parsed.data.title, referenceId: id, referenceType: "TICKET" });
     }
     // A baixa de estoque NÃO ocorre na abertura: o técnico confirma a saída ao resolver o chamado.
     if (initialStatus === "PENDENTE") {

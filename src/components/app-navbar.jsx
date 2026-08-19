@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MonitorCog, Network, Package, Plus, Printer, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
+import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MonitorCog, Network, Package, Plus, Printer, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ const assetLinks = [
 const itsmLinks = [
   { id: "problems", label: "Problemas", description: "Causa raiz e contorno", icon: Bug, module: "problems" },
   { id: "changes", label: "Mudanças", description: "Controle de mudanças", icon: GitBranchPlus, module: "changes" },
+  { id: "projects", label: "Projetos", description: "Planejamento e execução", icon: FolderKanban, module: "projects" },
 ];
 
 // Conhecimento — base de conhecimento e documentação
@@ -72,15 +73,15 @@ const configGroups = [
     { id: "settings-document-types", label: "Tipos de documento", description: "Para a Documentação", icon: FileText, requires: (permissions) => permissions.canConfigure },
   ] },
   { label: "Automação e integrações", links: [
-    { id: "automations", label: "Automações", description: "Regras de roteamento", icon: Workflow, requires: (permissions) => permissions.canConfigure },
-    { id: "webhooks", label: "Webhooks", description: "Integrações externas", icon: Webhook, module: "webhooks" },
+    { id: "automations", label: "Automações", description: "Regras de roteamento", icon: Workflow, requires: (permissions) => permissions.canConfigure && permissions.canViewAllBranches },
+    { id: "webhooks", label: "Webhooks", description: "Integrações externas", icon: Webhook, module: "webhooks", requires: (permissions) => permissions.canViewAllBranches },
   ] },
 ];
 
 const configLinks = configGroups.flatMap((group) => group.links);
 
 const linkVisible = (item, permissions, can) => {
-  if (item.module) return can(item.module, "read");
+  if (item.module && !can(item.module, "read")) return false;
   return !item.requires || item.requires(permissions);
 };
 const visibleLinks = (links, permissions, can) => links.filter((item) => linkVisible(item, permissions, can));
@@ -114,83 +115,56 @@ function isSectionActive(view, sectionId) {
   );
 }
 
-function NavButton({ item, view, setView, ticketCount, mobile = false, compact = false }) {
+function NavButton({ item, view, setView, ticketCount }) {
   const Icon = item.icon;
   const active = isSectionActive(view, item.id);
   return (
     <Button
       variant={active ? "secondary" : "ghost"}
-      size={compact ? "sm" : "default"}
-      className={mobile
-        ? `h-8 w-full min-w-0 justify-start rounded-lg font-medium ${active ? "" : "text-muted-foreground"}`
-        : compact
-          ? `h-8 shrink-0 gap-1 rounded-full px-1.5 min-[1600px]:gap-2 min-[1600px]:px-2.5 font-medium ${active ? "" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`
-          : `h-9 shrink-0 rounded-full px-3 font-medium ${active ? "" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+      className={`h-8 w-full min-w-0 justify-start rounded-lg text-sm font-medium ${active ? "" : "text-muted-foreground"}`}
       onClick={() => setView(item.id)}>
       <Icon className="size-4 shrink-0" />
-      <span className={mobile ? "truncate" : undefined}>{item.label}</span>
+      <span className="truncate">{item.label}</span>
       {item.id === "tickets" && <Badge variant="secondary" className="ml-0.5 shrink-0" aria-label={`${ticketCount} chamados em aberto`}>{ticketCount}</Badge>}
     </Button>
   );
 }
 
-function MenuDropdown({ label, icon: Icon, active, children, compact = false }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant={active ? "secondary" : "ghost"}
-            size={compact ? "sm" : "default"}
-            aria-label={label}
-            title={label}
-            className={`shrink-0 rounded-full font-medium aria-expanded:bg-secondary aria-expanded:text-secondary-foreground ${compact ? "h-8 gap-1 px-1.5 min-[1600px]:gap-2 min-[1600px]:px-2.5" : "h-9 px-3"} ${active ? "" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-          />
-        }>
-        <Icon className="size-4 shrink-0" />
-        <span>{label}</span>
-        <ChevronDown className="size-3 shrink-0 opacity-70" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">{children}</DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function MenuLinks({ links, setView }) {
-  return links.map(({ id, label, description, icon: LinkIcon }) => (
-    <DropdownMenuItem key={id} onClick={() => setView(id)} className="items-start gap-3 py-1.5">
-      <LinkIcon className="mt-0.5 size-4 shrink-0" />
-      <span>
-        <span className="block text-sm font-medium">{label}</span>
-        <span className="block text-xs text-muted-foreground">{description}</span>
-      </span>
-    </DropdownMenuItem>
-  ));
-}
-
-function PrimaryNav({ view, setView, ticketCount, mobile = false, compact = false }) {
+function PrimaryNav({ view, setView, ticketCount }) {
   return primaryLinks.map((item) => (
-    <NavButton key={item.id} item={item} view={view} setView={setView} ticketCount={ticketCount} mobile={mobile} compact={compact} />
+    <NavButton key={item.id} item={item} view={view} setView={setView} ticketCount={ticketCount} />
   ));
 }
 
-// Menu genérico de seção: filtra os itens pela permissão de cada link e some se nada sobra.
-function GroupMenu({ label, icon: Icon, links, view, setView, permissions, can, mobile = false, compact = false }) {
+// Submenu recolhível: agrupa telas relacionadas sob um cabeçalho clicável, em vez de
+// listar tudo sempre expandido — reduz a poluição visual do sidebar. Abre sozinho quando
+// a seção contém a tela ativa; o usuário pode recolher/expandir o resto livremente.
+function SidebarSubmenu({ label, icon: Icon, links, view, setView, permissions, can }) {
   const items = visibleLinks(links, permissions, can);
-  if (!items.length) return null;
   const active = items.some((item) => isSectionActive(view, item.id));
-  if (mobile) {
-    return (
-      <div className="grid gap-0.5">
-        <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        {items.map((item) => <NavButton key={item.id} item={item} view={view} setView={setView} mobile />)}
-      </div>
-    );
+  const [open, setOpen] = useState(active);
+  const [prevActive, setPrevActive] = useState(active);
+  if (active !== prevActive) {
+    setPrevActive(active);
+    if (active) setOpen(true);
   }
+  if (!items.length) return null;
   return (
-    <MenuDropdown label={label} icon={Icon} active={active} compact={compact}>
-      <MenuLinks links={items} setView={setView} />
-    </MenuDropdown>
+    <div className="grid gap-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={`flex h-8 w-full items-center justify-between rounded-lg px-4 text-sm font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+        <span className="flex items-center gap-2"><Icon className="size-4 shrink-0" />{label}</span>
+        <ChevronDown className={`size-3.5 shrink-0 opacity-60 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <div className="ml-3.5 grid gap-0.5 border-l border-border/60 pl-3.5">
+          {items.map((item) => <NavButton key={item.id} item={item} view={view} setView={setView} />)}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -200,83 +174,55 @@ function visibleConfigGroups(permissions, can) {
     .filter((group) => group.links.length);
 }
 
-// Configurações fica num ícone de engrenagem à direita (padrão de service desk): separa o
-// setup do sistema da navegação operacional. Os itens vêm em subgrupos com separador.
-function ConfigIconMenu({ view, setView, permissions, can }) {
+// Configurações fica ao final do sidebar, num submenu recolhível com subgrupos internos
+// (organização, pessoas, catálogo, integrações) — mesma lógica de SidebarSubmenu, com um
+// nível a mais para não misturar setup do sistema com a navegação operacional.
+function ConfigSubmenu({ view, setView, permissions, can }) {
   const groups = visibleConfigGroups(permissions, can);
-  if (!groups.length) return null;
   const active = configLinks.some((item) => isSectionActive(view, item.id));
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant={active ? "secondary" : "ghost"}
-            size="sm"
-            className={`hidden h-9 shrink-0 gap-1 rounded-full px-1.5 min-[1600px]:gap-2 min-[1600px]:px-3 font-medium aria-expanded:bg-secondary aria-expanded:text-secondary-foreground xl:inline-flex ${active ? "" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-            aria-label="Configurações"
-            title="Configurações"
-          />
-        }>
-        <Settings2 className="size-4 shrink-0" />
-        <span>Configurações</span>
-        <ChevronDown className="size-3 shrink-0 opacity-70" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        {groups.map((group, index) => (
-          <div key={group.label}>
-            {index > 0 && <DropdownMenuSeparator />}
-            <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
-            <MenuLinks links={group.links} setView={setView} />
-          </div>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ConfigMobileNav({ view, setView, permissions, can }) {
-  const groups = visibleConfigGroups(permissions, can);
+  const [open, setOpen] = useState(active);
+  const [prevActive, setPrevActive] = useState(active);
+  if (active !== prevActive) {
+    setPrevActive(active);
+    if (active) setOpen(true);
+  }
   if (!groups.length) return null;
   return (
     <div className="grid gap-0.5">
-      <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Configurações</p>
-      {groups.map((group) => (
-        <div key={group.label} className="grid gap-0.5">
-          <p className="px-2 pt-1 text-[10px] font-medium uppercase text-muted-foreground/70">{group.label}</p>
-          {group.links.map((item) => <NavButton key={item.id} item={item} view={view} setView={setView} mobile />)}
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={`flex h-8 w-full items-center justify-between rounded-lg px-4 text-sm font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+        <span className="flex items-center gap-2"><Settings2 className="size-4 shrink-0" />Configurações</span>
+        <ChevronDown className={`size-3.5 shrink-0 opacity-60 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <div className="ml-3.5 grid gap-2.5 border-l border-border/60 pl-3.5">
+          {groups.map((group) => (
+            <div key={group.label} className="grid gap-0.5">
+              <p className="px-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">{group.label}</p>
+              {group.links.map((item) => <NavButton key={item.id} item={item} view={view} setView={setView} />)}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
-function DesktopNav({ view, setView, ticketCount, permissions, can }) {
+function SidebarNav({ view, setView, ticketCount, permissions, can }) {
   return (
-    <nav className="hidden min-w-0 flex-1 xl:flex" aria-label="Principal">
-      <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[1600px]:gap-1">
-        <PrimaryNav view={view} setView={setView} ticketCount={ticketCount} compact />
-        <GroupMenu label="Ativos" icon={MonitorCog} links={assetLinks} view={view} setView={setView} permissions={permissions} can={can} compact />
-        <GroupMenu label="ITSM" icon={Wrench} links={itsmLinks} view={view} setView={setView} permissions={permissions} can={can} compact />
-        <GroupMenu label="Conhecimento" icon={BookOpen} links={knowledgeLinks} view={view} setView={setView} permissions={permissions} can={can} compact />
-        <GroupMenu label="Monitoramento" icon={Activity} links={monitoringLinks} view={view} setView={setView} permissions={permissions} can={can} compact />
-        <GroupMenu label="Administração" icon={Layers} links={adminLinks} view={view} setView={setView} permissions={permissions} can={can} compact />
-        <ConfigIconMenu view={view} setView={setView} permissions={permissions} can={can} />
+    <nav className="grid gap-3" aria-label="Principal">
+      <div className="grid gap-0.5">
+        <PrimaryNav view={view} setView={setView} ticketCount={ticketCount} />
       </div>
-    </nav>
-  );
-}
-
-function VerticalNav({ view, setView, ticketCount, permissions, can }) {
-  return (
-    <nav className="grid gap-1" aria-label="Principal">
-      <PrimaryNav view={view} setView={setView} ticketCount={ticketCount} mobile />
-      <GroupMenu label="Ativos" icon={MonitorCog} links={assetLinks} view={view} setView={setView} permissions={permissions} can={can} mobile />
-      <GroupMenu label="ITSM" icon={Wrench} links={itsmLinks} view={view} setView={setView} permissions={permissions} can={can} mobile />
-      <GroupMenu label="Conhecimento" icon={BookOpen} links={knowledgeLinks} view={view} setView={setView} permissions={permissions} can={can} mobile />
-      <GroupMenu label="Monitoramento" icon={Activity} links={monitoringLinks} view={view} setView={setView} permissions={permissions} can={can} mobile />
-      <GroupMenu label="Administração" icon={Layers} links={adminLinks} view={view} setView={setView} permissions={permissions} can={can} mobile />
-      <ConfigMobileNav view={view} setView={setView} permissions={permissions} can={can} />
+      <SidebarSubmenu label="Ativos" icon={MonitorCog} links={assetLinks} view={view} setView={setView} permissions={permissions} can={can} />
+      <SidebarSubmenu label="ITSM" icon={Wrench} links={itsmLinks} view={view} setView={setView} permissions={permissions} can={can} />
+      <SidebarSubmenu label="Conhecimento" icon={BookOpen} links={knowledgeLinks} view={view} setView={setView} permissions={permissions} can={can} />
+      <SidebarSubmenu label="Monitoramento" icon={Activity} links={monitoringLinks} view={view} setView={setView} permissions={permissions} can={can} />
+      <SidebarSubmenu label="Administração" icon={Layers} links={adminLinks} view={view} setView={setView} permissions={permissions} can={can} />
+      <ConfigSubmenu view={view} setView={setView} permissions={permissions} can={can} />
     </nav>
   );
 }
@@ -304,7 +250,6 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
   const appName = currentUser.appName || "FunevDesk";
   const logoUrl = currentUser.logoUrl || "";
   const branchLabel = selectedBranch ? `${selectedBranch.type === "MATRIZ" ? "Matriz" : "Filial"} - ${selectedBranch.name}` : "Todas as unidades";
-  const isSidebar = currentUser.navigationMode === "SIDEBAR";
 
   const rightControls = (
     <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -316,6 +261,34 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
         <Search className="size-3.5" /> Buscar
         <kbd className="rounded border bg-muted px-1 text-[10px]">Ctrl K</kbd>
       </button>
+      {permissions.canSelectBranches && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="hidden h-9 shrink-0 items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground lg:inline-flex"
+            aria-label="Trocar de unidade">
+            <Building2 className="size-3.5 shrink-0" />
+            <span className="max-w-[140px] truncate">{branchLabel}</span>
+            <ChevronDown className="size-3 shrink-0 opacity-70" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            <p className="flex items-center gap-1.5 px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Building2 className="size-3.5" /> Unidade
+            </p>
+            <div className="max-h-64 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setBranchId("")} className="gap-2">
+                <Check className={`size-4 shrink-0 ${branchId ? "opacity-0" : "opacity-100"}`} />
+                <span>Todas as unidades</span>
+              </DropdownMenuItem>
+              {branches.map((branch) => (
+                <DropdownMenuItem key={branch.id} onClick={() => setBranchId(branch.id)} className="gap-2">
+                  <Check className={`size-4 shrink-0 ${branchId === branch.id ? "opacity-100" : "opacity-0"}`} />
+                  <span>{branch.type === "MATRIZ" ? "Matriz" : "Filial"} - {branch.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <NotificationsBell />
 
       {showNewTicketCta(view) && (
@@ -339,26 +312,6 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
             <br />
             <span className="font-normal text-muted-foreground">{currentUser.roleLabel} - {currentUser.branchName}</span>
           </div>
-          {permissions.canSelectBranches && (
-            <>
-              <DropdownMenuSeparator />
-              <p className="flex items-center gap-1.5 px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <Building2 className="size-3.5" /> Unidade
-              </p>
-              <div className="max-h-64 overflow-y-auto">
-                <DropdownMenuItem onClick={() => setBranchId("")} className="gap-2">
-                  <Check className={`size-4 shrink-0 ${branchId ? "opacity-0" : "opacity-100"}`} />
-                  <span>Todas as unidades</span>
-                </DropdownMenuItem>
-                {branches.map((branch) => (
-                  <DropdownMenuItem key={branch.id} onClick={() => setBranchId(branch.id)} className="gap-2">
-                    <Check className={`size-4 shrink-0 ${branchId === branch.id ? "opacity-100" : "opacity-0"}`} />
-                    <span>{branch.type === "MATRIZ" ? "Matriz" : "Filial"} - {branch.name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            </>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate("profile")}><UserRound /> Meu perfil</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={onLogout}><LogOut /> Sair</DropdownMenuItem>
@@ -367,7 +320,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetTrigger
-          className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background shadow-xs transition-colors hover:bg-accent ${isSidebar ? "lg:hidden" : "xl:hidden"}`}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background shadow-xs transition-colors hover:bg-accent lg:hidden"
           aria-label="Abrir menu">
           <Menu className="size-4" />
         </SheetTrigger>
@@ -375,7 +328,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
           <SheetHeader className="shrink-0 border-b px-4 py-4"><SheetTitle>{appName}</SheetTitle></SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
             <div className="grid gap-2 pt-4">
-              <VerticalNav view={view} setView={navigate} ticketCount={ticketCount} permissions={permissions} can={can} />
+              <SidebarNav view={view} setView={navigate} ticketCount={ticketCount} permissions={permissions} can={can} />
               <Separator className="my-3" />
               {permissions.canSelectBranches && (
                 <Select value={branchId || "all"} onValueChange={(value) => setBranchId(value === "all" ? "" : value)}>
@@ -397,51 +350,32 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
     </div>
   );
 
-  if (isSidebar) {
-    return (
-      <>
-        <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r border-border/60 bg-background/80 backdrop-blur-xl lg:flex">
-          <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-5">
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 z-50 hidden w-72 flex-col border-r border-border/60 bg-background/80 backdrop-blur-xl lg:flex">
+        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-5">
+          <BrandMark appName={appName} logoUrl={logoUrl} />
+          <div className="min-w-0">
+            <p className="truncate font-heading text-sm font-bold leading-none">{appName}</p>
+            <p className="mt-1 truncate text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+          <SidebarNav view={view} setView={setView} ticketCount={ticketCount} permissions={permissions} can={can} />
+        </div>
+      </aside>
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl lg:ml-72">
+        <div className="flex h-16 min-w-0 items-center gap-2 px-4 md:px-7 lg:px-9">
+          <div className="flex min-w-0 shrink items-center gap-2.5 lg:hidden">
             <BrandMark appName={appName} logoUrl={logoUrl} />
-            <div className="min-w-0">
+            <div className="hidden min-w-0 sm:block">
               <p className="truncate font-heading text-sm font-bold leading-none">{appName}</p>
               <p className="mt-1 truncate text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
-            <VerticalNav view={view} setView={setView} ticketCount={ticketCount} permissions={permissions} can={can} />
-          </div>
-        </aside>
-        <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl lg:ml-60">
-          <div className="flex h-16 min-w-0 items-center gap-2 px-4 md:px-7 lg:px-9">
-            <div className="flex min-w-0 shrink items-center gap-2.5 lg:hidden">
-              <BrandMark appName={appName} logoUrl={logoUrl} />
-              <div className="hidden min-w-0 sm:block">
-                <p className="truncate font-heading text-sm font-bold leading-none">{appName}</p>
-                <p className="mt-1 truncate text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
-              </div>
-            </div>
-            {rightControls}
-          </div>
-        </header>
-      </>
-    );
-  }
-
-  return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-      <div className="app-container flex h-16 min-w-0 items-center gap-2 sm:gap-3">
-        <div className="flex shrink-0 items-center gap-2.5">
-          <BrandMark appName={appName} logoUrl={logoUrl} />
-          <div className="hidden min-[1600px]:block">
-            <p className="whitespace-nowrap font-heading text-sm font-bold leading-none">{appName}</p>
-            <p className="mt-1 text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
-          </div>
+          {rightControls}
         </div>
-
-        <DesktopNav view={view} setView={setView} ticketCount={ticketCount} permissions={permissions} can={can} />
-        {rightControls}
-      </div>
-    </header>
+      </header>
+    </>
   );
 }

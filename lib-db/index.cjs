@@ -687,6 +687,32 @@ function ensureItilTables(db) {
       FOREIGN KEY (change_id) REFERENCES changes(id) ON DELETE CASCADE,
       FOREIGN KEY (approver_id) REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, branch_id TEXT NOT NULL, number INTEGER NOT NULL,
+      name TEXT NOT NULL, description TEXT,
+      status TEXT NOT NULL DEFAULT 'PLANEJAMENTO', priority TEXT NOT NULL DEFAULT 'MEDIA',
+      owner_id TEXT, start_date TEXT, due_date TEXT, created_by TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id),
+      FOREIGN KEY (branch_id) REFERENCES branches(id),
+      FOREIGN KEY (owner_id) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS project_tasks (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+      title TEXT NOT NULL, description TEXT,
+      status TEXT NOT NULL DEFAULT 'A_FAZER', priority TEXT NOT NULL DEFAULT 'MEDIA',
+      assignee_id TEXT, due_date TEXT, position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (assignee_id) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS project_task_comments (
+      id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+      author_id TEXT, author_name TEXT NOT NULL,
+      body TEXT NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (author_id) REFERENCES users(id)
+    );
     CREATE TABLE IF NOT EXISTS asset_relationships (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL,
       source_asset_id TEXT NOT NULL, target_asset_id TEXT NOT NULL,
@@ -883,6 +909,7 @@ function ensureProfilePermissionTables(db) {
     { key: "terms", actions: ["read", "create", "delete"] },
     { key: "problems", actions: C },
     { key: "changes", actions: C },
+    { key: "projects", actions: C },
     { key: "knowledge", actions: C },
     { key: "documentation", actions: C },
     { key: "printers", actions: ["read"] },
@@ -907,8 +934,8 @@ function ensureProfilePermissionTables(db) {
   const LETTER = { r: "read", c: "create", u: "update", d: "delete" };
   const SEED = [
     { slug: "administrador", name: "Administrador", baseRole: "ADMIN", description: "Acesso total ao sistema e às configurações.", grants: "ALL" },
-    { slug: "supervisor", name: "Supervisor", baseRole: "ADMIN", description: "Gestão e visão ampla, sem configurar o sistema nem apagar registros.", grants: { tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", services: "r", teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r" } },
-    { slug: "tecnico", name: "Técnico", baseRole: "TECHNICIAN", description: "Operação de chamados, ativos e base de conhecimento.", grants: { tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", services: "r", teams: "r", remote: "r" } },
+    { slug: "supervisor", name: "Supervisor", baseRole: "ADMIN", description: "Gestão e visão ampla, sem configurar o sistema nem apagar registros.", grants: { tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r" } },
+    { slug: "tecnico", name: "Técnico", baseRole: "TECHNICIAN", description: "Operação de chamados, ativos e base de conhecimento.", grants: { tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "r", remote: "r" } },
     { slug: "usuario", name: "Usuário", baseRole: "EMPLOYEE", description: "Portal do usuário final: abre chamados e consulta a base de conhecimento.", grants: { tickets: "rc", knowledge: "r" } },
   ];
   const seedBySlug = Object.fromEntries(SEED.map((s) => [s.slug, s]));
@@ -1181,6 +1208,11 @@ function ensureMultiTenantTables(db) {
   const changeColumns = db.prepare("PRAGMA table_info(changes)").all();
   if (changeColumns.length && !changeColumns.some((column) => column.name === "branch_id")) {
     execAddColumn(db, "ALTER TABLE changes ADD COLUMN branch_id TEXT");
+  }
+
+  const projectColumns = db.prepare("PRAGMA table_info(projects)").all();
+  if (projectColumns.length && !projectColumns.some((column) => column.name === "pending_reason")) {
+    execAddColumn(db, "ALTER TABLE projects ADD COLUMN pending_reason TEXT");
   }
 
   db.exec(`

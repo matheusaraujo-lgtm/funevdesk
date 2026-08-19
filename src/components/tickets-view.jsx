@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bookmark, CheckCircle2, CircleDot, Clock3, ExternalLink, HandMetal, Headset, MoreVertical, Save, Search, SlidersHorizontal, Ticket, Trash2, UserCog, X } from "lucide-react";
+import { AlertTriangle, Bookmark, CheckCircle2, CircleDot, Clock3, ExternalLink, HandMetal, Headset, Kanban, List, MoreVertical, Save, Search, SlidersHorizontal, Ticket, Trash2, UserCog, X } from "lucide-react";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/utils";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListPagination, useListPagination } from "@/components/list-pagination";
 import { ResolveTicketDialog } from "@/components/resolve-ticket-dialog";
+import { TicketsKanbanBoard } from "@/components/tickets-kanban-board";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   const [views, setViews] = useState([]);
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [viewName, setViewName] = useState("");
+  const [viewMode, setViewMode] = useState("list");
   const canBulk = permissions.canManageTickets && typeof onBulkPatch === "function";
   const terminalCodes = useMemo(
     () => ticketStatuses.filter((item) => item.is_terminal).map((item) => item.code),
@@ -109,10 +111,11 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
     return [{ value: "all", label: "Todas" }, ...[...teams.entries()].map(([value, label]) => ({ value, label }))];
   }, [tickets]);
 
-  const filtered = useMemo(() => tickets.filter((ticket) => {
+  // Base comum aos dois modos de exibição: todos os filtros explícitos do usuário, mas SEM
+  // o auto-esconder de resolvidos — no Kanban a coluna de resolvidos deve aparecer por
+  // padrão (é o próprio propósito do quadro), então esse gate só se aplica na lista.
+  const baseFiltered = useMemo(() => tickets.filter((ticket) => {
     const term = search.trim().toLowerCase();
-    const isResolved = terminalCodes.includes(ticket.status) || ticket.status === terminalStatusCode;
-    if (isResolved && !showResolved) return false;
     const queueMatch = queue === "all"
       || (queue === "mine" && ticket.assignee_id === currentUser.id)
       || (queue === "unassigned" && !ticket.assignee_id && isActiveTicket(ticket))
@@ -126,7 +129,12 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
       && (slaFilter === "all" || ticket.sla_status === slaFilter)
       && (assigneeFilter === "all" || (assigneeFilter === "none" ? !ticket.assignee_id : ticket.assignee_id === assigneeFilter))
       && (teamFilter === "all" || ticket.team_id === teamFilter);
-  }), [tickets, search, queue, status, priority, category, ticketType, slaFilter, assigneeFilter, teamFilter, currentUser.id, terminalCodes, terminalStatusCode, showResolved]);
+  }), [tickets, search, queue, status, priority, category, ticketType, slaFilter, assigneeFilter, teamFilter, currentUser.id]);
+
+  const filtered = useMemo(() => baseFiltered.filter((ticket) => {
+    const isResolved = terminalCodes.includes(ticket.status) || ticket.status === terminalStatusCode;
+    return !isResolved || showResolved;
+  }), [baseFiltered, terminalCodes, terminalStatusCode, showResolved]);
 
   const pagination = useListPagination(filtered.length, 10);
   const pagedTickets = pagination.sliceItems(filtered);
@@ -185,7 +193,7 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   }
 
   // Filtros avançados (escondidos no painel "Filtros") ativos, para o badge contador.
-  const advancedActive = [priority !== "all", slaFilter !== "all", assigneeFilter !== "all", teamFilter !== "all", ticketType !== "all", showResolved].filter(Boolean).length;
+  const advancedActive = [priority !== "all", slaFilter !== "all", assigneeFilter !== "all", teamFilter !== "all", ticketType !== "all", category !== "all", showResolved].filter(Boolean).length;
   const hasActiveFilters = Boolean(search) || status !== "all" || advancedActive > 0;
 
   function applyQueue(preset) {
@@ -258,6 +266,19 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
     const ok = await onStatusChange?.(terminalStatusCode, resolveTarget.id, { resolutionMessage });
     setResolving(false);
     if (ok) setResolveTarget(null);
+  }
+
+  // Arrastar um cartão no Kanban para outra coluna = mudar a situação do chamado. Situação
+  // terminal exige descrição da resolução (mesma regra da lista): abre o diálogo de Resolver
+  // em vez de aplicar a mudança direto, igual ao que já acontece na pílula de situação.
+  async function handleKanbanMove(ticket, targetColumn) {
+    const isTerminalTarget = targetColumn.is_terminal || targetColumn.code === terminalStatusCode;
+    if (isTerminalTarget) {
+      setResolveTarget(ticket);
+      return;
+    }
+    const ok = await onStatusChange?.(targetColumn.code, ticket.id);
+    if (ok) toast.success(`Chamado #${ticket.number} movido para "${targetColumn.label}".`);
   }
 
   // Visões salvas (padrão Linear/Zendesk): snapshot dos filtros, por usuário.
@@ -411,6 +432,14 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
             <SlidersHorizontal className="size-3.5" /> Filtros{advancedActive > 0 && <Badge variant="secondary" className="ml-1">{advancedActive}</Badge>}
           </Button>
           {hasActiveFilters && <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={clearFilters}><X className="size-3.5" /> Limpar</Button>}
+          <div className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-card p-0.5 sm:ml-auto" role="group" aria-label="Modo de exibição">
+            <Button type="button" variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-8 px-2.5" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
+              <List className="size-3.5" /> Lista
+            </Button>
+            <Button type="button" variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-2.5" aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")}>
+              <Kanban className="size-3.5" /> Kanban
+            </Button>
+          </div>
         </div>
         {showFilters && (
           <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -419,16 +448,32 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
             {permissions.canManageTickets && <SearchableFilter label="Responsável" value={assigneeFilter} onValueChange={setAssigneeFilter} options={assigneeOptions} searchPlaceholder="Buscar..." />}
             {permissions.canManageTickets && <SearchableFilter label="Equipe" value={teamFilter} onValueChange={setTeamFilter} options={teamOptions} searchPlaceholder="Buscar equipe..." />}
             <SearchableFilter label="Tipo de chamado" value={ticketType} onValueChange={setTicketType} options={ticketTypeOptions} searchPlaceholder="Buscar tipo..." />
-            <div className="space-y-1.5">
-              <p className="flex h-4 items-center truncate text-[11px] font-medium leading-none text-muted-foreground">Exibição</p>
-              <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-card px-3">
-                <Checkbox checked={showResolved} onCheckedChange={setShowResolved} />
-                <span className="truncate whitespace-nowrap text-xs">Mostrar resolvidos</span>
-              </label>
-            </div>
+            <Filter label="Categoria" value={category} onValueChange={setCategory} options={categories} />
+            {viewMode === "list" && (
+              <div className="space-y-1.5">
+                <p className="flex h-4 items-center truncate text-[11px] font-medium leading-none text-muted-foreground">Exibição</p>
+                <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-card px-3">
+                  <Checkbox checked={showResolved} onCheckedChange={setShowResolved} />
+                  <span className="truncate whitespace-nowrap text-xs">Mostrar resolvidos</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
       </div>
+      {viewMode === "kanban" ? (
+        <div className="p-3">
+          <TicketsKanbanBoard
+            tickets={baseFiltered}
+            statuses={ticketStatuses}
+            currentUser={currentUser}
+            permissions={permissions}
+            onOpenTicket={onOpenTicket}
+            onMoveTicket={handleKanbanMove}
+          />
+        </div>
+      ) : (
+      <>
       {canBulk && someSelected && (
         <div className="flex flex-wrap items-center gap-2 border-b bg-primary/5 px-4 py-2.5">
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold"><UserCog className="size-4 text-primary" />{selectedIds.size} selecionado(s)</span>
@@ -519,6 +564,8 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
         onPageChange={pagination.setPage}
         itemLabel="chamados"
       />
+      )}
+      </>
       )}
     </Card>
 

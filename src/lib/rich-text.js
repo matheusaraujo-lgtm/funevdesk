@@ -81,7 +81,7 @@ function escapeHtml(value) {
 
 function isSafeMediaUrl(url) {
   if (!url) return false;
-  if (url.startsWith("/uploads/")) return true;
+  if (url.startsWith("/uploads/") || url.startsWith("/api/uploads/")) return true;
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" || parsed.protocol === "http:";
@@ -145,7 +145,7 @@ const SANITIZE_CONFIG = {
     "colspan", "rowspan", "width", "height",
   ],
   // Bloqueia esquemas perigosos (javascript:, data: exceto imagem) e mantém apenas seguros.
-  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/uploads\/|#)/i,
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/uploads\/|\/api\/uploads\/|#)/i,
   FORBID_TAGS: ["script", "style", "form", "input", "button", "object", "embed", "link", "meta"],
   FORBID_ATTR: ["style"],
   ADD_ATTR: ["target"],
@@ -163,10 +163,18 @@ function registerHooks() {
         node.remove();
         return;
       }
+      // Conteúdo salvo antes da rota /api/uploads existir ainda referencia o link estático
+      // quebrado (/uploads/<uuid>) — reescreve para a rota autenticada sem precisar de migração.
+      if (src.startsWith("/uploads/")) node.setAttribute("src", src.replace("/uploads/", "/api/uploads/"));
       node.classList.add(tag === "img" ? "rich-media-image" : "rich-media-video-file");
     }
     if (tag === "source") {
-      if (!isSafeMediaUrl(node.getAttribute("src"))) node.remove();
+      const src = node.getAttribute("src");
+      if (!isSafeMediaUrl(src)) {
+        node.remove();
+      } else if (src.startsWith("/uploads/")) {
+        node.setAttribute("src", src.replace("/uploads/", "/api/uploads/"));
+      }
     }
     if (tag === "iframe") {
       if (!isSafeEmbedUrl(node.getAttribute("src"))) {
@@ -175,6 +183,8 @@ function registerHooks() {
       }
     }
     if (tag === "a") {
+      const href = node.getAttribute("href");
+      if (href && href.startsWith("/uploads/")) node.setAttribute("href", href.replace("/uploads/", "/api/uploads/"));
       node.setAttribute("rel", "noopener noreferrer nofollow");
       if (node.getAttribute("target")) node.setAttribute("target", "_blank");
     }
@@ -194,5 +204,9 @@ export async function uploadRichTextFile(file) {
   const response = await fetch("/api/uploads", { method: "POST", body: formData });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Falha no upload.");
-  return result.publicUrl;
+  // O editor insere esta URL direto no DOM para pré-visualização imediata (antes de salvar),
+  // então já precisa ser a rota autenticada — o link estático /uploads/<uuid> daria 404 em
+  // produção (ver src/app/api/uploads/[...slug]/route.js).
+  const publicUrl = result.publicUrl || "";
+  return publicUrl.startsWith("/uploads/") ? publicUrl.replace("/uploads/", "/api/uploads/") : publicUrl;
 }

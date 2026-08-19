@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { listConnectors } from "@/lib/xdr-connectors";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +22,17 @@ export async function GET(request) {
     return Response.json({ error: "Acesso restrito." }, { status: 403 });
   }
 
+  // Seletor de unidade global (topo do app): aceita ?branchId= e revalida contra o
+  // conjunto de unidades permitidas ao usuário — mesmo padrão de reports/audit/dashboard.
+  const requestedBranchId = new URL(request.url).searchParams.get("branchId") || null;
+  const scopedBranchIds = getAllowedBranchIds(currentUser, db, requestedBranchId);
+
   const conditions = ["x.organization_id=?"];
   const params = [currentUser.organization_id];
-  if (!permissions.canViewAllBranches) {
-    const branchIds = currentUser.branchIds || [];
-    const branchClause = branchIds.length ? `a.branch_id IN (${placeholders(branchIds)})` : "a.branch_id IS NULL";
+  if (!permissions.canViewAllBranches || requestedBranchId) {
+    const branchClause = scopedBranchIds.length ? `a.branch_id IN (${placeholders(scopedBranchIds)})` : "a.branch_id IS NULL";
     conditions.push(`(x.asset_id IS NULL OR ${branchClause})`);
-    params.push(...branchIds);
+    params.push(...scopedBranchIds);
   }
   const where = conditions.join(" AND ");
 

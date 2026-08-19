@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { AlertCircle, BarChart3, Building2, Clock3, Download, RefreshCw, Star, Target, Ticket, TrendingUp } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, BarChart3, Building2, Clock3, Download, Layers, RefreshCw, Star, Sunrise, Tag, Target, Ticket, TrendingUp } from "lucide-react";
 import { useReloadableData } from "@/lib/use-reloadable-data";
+import { statusColorHex } from "@/lib/status-colors";
 import { ListLoadingSkeleton } from "@/components/list-loading-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,7 @@ function TrendChart({ trend }) {
     <div>
       <div className="flex h-40 items-end gap-[3px]">
         {trend.map((d) => (
-          <div key={d.day} className="flex flex-1 items-end justify-center gap-[2px]" title={`${d.day}: ${d.created} criados · ${d.resolved} resolvidos`}>
+          <div key={d.day} className="flex h-full flex-1 items-end justify-center gap-[2px]" title={`${d.day}: ${d.created} criados · ${d.resolved} resolvidos`}>
             <div className="w-full max-w-[7px] rounded-t bg-primary/70" style={{ height: `${Math.max(2, (d.created / max) * 100)}%` }} />
             <div className="w-full max-w-[7px] rounded-t bg-emerald-500/70" style={{ height: `${Math.max(2, (d.resolved / max) * 100)}%` }} />
           </div>
@@ -45,6 +46,26 @@ function TrendChart({ trend }) {
   );
 }
 
+// Histograma de 24 colunas (uma por hora) — mesmo padrão hand-rolled do TrendChart, sem libs.
+function HourChart({ hours, peakHour }) {
+  if (!hours?.length) return null;
+  const max = Math.max(1, ...hours);
+  return (
+    <div>
+      <div className="flex h-32 items-end gap-1">
+        {hours.map((count, hour) => (
+          <div key={hour} className="flex h-full flex-1 flex-col items-center justify-end" title={`${String(hour).padStart(2, "0")}h: ${count} chamado(s)`}>
+            <div className={`w-full rounded-t ${hour === peakHour && count > 0 ? "bg-primary" : "bg-primary/35"}`} style={{ height: `${count ? Math.max(4, (count / max) * 100) : 1}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+        {[0, 3, 6, 9, 12, 15, 18, 21].map((h) => <span key={h}>{h}h</span>)}
+      </div>
+    </div>
+  );
+}
+
 function deltaPct(current, previous) {
   if (previous == null) return null;
   if (!previous) return current > 0 ? 100 : null;
@@ -54,7 +75,9 @@ function deltaPct(current, previous) {
 const priorityLabels = { CRITICA: "Crítica", ALTA: "Alta", MEDIA: "Média", BAIXA: "Baixa" };
 
 // Barra horizontal simples (sem dependências) para visualizar proporções.
-function BarRow({ label, value, max, tone = "bg-primary" }) {
+// `color` (hex) tem prioridade sobre `tone` (classe Tailwind) quando informado — usado para
+// refletir a cor real da situação configurada em Configurações > Situações.
+function BarRow({ label, value, max, tone = "bg-primary", color }) {
   const percent = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="space-y-1">
@@ -63,10 +86,17 @@ function BarRow({ label, value, max, tone = "bg-primary" }) {
         <span className="shrink-0 tabular-nums text-muted-foreground">{value}</span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={`${label}: ${value}`}>
-        <div className={`h-full rounded-full ${tone}`} style={{ width: `${percent}%` }} />
+        <div className={color ? "h-full rounded-full" : `h-full rounded-full ${tone}`} style={color ? { width: `${percent}%`, backgroundColor: color } : { width: `${percent}%` }} />
       </div>
     </div>
   );
+}
+
+// Só aceita "YYYY-MM-DD" com um ano plausível — evita disparar consulta com o valor
+// parcial que o input nativo de data emite dígito a dígito enquanto o ano é digitado
+// (ex.: "0002", "0020", "0202" antes de completar "2026").
+function isCompleteDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) >= 1970;
 }
 
 // Exportação CSV client-side com BOM UTF-8 (mesmo padrão de assets-view.jsx).
@@ -85,15 +115,27 @@ export function ReportsView({ branchId }) {
   const [period, setPeriod] = useState("30d");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // Valores efetivamente usados na consulta: só assumem o valor digitado depois de uma
+  // data completa e de uma pequena pausa, para não disparar uma requisição por tecla.
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setEffectiveFrom(isCompleteDate(from) ? from : "");
+      setEffectiveTo(isCompleteDate(to) ? to : "");
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [from, to]);
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
     setError(false);
     const query = new URLSearchParams();
     if (branchId) query.set("branchId", branchId);
     // Intervalo de datas explícito tem prioridade; senão usa o atalho de período.
-    if (from || to) {
-      if (from) query.set("from", new Date(`${from}T00:00:00`).toISOString());
-      if (to) query.set("to", new Date(`${to}T23:59:59`).toISOString());
+    if (effectiveFrom || effectiveTo) {
+      if (effectiveFrom) query.set("from", new Date(`${effectiveFrom}T00:00:00`).toISOString());
+      if (effectiveTo) query.set("to", new Date(`${effectiveTo}T23:59:59`).toISOString());
     } else {
       query.set("period", period);
     }
@@ -105,11 +147,11 @@ export function ReportsView({ branchId }) {
       setError(true);
       setData(null);
     }
-  }, [branchId, period, from, to]));
+  }, [branchId, period, effectiveFrom, effectiveTo]));
 
   function exportCsv() {
     if (!data) return;
-    const { summary, byBranch, byPriority } = data;
+    const { summary, byBranch, byPriority, byStatus = [], byType = [], byPeriodOfDay = [], peakHour } = data;
     const rows = [
       ["Relatórios - exportação"],
       ["Período", from || to ? `${from || "—"} a ${to || "—"}` : periodOptions[period]],
@@ -124,27 +166,37 @@ export function ReportsView({ branchId }) {
       ["Violações de SLA", summary.slaViolations],
       ["CSAT médio", summary.csatAverage ?? "—"],
       ["Resolução no 1º contato (FCR) %", summary.firstContactResolution],
+      ["Horário de pico", peakHour != null ? `${String(peakHour).padStart(2, "0")}h` : "—"],
       [],
       ["Por unidade", "Total", "Resolvidos"],
       ...byBranch.map((row) => [row.name, row.total, row.resolved]),
       [],
       ["Por prioridade", "Quantidade"],
       ...byPriority.map((row) => [row.priority, row.count]),
+      [],
+      ["Por status", "Quantidade"],
+      ...byStatus.map((row) => [row.label, row.count]),
+      [],
+      ["Por tipo de chamado", "Total", "Resolvidos"],
+      ...byType.map((row) => [row.name, row.total, row.resolved]),
+      [],
+      ["Por período do dia", "Quantidade"],
+      ...byPeriodOfDay.map((row) => [row.label, row.count]),
     ];
     downloadCsv("relatorios-exportacao.csv", rows);
   }
 
   const filters = (
     <div className="flex flex-wrap items-end gap-2">
-      <div className="w-[170px] space-y-1.5">
+      <div className="flex w-[170px] flex-col gap-1.5">
         <p className="text-[11px] font-semibold">Período</p>
         <Select value={period} onValueChange={(value) => { setPeriod(value); setFrom(""); setTo(""); }} disabled={Boolean(from || to)}>
           <SelectTrigger className="w-full bg-card"><SelectValue>{(current) => periodOptions[current]}</SelectValue></SelectTrigger>
           <SelectContent>{Object.entries(periodOptions).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5"><p className="text-[11px] font-semibold">Início</p><Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="h-9 w-[150px] bg-card" /></div>
-      <div className="space-y-1.5"><p className="text-[11px] font-semibold">Fim</p><Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="h-9 w-[150px] bg-card" /></div>
+      <div className="flex flex-col gap-1.5"><p className="text-[11px] font-semibold">Início</p><Input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="h-9 w-[150px] bg-card" /></div>
+      <div className="flex flex-col gap-1.5"><p className="text-[11px] font-semibold">Fim</p><Input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="h-9 w-[150px] bg-card" /></div>
       {(from || to) && <Button variant="ghost" size="sm" className="h-9" onClick={() => { setFrom(""); setTo(""); }}>Limpar datas</Button>}
       <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!data}><Download /> Exportar CSV</Button>
     </div>
@@ -183,10 +235,14 @@ export function ReportsView({ branchId }) {
     </div>
   );
 
-  const { summary, byBranch, byPriority, trend, previous, byAgent = [] } = data;
+  const { summary, byBranch, byPriority, trend, previous, byAgent = [], byStatus = [], byType = [], byHour = [], byPeriodOfDay = [], peakHour } = data;
   const maxBranchTotal = Math.max(0, ...byBranch.map((row) => row.total));
   const maxPriorityCount = Math.max(0, ...byPriority.map((row) => row.count));
   const maxAgentTotal = Math.max(0, ...byAgent.map((row) => row.total));
+  const maxStatusCount = Math.max(0, ...byStatus.map((row) => row.count));
+  const maxTypeTotal = Math.max(0, ...byType.map((row) => row.total));
+  const maxPeriodCount = Math.max(0, ...byPeriodOfDay.map((row) => row.count));
+  const peakHourLabel = peakHour != null && byHour[peakHour] > 0 ? `${String(peakHour).padStart(2, "0")}h–${String((peakHour + 1) % 24).padStart(2, "0")}h` : "—";
 
   return <div className="space-y-5 pb-6">
     {header}
@@ -199,8 +255,25 @@ export function ReportsView({ branchId }) {
       <MetricCard icon={Target} label="SLA 1ª resposta" value={summary.firstResponseSlaPercent ?? "—"} suffix={summary.firstResponseSlaPercent != null ? "%" : ""} />
       <MetricCard icon={BarChart3} label="Violações de SLA" value={summary.slaViolations} />
       <MetricCard icon={Star} label="CSAT médio" value={summary.csatAverage ?? "—"} suffix={summary.csatAverage ? "/5" : ""} />
+      <MetricCard icon={Sunrise} label="Horário de pico" value={peakHourLabel} suffix={peakHour != null && byHour[peakHour] > 0 ? ` · ${byHour[peakHour]} chamados` : ""} />
     </div>
     <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10"><CardHeader className="border-b px-5 py-4"><CardTitle className="flex items-center gap-3 text-[15px]"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><TrendingUp className="size-[18px]" /></span>Tendência — criados vs. resolvidos</CardTitle></CardHeader><CardContent className="px-5 py-5"><TrendChart trend={trend} /></CardContent></Card>
+    <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10"><CardHeader className="border-b px-5 py-4"><CardTitle className="flex items-center gap-3 text-[15px]"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Clock3 className="size-[18px]" /></span>Chamados por horário do dia</CardTitle></CardHeader><CardContent className="space-y-5 px-5 py-5">
+      <HourChart hours={byHour} peakHour={peakHour} />
+      {maxPeriodCount > 0 && <div className="grid gap-2.5 border-t pt-4 sm:grid-cols-2">{byPeriodOfDay.map((row) => <BarRow key={row.key} label={row.label} value={row.count} max={maxPeriodCount} />)}</div>}
+    </CardContent></Card>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10"><CardHeader className="border-b px-5 py-4"><CardTitle className="flex items-center gap-3 text-[15px]"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Layers className="size-[18px]" /></span>Por status</CardTitle></CardHeader><CardContent className="space-y-2.5 px-5 py-5">
+        {byStatus.length > 0
+          ? byStatus.map((row) => <BarRow key={row.code} label={row.label} value={row.count} max={maxStatusCount} color={statusColorHex(row.color)} />)
+          : <p className="py-2 text-sm text-muted-foreground">Sem chamados no período.</p>}
+      </CardContent></Card>
+      <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10"><CardHeader className="border-b px-5 py-4"><CardTitle className="flex items-center gap-3 text-[15px]"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Tag className="size-[18px]" /></span>Por tipo de chamado</CardTitle></CardHeader><CardContent className="space-y-2.5 px-5 py-5">
+        {byType.length > 0
+          ? byType.map((row) => <BarRow key={row.name} label={row.name} value={row.total} max={maxTypeTotal} />)
+          : <p className="py-2 text-sm text-muted-foreground">Sem chamados no período.</p>}
+      </CardContent></Card>
+    </div>
     <div className="grid gap-4 xl:grid-cols-2">
       <Card className="gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10"><CardHeader className="border-b px-5 py-4"><CardTitle className="flex items-center gap-3 text-[15px]"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 className="size-[18px]" /></span>Por unidade</CardTitle></CardHeader><CardContent className="space-y-4 px-5 py-5">
         {byBranch.length > 0 && <div className="space-y-2.5">{byBranch.map((row) => <BarRow key={`bar-${row.name}`} label={row.name} value={row.total} max={maxBranchTotal} />)}</div>}

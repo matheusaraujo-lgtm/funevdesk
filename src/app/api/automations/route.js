@@ -33,10 +33,16 @@ function clean(obj) {
   return out;
 }
 
+// Regras de automação decidem equipe/responsável pra chamados de QUALQUER unidade da
+// organização (não têm — nem podem ter, dado seu propósito — escopo por unidade própria).
+// Por isso exigem all_branches além do papel ADMIN: um admin restrito a uma unidade não
+// deve enxergar nem configurar roteamento que afeta chamados de unidades que ele não gerencia.
 function requireAdmin(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth;
-  if (auth.user.role !== "ADMIN") return { error: Response.json({ error: "Acesso restrito a administradores." }, { status: 403 }) };
+  if (auth.user.role !== "ADMIN" || !auth.user.all_branches) {
+    return { error: Response.json({ error: "Acesso restrito a administradores com acesso a todas as unidades." }, { status: 403 }) };
+  }
   return auth;
 }
 

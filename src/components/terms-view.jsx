@@ -13,7 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 function MetricCard({ icon: Icon, label, value }) {
@@ -32,19 +31,20 @@ function MetricCard({ icon: Icon, label, value }) {
   );
 }
 
-export function TermsView({ permissions, onNew, onOpen }) {
+export function TermsView({ permissions, branchId = "", onNew, onOpen }) {
   const [terms, setTerms] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [search, setSearch] = useState("");
-  const [branchFilter, setBranchFilter] = useState("all");
 
+  // O filtro de unidade é o seletor global (topo do app) — o servidor já devolve só os
+  // termos da unidade escolhida, sem precisar de um segundo filtro local desconectado.
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/terms", { cache: "no-store" });
+    const params = branchId ? `?branchId=${branchId}` : "";
+    const response = await fetch(`/api/terms${params}`, { cache: "no-store" });
     if (response.ok) setTerms((await response.json()).terms);
-  }, []));
+  }, [branchId]));
 
-  const branchOptions = useMemo(() => Array.from(new Set(terms.map((term) => term.branch_name).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [terms]);
-  const filtered = useMemo(() => terms.filter((term) => (branchFilter === "all" || term.branch_name === branchFilter) && `${term.signer_name} ${term.hostname} ${term.branch_name}`.toLowerCase().includes(search.toLowerCase())), [terms, search, branchFilter]);
+  const filtered = useMemo(() => terms.filter((term) => `${term.signer_name} ${term.hostname} ${term.branch_name}`.toLowerCase().includes(search.toLowerCase())), [terms, search]);
   const pagination = useListPagination(filtered.length, 10);
   const paged = pagination.sliceItems(filtered);
 
@@ -72,14 +72,14 @@ export function TermsView({ permissions, onNew, onOpen }) {
     </div>
     <div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={FileCheck2} label="Termos" value={terms.length} /><MetricCard icon={Building2} label="Unidades" value={new Set(terms.map((term) => term.branch_name)).size} /><MetricCard icon={Monitor} label="Equipamentos" value={new Set(terms.map((term) => term.hostname)).size} /></div>
     <Card className="overflow-hidden gap-0 rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
-      <div className="border-b p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div className="relative w-full max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar termo..." /></div><Select value={branchFilter} onValueChange={setBranchFilter}><SelectTrigger className="w-full bg-card sm:w-56" aria-label="Filtrar por unidade"><SelectValue placeholder="Todas as unidades">{(current) => (current === "all" ? "Todas as unidades" : current)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">Todas as unidades</SelectItem>{branchOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select></div></div>
+      <div className="border-b p-4"><div className="relative w-full max-w-md"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar termo..." /></div></div>
       {loading ? <ListLoadingSkeleton /> : filtered.length === 0 ? (
         <ListEmptyState
           icon={FileCheck2}
-          title={(search || branchFilter !== "all") ? "Nenhum termo encontrado" : "Nenhum termo assinado"}
-          description={(search || branchFilter !== "all") ? "Tente outro termo de busca ou unidade." : "Registre termos de equipamento com assinatura digital."}
-          actionLabel={!search && branchFilter === "all" ? "Novo termo" : undefined}
-          onAction={!search && branchFilter === "all" ? onNew : undefined}
+          title={search ? "Nenhum termo encontrado" : "Nenhum termo assinado"}
+          description={search ? "Tente outro termo de busca." : "Registre termos de equipamento com assinatura digital."}
+          actionLabel={!search ? "Novo termo" : undefined}
+          onAction={!search ? onNew : undefined}
         />
       ) : (
         <div className="overflow-x-auto"><Table className="min-w-[760px]"><TableHeader><TableRow className="bg-muted/10"><TableHead>Assinante</TableHead><TableHead>Equipamento</TableHead><TableHead>Unidade</TableHead><TableHead>Data</TableHead><TableHead className="w-12" /></TableRow></TableHeader><TableBody>{paged.map((term) => <TableRow key={term.id} className="cursor-pointer" onClick={() => onOpen?.(term)}><TableCell><p className="font-medium">{term.signer_name}</p><p className="text-xs text-muted-foreground">{term.signer_document || "Sem documento"}</p></TableCell><TableCell>{term.hostname}</TableCell><TableCell>{term.branch_name}</TableCell><TableCell className="text-xs text-muted-foreground">{new Date(term.created_at).toLocaleString("pt-BR")}</TableCell><TableCell onClick={(event) => event.stopPropagation()}><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreVertical /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onOpen?.(term)}><Eye /> Abrir</DropdownMenuItem><DropdownMenuItem asChild><a href={term.pdf_url} target="_blank" rel="noreferrer"><ExternalLink /> Abrir PDF</a></DropdownMenuItem>{permissions?.canConfigure && <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(term)}><Trash2 /> Excluir</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UserRound } from "lucide-react";
+import { CircleAlert, CircleCheck, Eye, EyeOff, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { CrudFormLayout } from "@/components/crud-form-layout";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Mesma regra de src/lib/security.js · STRONG_PASSWORD_REGEX (mantida em duplicata porque o
+// form roda no cliente — sem acesso ao módulo de servidor).
+const STRONG_PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/;
 
 const roleLabels = { ADMIN: "Administrador", TECHNICIAN: "Técnico", EMPLOYEE: "Usuário" };
 
@@ -37,7 +41,7 @@ function defaultProfileId(profiles) {
 
 function emptyForm(branches, profiles) {
   const firstBranch = branches[0]?.id || "";
-  return { name: "", email: "", role: "EMPLOYEE", profileId: defaultProfileId(profiles), branchIds: firstBranch ? [firstBranch] : [], primaryBranchId: firstBranch, allBranches: false, assetId: "none", authProvider: "LOCAL" };
+  return { name: "", email: "", role: "EMPLOYEE", profileId: defaultProfileId(profiles), branchIds: firstBranch ? [firstBranch] : [], primaryBranchId: firstBranch, allBranches: false, assetId: "none", authProvider: "LOCAL", password: "" };
 }
 
 function formFromUser(user, profiles) {
@@ -59,7 +63,10 @@ export function UserFormView({ userId, users, branches, assets, profiles = [], c
   const [form, setForm] = useState(() => (editingUser ? formFromUser(editingUser, profiles) : emptyForm(branches, profiles)));
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
   const selectedAssets = assets.filter((asset) => form.branchIds.includes(asset.branch_id));
+  const primaryBranch = branches.find((branch) => branch.id === form.primaryBranchId);
+  const primaryBranchLdapEnabled = Boolean(primaryBranch?.ldap_enabled);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -86,6 +93,16 @@ export function UserFormView({ userId, users, branches, assets, profiles = [], c
     if (profiles.length > 0 && !form.profileId) next.profileId = "Selecione um perfil de acesso.";
     if (!form.branchIds.length) next.branchIds = "Selecione ao menos uma unidade autorizada.";
     else if (!form.primaryBranchId) next.primaryBranchId = "Escolha a unidade principal.";
+    // LDAP usa o AD configurado na unidade PRINCIPAL do usuário (cada unidade pode ter o seu,
+    // ou nenhum) — sem essa checagem dava pra criar um usuário LDAP numa unidade sem AD
+    // nenhum, e ele nunca mais conseguiria entrar.
+    if (form.authProvider === "LDAP" && form.primaryBranchId && !primaryBranchLdapEnabled) {
+      next.authProvider = "A unidade principal escolhida não tem LDAP habilitado. Habilite em Configurações > Unidades ou use senha local.";
+    }
+    // Senha é opcional (em branco = sistema gera uma temporária) — só valida força se algo foi digitado.
+    if (!userId && form.authProvider === "LOCAL" && form.password && !STRONG_PASSWORD_REGEX.test(form.password)) {
+      next.password = "A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula, número e símbolo.";
+    }
     return next;
   }
 
@@ -129,7 +146,49 @@ export function UserFormView({ userId, users, branches, assets, profiles = [], c
       ) : (
         <div><Label htmlFor="user-role" className="mb-2 block">Perfil</Label><Select value={form.role} onValueChange={(value) => update("role", value)}><SelectTrigger id="user-role" aria-label="Perfil" className="w-full"><SelectValue placeholder="Perfil">{(value) => roleLabels[value]}</SelectValue></SelectTrigger><SelectContent>{Object.entries(roleLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
       )}
-      <div><Label htmlFor="user-auth-provider" className="mb-2 block">Autenticação</Label><Select value={form.authProvider} onValueChange={(value) => update("authProvider", value)}><SelectTrigger id="user-auth-provider" aria-label="Autenticação" className="w-full"><SelectValue>{(value) => value === "LDAP" ? "LDAP da unidade principal" : "Senha local"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="LOCAL">Senha local</SelectItem><SelectItem value="LDAP">LDAP da unidade principal</SelectItem></SelectContent></Select><p className="mt-2 text-xs text-muted-foreground">LDAP usa a configuração da unidade principal do usuário.</p></div>
+      <div>
+        <Label htmlFor="user-auth-provider" className="mb-2 block">Autenticação</Label>
+        <Select value={form.authProvider} onValueChange={(value) => update("authProvider", value)}>
+          <SelectTrigger id="user-auth-provider" aria-label="Autenticação" aria-invalid={errors.authProvider ? true : undefined} className="w-full"><SelectValue>{(value) => value === "LDAP" ? "LDAP da unidade principal" : "Senha local"}</SelectValue></SelectTrigger>
+          <SelectContent><SelectItem value="LOCAL">Senha local</SelectItem><SelectItem value="LDAP">LDAP da unidade principal</SelectItem></SelectContent>
+        </Select>
+        {fieldError("authProvider") || (
+          form.authProvider === "LDAP" ? (
+            primaryBranch ? (
+              primaryBranchLdapEnabled ? (
+                <p className="mt-2 flex items-start gap-1.5 text-xs text-emerald-600"><CircleCheck className="mt-0.5 size-3.5 shrink-0" />LDAP habilitado em &quot;{primaryBranch.name}&quot; — as credenciais serão validadas nesse diretório.</p>
+              ) : (
+                <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-600"><CircleAlert className="mt-0.5 size-3.5 shrink-0" />&quot;{primaryBranch.name}&quot; não tem LDAP habilitado. Configure em Unidades antes de salvar, ou escolha outra unidade principal.</p>
+              )
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">Escolha a unidade principal abaixo para conferir se o LDAP dela está habilitado.</p>
+            )
+          ) : (
+            <p className="mt-2 text-xs text-muted-foreground">Login e senha ficam salvos e gerenciados aqui mesmo, sem depender de diretório externo.</p>
+          )
+        )}
+      </div>
+      {!userId && form.authProvider === "LOCAL" && (
+        <div className="sm:col-span-2">
+          <Label htmlFor="user-password" className="mb-2 block">Senha (opcional)</Label>
+          <div className="relative">
+            <Input
+              id="user-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(event) => update("password", event.target.value)}
+              placeholder="Opcional"
+              aria-invalid={errors.password ? true : undefined}
+              className="pr-10"
+            />
+            <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+          {fieldError("password") || <p className="mt-2 text-xs text-muted-foreground">{form.password ? "Essa será a senha definitiva — o usuário não precisará trocá-la no primeiro acesso." : "Se preencher, defina a senha aqui. Se deixar em branco, o sistema gera uma temporária que o usuário troca no primeiro acesso."}</p>}
+        </div>
+      )}
       {(canGrantAllBranches || form.allBranches) && (
       <div className="sm:col-span-2">
         <Button type="button" variant="ghost" className="h-auto w-full justify-start gap-3 rounded-xl border px-3 py-2.5" disabled={!canGrantAllBranches} onClick={() => update("allBranches", !form.allBranches)}>

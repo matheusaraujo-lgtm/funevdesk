@@ -12,6 +12,8 @@ export async function POST(request, { params }) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
   if (!can(auth.user, "webhooks", "update")) return Response.json({ error: "Sem permissão." }, { status: 403 });
+  // Ver justificativa em src/app/api/webhooks/route.js: exige all_branches.
+  if (!auth.user.all_branches) return Response.json({ error: "Apenas administradores com acesso a todas as unidades podem gerenciar webhooks." }, { status: 403 });
 
   const db = getDb();
   const hook = db.prepare("SELECT * FROM webhooks WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);

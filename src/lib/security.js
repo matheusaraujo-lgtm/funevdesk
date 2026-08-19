@@ -119,6 +119,13 @@ export async function assertSafeOutboundUrl(rawUrl, { allowPrivate = false } = {
 }
 
 /* ------------------------------------------------------------------ *
+ * Senha forte (mesma regra usada em /api/auth/change-password): 8+
+ * caracteres, com maiúscula, minúscula, número e símbolo.
+ * ------------------------------------------------------------------ */
+export const STRONG_PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/;
+export const STRONG_PASSWORD_HINT = "A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula, número e símbolo.";
+
+/* ------------------------------------------------------------------ *
  * Nome de arquivo seguro (Content-Disposition / armazenamento)
  * ------------------------------------------------------------------ */
 export function sanitizeFilename(name, fallback = "arquivo") {

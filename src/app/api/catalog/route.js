@@ -29,6 +29,17 @@ function validateBranchConfig(data, organizationId, db) {
   return null;
 }
 
+// Um admin restrito a unidades (all_branches=0) não pode tornar um tipo de chamado
+// visível pra organização inteira nem pra unidades fora do próprio escopo — só pode
+// disponibilizá-lo pras unidades que ele mesmo gerencia.
+export function validateBranchScopeForActor(data, currentUser) {
+  if (currentUser.all_branches) return null;
+  if (data.scopeMode !== "SELECTED") return "Restrinja este tipo às suas unidades — apenas administradores com acesso a todas as unidades podem torná-lo disponível para toda a organização.";
+  const outsideScope = data.branchIds.some((id) => !currentUser.branchIds.includes(id));
+  if (outsideScope) return "Você só pode disponibilizar este tipo para as unidades às quais tem acesso.";
+  return null;
+}
+
 export function listCatalog(db, organizationId) {
   const types = db.prepare("SELECT * FROM ticket_types WHERE organization_id=? ORDER BY active DESC, name").all(organizationId);
   const fields = db.prepare("SELECT * FROM ticket_fields ORDER BY position").all();
@@ -70,6 +81,15 @@ export function listCatalog(db, organizationId) {
   });
 }
 
+// Um usuário restrito a unidades (all_branches=0) só vê tipos ativos disponíveis para
+// pelo menos uma das suas unidades — mesma regra usada na abertura de chamado
+// (isTicketTypeAvailableForBranch). Reaproveitado por GET e pelas respostas de
+// POST/PUT, que antes devolviam o catálogo completo da organização sem esse filtro.
+export function visibleCatalogForUser(catalog, currentUser) {
+  if (currentUser.all_branches) return catalog;
+  return catalog.filter((type) => type.active && (type.allBranches || type.branchIds.some((id) => currentUser.branchIds.includes(id))));
+}
+
 export async function GET(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
@@ -96,11 +116,7 @@ export async function GET(request) {
     });
   }
 
-  let catalog = listCatalog(db, currentUser.organization_id);
-  if (!currentUser.all_branches) {
-    catalog = catalog.filter((type) => type.active);
-    catalog = catalog.filter((type) => type.allBranches || type.branchIds.some((id) => currentUser.branchIds.includes(id)));
-  }
+  const catalog = visibleCatalogForUser(listCatalog(db, currentUser.organization_id), currentUser);
   return Response.json({ catalog });
 }
 
@@ -175,11 +191,15 @@ export async function POST(request) {
 
   const body = await request.json();
   if (Array.isArray(body?.rows)) {
+    // A importação em massa sempre cria tipos com scope_mode='ALL' (org-wide) — não dá
+    // pra escolher unidades linha a linha na planilha, então só quem enxerga a organização
+    // inteira pode usar esse caminho.
+    if (!currentUser.all_branches) return Response.json({ error: "Apenas administradores com acesso a todas as unidades podem importar por planilha." }, { status: 403 });
     if (!body.rows.length) return Response.json({ error: "Planilha vazia." }, { status: 400 });
     const db = getDb();
     try {
       const result = importCatalogRows(db, currentUser.organization_id, body.rows);
-      return Response.json({ imported: result.importedTypes, skipped: result.skipped, catalog: listCatalog(db, currentUser.organization_id) });
+      return Response.json({ imported: result.importedTypes, skipped: result.skipped, catalog: visibleCatalogForUser(listCatalog(db, currentUser.organization_id), currentUser) });
     } catch (error) {
       return Response.json({ error: error.message || "Não foi possível importar a planilha." }, { status: 400 });
     }
@@ -210,7 +230,7 @@ export async function POST(request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Revise os dados do tipo de chamado." }, { status: 400 });
   const db = getDb();
-  const branchError = validateBranchConfig(parsed.data, currentUser.organization_id, db);
+  const branchError = validateBranchConfig(parsed.data, currentUser.organization_id, db) || validateBranchScopeForActor(parsed.data, currentUser);
   if (branchError) return Response.json({ error: branchError }, { status: 400 });
   const id = makeId("tipo");
   const now = new Date().toISOString();
@@ -250,5 +270,5 @@ export async function POST(request) {
     parsed.data.fields.forEach((field, index) => insertField.run(makeId("fld"), id, field.label, field.fieldType, field.placeholder || "", field.required ? 1 : 0, field.options?.length ? JSON.stringify(field.options) : null, index));
   });
   save();
-  return Response.json({ id, catalog: listCatalog(db, currentUser.organization_id) }, { status: 201 });
+  return Response.json({ id, catalog: visibleCatalogForUser(listCatalog(db, currentUser.organization_id), currentUser) }, { status: 201 });
 }

@@ -83,16 +83,17 @@ function ArticleCard({ article, onOpen, onEdit, onRemove, permissions }) {
   );
 }
 
-export function KnowledgeView({ permissions, onNew, onEdit, onOpen }) {
+export function KnowledgeView({ permissions, branchId = "", onNew, onEdit, onOpen }) {
   const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/knowledge", { cache: "no-store" });
+    const params = branchId ? `?branchId=${branchId}` : "";
+    const response = await fetch(`/api/knowledge${params}`, { cache: "no-store" });
     if (response.ok) setArticles((await response.json()).articles);
-  }, []));
+  }, [branchId]));
 
   const categories = useMemo(() => Array.from(new Set(articles.map((article) => article.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [articles]);
   const filtered = useMemo(() => articles.filter((article) => (category === "all" || article.category === category) && `${article.title} ${article.category} ${plainTextPreview(article.content, 500)}`.toLowerCase().includes(search.toLowerCase())), [articles, search, category]);
