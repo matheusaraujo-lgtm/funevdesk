@@ -47,6 +47,7 @@ export function TicketStatusPills({
   terminalStatusCode = "RESOLVIDO",
   onStatusChange,
   onResolve,
+  onPending,
 }) {
   const statusMeta = statuses.find((item) => item.code === ticket.status);
   const statusLabel = statusMeta?.label || statusLabels[ticket.status] || ticket.status;
@@ -69,6 +70,13 @@ export function TicketStatusPills({
     // Status terminal (resolvido) exige descrição da resolução: delega ao diálogo de Resolver.
     if (terminalTarget) {
       onResolve?.();
+      return;
+    }
+    // Situação marcada como "exige motivo" (Configurações > Situações): delega ao diálogo
+    // de pendência em vez de aplicar a mudança direto.
+    const currentMeta = statuses.find((item) => item.code === ticket.status);
+    if (target?.requires_reason && !currentMeta?.requires_reason) {
+      onPending?.(target);
       return;
     }
     onStatusChange?.(code);

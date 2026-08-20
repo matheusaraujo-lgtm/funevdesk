@@ -67,8 +67,14 @@ async function main() {
   const type = list.find((t) => t.active !== false) || list[0];
   let ticketId = null;
   if (type?.id) {
+    // Preenche qualquer campo customizado obrigatório do tipo escolhido (ex.: "Sintoma"),
+    // senão a criação falha com 400 antes mesmo de testar o fluxo — não é bug do app, é o
+    // tipo de chamado exigindo o que foi configurado nele.
+    const answers = (type.fields || [])
+      .filter((f) => f.required)
+      .map((f) => ({ fieldId: f.id, value: f.field_type === "SELECT" ? (f.options?.[0] || "Teste") : "Teste automatizado" }));
     const created = await fetch(`${BASE}/api/tickets`, { method: "POST", ...j(emp.cookie),
-      body: JSON.stringify({ branchId: empDash.currentUser.branchId, ticketTypeId: type.id, title: "Teste E2E automático", description: "Chamado criado pelo teste de fumaça." }) });
+      body: JSON.stringify({ branchId: empDash.currentUser.branchId, ticketTypeId: type.id, title: "Teste E2E automático", description: "Chamado criado pelo teste de fumaça.", answers }) });
     const cb = await created.json().catch(() => ({}));
     ticketId = cb.id;
     check("usuário cria chamado (201)", created.status === 201 && ticketId, JSON.stringify(cb).slice(0, 160));

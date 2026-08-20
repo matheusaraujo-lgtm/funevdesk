@@ -53,7 +53,12 @@ export async function GET(request) {
   const auth = requireCurrentUser(request);
   if (auth.error) return auth.error;
   const currentUser = auth.user;
-  if (!can(currentUser, "network", "read")) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  // "Impressoras" (tela dedicada) lê os mesmos dispositivos monitorados por aqui, filtrados
+  // por monitor_type=PRINTER — libera quem tem network:read OU printers:read (mesmo padrão
+  // documentado em locations/term_templates), em vez de só network:read.
+  if (!can(currentUser, "network", "read") && !can(currentUser, "printers", "read")) {
+    return Response.json({ error: "Acesso negado." }, { status: 403 });
+  }
 
   if (new URL(request.url).searchParams.get("mode") === "template") {
     const branches = db.prepare("SELECT id, name FROM branches WHERE organization_id=? ORDER BY name").all(currentUser.organization_id);

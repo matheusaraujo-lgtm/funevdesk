@@ -41,6 +41,9 @@ import { KnowledgeView } from "@/components/knowledge-view";
 import { NetworkView } from "@/components/network-view";
 import { SettingsGeneralView } from "@/components/settings-general-view";
 import { SettingsStatusesView } from "@/components/settings-statuses-view";
+import { SettingsCannedResponsesView } from "@/components/settings-canned-responses-view";
+import { RecurringTicketFormView } from "@/components/recurring-ticket-form-view";
+import { RecurringTicketsView } from "@/components/recurring-tickets-view";
 import { SettingsCategoriesView } from "@/components/settings-categories-view";
 import { SettingsDocumentTypesView } from "@/components/settings-document-types-view";
 import { SettingsLocationsView } from "@/components/settings-locations-view";
@@ -518,6 +521,8 @@ export default function Home() {
 
     const payload = { status };
     if (resolving && options.stockDeductions?.length) payload.stockDeductions = options.stockDeductions;
+    if (options.pendingReason) payload.pendingReason = options.pendingReason;
+    if (options.pendingReopenAt) payload.pendingReopenAt = options.pendingReopenAt;
     const ok = await patchTicket(id, payload);
     if (ok) toast.success(resolving ? "Chamado resolvido." : "Situação atualizada.");
     return ok;
@@ -694,6 +699,7 @@ export default function Home() {
       {view === "settings-statuses" && can("statuses", "read") && <SettingsStatusesView />}
       {view === "settings-categories" && can("categories", "read") && <SettingsCategoriesView />}
       {view === "settings-document-types" && data.permissions.canConfigure && <SettingsDocumentTypesView />}
+      {view === "settings-canned-responses" && can("canned_responses", "read") && <SettingsCannedResponsesView />}
       {view === "settings-locations" && can("locations", "read") && <SettingsLocationsView branches={branches.length ? branches : data.branches} />}
       {view === "inventory" && can("inventory", "read") && <InventoryView key={`inventory-${branchId}`} branches={branches.length ? branches : data.branches} defaultBranchId={branchId} canConfigure={can("inventory", "create") || can("inventory", "update")} />}
       {view === "new-ticket" && <TicketCreateView branches={data.branches} assets={data.assets} users={users} defaultBranchId={branchId || data.currentUser.branchId} onCreate={createTicket} onCancel={() => setView("tickets")} currentUser={data.currentUser} permissions={data.permissions} catalog={catalog} />}
@@ -708,6 +714,8 @@ export default function Home() {
       {view === "changes-form" && (can("changes", "create") || can("changes", "update")) && <ChangeFormView item={formDraft} branches={data.branches} defaultBranchId={branchId || data.currentUser.branchId} users={users} onCancel={() => closeDraftForm("changes")} onSaved={refreshLists} />}
       {view === "reports" && data.permissions.canViewReports && <ReportsView branchId={branchId} branches={data.branches} />}
       {view === "audit" && data.permissions.canViewAudit && <AuditView key={`${listRefreshKey}-${branchId}`} branchId={branchId} branches={data.branches} />}
+      {view === "recurring-tickets" && can("recurring_tickets", "read") && <RecurringTicketsView key={listRefreshKey} canConfigure={can("recurring_tickets", "create") || can("recurring_tickets", "update")} onNew={() => { setFormDraft(null); setView("recurring-tickets-form"); }} onEdit={(item) => { setFormDraft(item); setView("recurring-tickets-form"); }} />}
+      {view === "recurring-tickets-form" && (can("recurring_tickets", "create") || can("recurring_tickets", "update")) && <RecurringTicketFormView item={formDraft} branches={branches.length ? branches : data.branches} catalog={catalog} users={users} defaultBranchId={branchId || data.currentUser.branchId} onCancel={() => closeDraftForm("recurring-tickets")} onSaved={refreshLists} />}
       {view === "webhooks" && can("webhooks", "read") && <WebhooksView key={listRefreshKey} onNew={() => { setFormDraft(null); setView("webhooks-form"); }} onEdit={(hook) => { setFormDraft(hook); setView("webhooks-form"); }} />}
       {view === "automations" && data.permissions.canConfigure && <AutomationsView key={listRefreshKey} />}
       {view === "webhooks-form" && (can("webhooks", "create") || can("webhooks", "update")) && <WebhookFormView hook={formDraft} onCancel={() => closeDraftForm("webhooks")} onSaved={refreshLists} />}

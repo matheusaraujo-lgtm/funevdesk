@@ -1,0 +1,35 @@
+{
+  "profile": "usuario",
+  "base": "http://localhost:3000",
+  "routes": [
+    {
+      "label": "FunevDesk\n\nPortal do usuário",
+      "opened": false,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Novo chamado",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Meus chamados",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Ajuda",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    }
+  ],
+  "totalConsoleErrors": 1
+}

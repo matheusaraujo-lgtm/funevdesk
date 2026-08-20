@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { getSlaStatus, extendSlaAfterPause } from "@/lib/sla";
 import { ensureCancelStatus, getTicketStatusMeta, listTicketStatuses } from "@/lib/ticket-statuses";
+import { formatPendingDuration } from "@/lib/pending-tickets";
 import { runEscalationCheck } from "@/lib/escalation";
 import { getDb, makeId } from "@/lib/db";
 import { dispatchWebhooks } from "@/lib/webhooks";
@@ -24,6 +25,8 @@ const patchSchema = z.object({
   assume: z.boolean().optional(),
   cancel: z.boolean().optional(),
   cancelReason: z.string().max(1000).optional(),
+  pendingReason: z.string().max(500).optional(),
+  pendingReopenAt: z.string().datetime().optional(),
   stockDeductions: z.array(z.object({
     itemId: z.string().min(1),
     qty: z.number().int().positive(),
@@ -237,6 +240,21 @@ export async function PATCH(request, { params }) {
   const statusList = listTicketStatuses(db, orgId);
   const targetMeta = parsed.data.status ? statusList.find((item) => item.code === parsed.data.status) : null;
   const willResolve = Boolean(targetMeta?.is_terminal) && permissions.canManageTickets && !parsed.data.assume;
+
+  // Situação marcada em Configurações > Situações como "exige motivo" (ex.: "Pendente") —
+  // nível de gestão precisa saber por que o chamado ficou parado, e o histórico registra
+  // quando ele volta (padrão GLPI). Independente de pausar SLA: quem configura escolhe quais.
+  if (targetMeta && permissions.canManageTickets && !parsed.data.assume) {
+    const currentMeta = getTicketStatusMeta(db, orgId, ticket.status);
+    if (targetMeta.requires_reason && !currentMeta?.requires_reason) {
+      if (!(parsed.data.pendingReason || "").trim()) {
+        return Response.json({ error: "Informe o motivo." }, { status: 400 });
+      }
+      if (!parsed.data.pendingReopenAt) {
+        return Response.json({ error: "Informe a data de reabertura." }, { status: 400 });
+      }
+    }
+  }
   const stockDeductions = willResolve ? (parsed.data.stockDeductions || []) : [];
   for (const deduction of stockDeductions) {
     const item = db.prepare("SELECT id, name, quantity FROM inventory_items WHERE id=? AND organization_id=?").get(deduction.itemId, orgId);
@@ -252,11 +270,36 @@ export async function PATCH(request, { params }) {
       let slaDueAt = ticket.sla_due_at;
       let slaPausedAt = ticket.sla_paused_at;
 
+      let pendingReason = ticket.pending_reason;
+      let pendingSince = ticket.pending_since;
+      let pendingReopenAt = ticket.pending_reopen_at;
+      let statusBeforePending = ticket.status_before_pending;
+
       if (oldMeta?.pauses_sla && !newMeta.pauses_sla && slaPausedAt) {
         slaDueAt = extendSlaAfterPause(slaDueAt, slaPausedAt);
         slaPausedAt = null;
       } else if (newMeta.pauses_sla && !oldMeta?.pauses_sla) {
         slaPausedAt = now;
+      }
+
+      // Entrando numa situação que exige motivo: grava motivo, instante e data de reabertura
+      // automática (o agendador cuida de voltar sozinho — ver src/lib/pending-tickets.js).
+      // Saindo: o evento abaixo registra o resumo (duração + motivo) para a gestão consultar.
+      let statusEventDescription = `Situação alterada para ${newMeta.label}.`;
+      if (newMeta.requires_reason && !oldMeta?.requires_reason) {
+        pendingReason = (parsed.data.pendingReason || "").trim();
+        pendingSince = now;
+        pendingReopenAt = parsed.data.pendingReopenAt;
+        statusBeforePending = ticket.status;
+        statusEventDescription = `Situação alterada para ${newMeta.label}. Motivo: ${pendingReason}`;
+      } else if (!newMeta.requires_reason && oldMeta?.requires_reason) {
+        if (ticket.pending_since) {
+          const duration = formatPendingDuration(new Date(now).getTime() - new Date(ticket.pending_since).getTime());
+          statusEventDescription = `Situação alterada para ${newMeta.label}. Retomado após ${duration} em "${oldMeta.label}"${ticket.pending_reason ? ` (motivo: ${ticket.pending_reason})` : ""}.`;
+        }
+        pendingSince = null;
+        pendingReopenAt = null;
+        statusBeforePending = null;
       }
 
       const resolvedAt = newMeta.is_terminal ? now : (ticket.resolved_at && !newMeta.is_terminal ? null : ticket.resolved_at);
@@ -265,11 +308,11 @@ export async function PATCH(request, { params }) {
         isTerminal: newMeta.is_terminal,
       });
 
-      db.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=?, sla_status=?, sla_due_at=?, sla_paused_at=? WHERE id=?")
-        .run(parsed.data.status, now, resolvedAt, slaStatus, slaDueAt, slaPausedAt, id);
+      db.prepare("UPDATE tickets SET status=?, updated_at=?, resolved_at=?, sla_status=?, sla_due_at=?, sla_paused_at=?, pending_reason=?, pending_since=?, pending_reopen_at=?, status_before_pending=? WHERE id=?")
+        .run(parsed.data.status, now, resolvedAt, slaStatus, slaDueAt, slaPausedAt, pendingReason, pendingSince, pendingReopenAt, statusBeforePending, id);
 
       db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'STATUS_CHANGED', ?, ?)")
-        .run(makeId("evt"), id, currentUser.id, currentUser.name, `Situação alterada para ${newMeta.label}.`, now);
+        .run(makeId("evt"), id, currentUser.id, currentUser.name, statusEventDescription, now);
 
       if (newMeta.is_terminal && ticket.requester_id) {
         createNotification(db, { organizationId: ticket.organization_id, userId: ticket.requester_id, eventType: "TICKET_RESOLVED", title: `Chamado #${ticket.number} resolvido`, body: "Avalie o atendimento recebido.", referenceId: id, referenceType: "TICKET" });

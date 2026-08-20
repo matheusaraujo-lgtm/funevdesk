@@ -8,15 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { isRichTextEmpty } from "@/lib/rich-text";
-
-function macroToHtml(body) {
-  return String(body || "")
-    .split(/\n+/)
-    .filter((line) => line.trim())
-    .map((line) => `<p>${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
-    .join("");
-}
+import { isRichTextEmpty, toEditorHtml } from "@/lib/rich-text";
 
 // stockEntries: [{ itemId, qty, label }] — campos STOCK do chamado.
 export function ResolveTicketDialog({ open, onOpenChange, onConfirm, loading = false, stockEntries = [], branchId }) {
@@ -104,7 +96,7 @@ export function ResolveTicketDialog({ open, onOpenChange, onConfirm, loading = f
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="max-h-72 w-72 overflow-y-auto">
                     {macros.map((macro) => (
-                      <DropdownMenuItem key={macro.id} onClick={() => setResolution(macroToHtml(macro.body))}>
+                      <DropdownMenuItem key={macro.id} onClick={() => setResolution(toEditorHtml(macro.body))}>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{macro.title}</p>
                           <p className="truncate text-xs text-muted-foreground">{macro.body}</p>

@@ -1,0 +1,605 @@
+{
+  "phase": "permissions",
+  "total": 84,
+  "pass": 64,
+  "fail": 3,
+  "inconclusive": 17,
+  "results": [
+    {
+      "name": "administrador/tickets:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.572Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "administrador/assets:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.583Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/inventory:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.607Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/terms:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.615Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/problems:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.622Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/changes:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.639Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/projects:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.654Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/knowledge:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.669Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/documentation:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.685Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/printers:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.685Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "administrador/network:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.701Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/security:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.717Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/teams:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.733Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/reports:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.751Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/audit:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.767Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/settings:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.781Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/branches:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.797Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/locations:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.813Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/users:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.829Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/profiles:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.844Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/ticket_types:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.844Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "administrador/categories:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.860Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/statuses:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.869Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/term_templates:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.884Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/webhooks:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.901Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/canned_responses:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.918Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/recurring_tickets:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.933Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "administrador/remote:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.933Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "tecnico/tickets:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.933Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "tecnico/assets:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.948Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/inventory:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.966Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/terms:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.984Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/problems:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:26.991Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/changes:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.001Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/projects:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.017Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/knowledge:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.024Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/documentation:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.033Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/printers:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.033Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "tecnico/network:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.048Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/security:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.067Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/teams:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.084Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/reports:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.091Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/audit:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.099Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/settings:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.117Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/branches:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.133Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/locations:read (esperado=false)",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.149Z",
+      "detail": "exceção intencional documentada no código-fonte — ver qa/bugs/BUG-003.md",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/users:read (esperado=false)",
+      "status": "FAIL",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.165Z",
+      "httpStatus": 200,
+      "detail": "esperado bloqueio, obteve status 200"
+    },
+    {
+      "name": "tecnico/profiles:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.180Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/ticket_types:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.180Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "tecnico/categories:read (esperado=false)",
+      "status": "FAIL",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.197Z",
+      "httpStatus": 200,
+      "detail": "esperado bloqueio, obteve status 200"
+    },
+    {
+      "name": "tecnico/statuses:read (esperado=false)",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.212Z",
+      "detail": "exceção intencional documentada no código-fonte — ver qa/bugs/BUG-003.md",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/term_templates:read (esperado=false)",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.228Z",
+      "detail": "exceção intencional documentada no código-fonte — ver qa/bugs/BUG-003.md",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/webhooks:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.243Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/canned_responses:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.259Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "tecnico/recurring_tickets:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.276Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "tecnico/remote:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.276Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "usuario/tickets:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.276Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "usuario/assets:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.291Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/inventory:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.308Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/terms:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.323Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/problems:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.339Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/changes:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.361Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/projects:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.382Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/knowledge:read (esperado=true)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.400Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "usuario/documentation:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.416Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/printers:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.416Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "usuario/network:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.431Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/security:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.446Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/teams:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.464Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/reports:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.478Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/audit:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.494Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/settings:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.510Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/branches:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.527Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/locations:read (esperado=false)",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.542Z",
+      "detail": "exceção intencional documentada no código-fonte — ver qa/bugs/BUG-003.md",
+      "httpStatus": 200
+    },
+    {
+      "name": "usuario/users:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.549Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/profiles:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.560Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/ticket_types:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.560Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    },
+    {
+      "name": "usuario/categories:read (esperado=false)",
+      "status": "FAIL",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.574Z",
+      "httpStatus": 200,
+      "detail": "esperado bloqueio, obteve status 200"
+    },
+    {
+      "name": "usuario/statuses:read (esperado=false)",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.590Z",
+      "detail": "exceção intencional documentada no código-fonte — ver qa/bugs/BUG-003.md",
+      "httpStatus": 200
+    },
+    {
+      "name": "usuario/term_templates:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.605Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/webhooks:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.621Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/canned_responses:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.637Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/recurring_tickets:read (esperado=false)",
+      "status": "PASS",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.654Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "usuario/remote:read",
+      "status": "INCONCLUSIVE",
+      "phase": "permissions",
+      "timestamp": "2026-08-19T23:45:27.654Z",
+      "detail": "sem endpoint GET dedicado conhecido — ver limitações"
+    }
+  ]
+}

@@ -27,10 +27,21 @@ export async function POST(request) {
 
   const { makeId } = await import("@/lib/db");
   const now = new Date().toISOString();
-  const sort = db.prepare("SELECT COALESCE(MAX(sort_order), -1)+1 AS next FROM ticket_statuses WHERE organization_id=?").get(auth.user.organization_id).next;
+  // Novas situações entram antes de Cancelado/Resolvido — essas duas continuam por último
+  // (Resolvido no fim, Cancelado logo antes), então empurramos as duas (e o que vier depois) uma posição.
+  const terminalOrder = db.prepare(
+    "SELECT MIN(sort_order) minOrder FROM ticket_statuses WHERE organization_id=? AND code IN ('CANCELADO','RESOLVIDO')"
+  ).get(auth.user.organization_id).minOrder;
+  let sort;
+  if (terminalOrder != null) {
+    sort = terminalOrder;
+    db.prepare("UPDATE ticket_statuses SET sort_order = sort_order + 1 WHERE organization_id=? AND sort_order >= ?").run(auth.user.organization_id, sort);
+  } else {
+    sort = db.prepare("SELECT COALESCE(MAX(sort_order), -1)+1 AS next FROM ticket_statuses WHERE organization_id=?").get(auth.user.organization_id).next;
+  }
   db.prepare(`
-    INSERT INTO ticket_statuses (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, color, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    INSERT INTO ticket_statuses (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, requires_reason, color, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   `).run(
     makeId("sts"),
     auth.user.organization_id,
@@ -40,6 +51,7 @@ export async function POST(request) {
     body.isTerminal ? 1 : 0,
     body.pausesSla ? 1 : 0,
     body.allowsMessages === false ? 0 : 1,
+    body.requiresReason ? 1 : 0,
     body.color || "blue",
     now,
   );

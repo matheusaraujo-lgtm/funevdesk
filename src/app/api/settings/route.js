@@ -1,4 +1,4 @@
-import { requireCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { ensureEnrollmentKey, rotateEnrollmentKey } from "@/lib/agent";
 import { toServableLogoUrl } from "@/lib/branding";
 import { getDb } from "@/lib/db";
@@ -43,10 +43,9 @@ const typeSchema = z.object({ ticketTypeId: z.string().min(1), active: z.boolean
 const regenerateSchema = z.object({ regenerateAgentEnrollmentKey: z.literal(true) });
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "settings", "read");
   if (auth.error) return auth.error;
   const currentUser = auth.user;
-  if (currentUser.role !== "ADMIN") return Response.json({ error: "Acesso restrito a administradores." }, { status: 403 });
   const db = getDb();
   const organization = db.prepare("SELECT id, name FROM organizations WHERE id=?").get(currentUser.organization_id);
   const settings = db.prepare("SELECT * FROM system_settings WHERE organization_id=?").get(currentUser.organization_id);
@@ -88,10 +87,9 @@ export async function GET(request) {
 }
 
 export async function PATCH(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "settings", "update");
   if (auth.error) return auth.error;
   const currentUser = auth.user;
-  if (currentUser.role !== "ADMIN") return Response.json({ error: "Acesso restrito a administradores." }, { status: 403 });
   const body = await request.json();
   const db = getDb();
   const typeUpdate = typeSchema.safeParse(body);

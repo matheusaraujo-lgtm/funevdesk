@@ -3,14 +3,13 @@
 import { ArrowRightLeft, CheckCircle2, Computer, HandMetal, Headset, Radar, RotateCcw, XCircle } from "lucide-react";
 import { getFirstResponseStatus } from "@/lib/sla";
 import { StatusBadge } from "@/components/status-badge";
-import { TicketAnalystPanel } from "@/components/ticket-analyst-panel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
-const originLabels = { PORTAL: "Portal web", AGENT: "Agente da máquina", MONITOR: "Monitoramento automático" };
+const originLabels = { PORTAL: "Portal web", AGENT: "Agente da máquina", MONITOR: "Monitoramento automático", RECURRING: "Chamado recorrente" };
 
 function initials(name = "") {
   if (!name) return "--";
@@ -103,11 +102,6 @@ export function TicketDetailSidebar({ ticket, permissions, isMine, isTerminal, c
           <Button variant="outline" size="sm" className="mt-2 h-7 w-full text-xs" onClick={onReopen} disabled={busy === "reopen"}>
             <RotateCcw className="size-3" /> {busy === "reopen" ? "Reabrindo..." : "Reabrir chamado"}
           </Button>
-        )}
-        {permissions.canManageTickets && (
-          <div className="mt-1.5">
-            <TicketAnalystPanel ticketId={ticket.id} />
-          </div>
         )}
         {/* O criador do chamado pode desistir enquanto o atendimento não foi encerrado. */}
         {canCancel && (

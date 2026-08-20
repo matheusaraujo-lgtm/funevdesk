@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, Check, CheckCircle2, FileCheck2, KeyRound, MessageSquare, ShieldAlert, ShieldCheck, Ticket, UserCheck, XCircle } from "lucide-react";
+import { Bell, Check, CheckCircle2, FileCheck2, KeyRound, MessageSquare, RotateCcw, ShieldAlert, ShieldCheck, Ticket, UserCheck, XCircle } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -14,6 +14,7 @@ const EVENT_META = {
   TICKET_MESSAGE: { icon: MessageSquare, tone: "gray" },
   TICKET_RESOLVED: { icon: CheckCircle2, tone: "green" },
   TICKET_CANCELLED: { icon: XCircle, tone: "red" },
+  TICKET_REOPENED: { icon: RotateCcw, tone: "amber" },
   TERM_SIGNATURE: { icon: FileCheck2, tone: "amber" },
   TERM_SIGNED: { icon: FileCheck2, tone: "green" },
   REMOTE_DENIED: { icon: ShieldAlert, tone: "red" },

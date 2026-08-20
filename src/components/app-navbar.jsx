@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MonitorCog, Network, Package, Plus, Printer, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
+import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MessageSquareText, MonitorCog, Network, Package, Plus, Printer, Repeat, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,7 @@ const adminLinks = [
   { id: "teams", label: "Equipes", description: "Filas e responsáveis", icon: Users, module: "teams" },
   { id: "reports", label: "Relatórios", description: "KPIs e indicadores", icon: LayoutDashboard, module: "reports" },
   { id: "audit", label: "Auditoria", description: "Trilha de ações", icon: ClipboardList, module: "audit" },
+  { id: "recurring-tickets", label: "Chamados recorrentes", description: "Modelos criados por agendamento", icon: Repeat, module: "recurring_tickets" },
 ];
 
 // Configurações — setup do sistema, em subgrupos (organização, pessoas, catálogo, integrações)
@@ -71,6 +72,7 @@ const configGroups = [
     { id: "settings-categories", label: "Categorias", description: "Grupos de tipos de chamado", icon: Layers, module: "categories" },
     { id: "term-templates", label: "Modelos de termo", description: "Textos para assinatura", icon: FileCheck2, module: "term_templates" },
     { id: "settings-document-types", label: "Tipos de documento", description: "Para a Documentação", icon: FileText, requires: (permissions) => permissions.canConfigure },
+    { id: "settings-canned-responses", label: "Respostas prontas", description: "Biblioteca para respostas e resoluções", icon: MessageSquareText, module: "canned_responses" },
   ] },
   { label: "Automação e integrações", links: [
     { id: "automations", label: "Automações", description: "Regras de roteamento", icon: Workflow, requires: (permissions) => permissions.canConfigure && permissions.canViewAllBranches },

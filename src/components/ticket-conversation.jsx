@@ -6,6 +6,8 @@ import {
   Headset,
   Lock,
   MessageSquare,
+  MessageSquareText,
+  Search,
   Send,
   Shield,
   X,
@@ -14,11 +16,86 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextContent } from "@/components/rich-text-content";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { isRichTextEmpty } from "@/lib/rich-text";
+import { isRichTextEmpty, plainTextPreview, toEditorHtml } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
+
+// Biblioteca de respostas prontas da organização (mesma base usada em "Resolver chamado" —
+// Configurações > Respostas prontas): busca sob demanda (só na primeira abertura) e insere
+// no rascunho, anexando ao que já foi digitado em vez de substituir.
+function CannedResponsePicker({ onPick }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [macros, setMacros] = useState(null);
+  const [search, setSearch] = useState("");
+
+  async function openPicker() {
+    setOpen(true);
+    if (macros !== null) return;
+    setLoading(true);
+    const result = await fetch("/api/macros", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : { macros: [] }))
+      .catch(() => ({ macros: [] }));
+    setLoading(false);
+    setMacros(result.macros || []);
+  }
+
+  const filtered = useMemo(() => {
+    const list = macros || [];
+    const term = search.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((item) => item.title.toLowerCase().includes(term));
+  }, [macros, search]);
+
+  function pick(macro) {
+    onPick(toEditorHtml(macro.body));
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button type="button" variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" onClick={openPicker} title="Respostas prontas">
+        <MessageSquareText className="size-3.5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="flex max-h-[75vh] flex-col sm:max-w-md">
+          <DialogHeader><DialogTitle>Respostas prontas</DialogTitle></DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar resposta..." className="h-9 pl-9" autoFocus />
+          </div>
+          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            {loading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
+            ) : filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {macros?.length ? "Nenhuma resposta encontrada." : "Nenhuma resposta pronta cadastrada ainda."}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {filtered.map((macro) => (
+                  <button
+                    key={macro.id}
+                    type="button"
+                    onClick={() => pick(macro)}
+                    className="block w-full rounded-md px-2.5 py-2 text-left transition hover:bg-muted"
+                  >
+                    <p className="text-sm font-medium">{macro.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{plainTextPreview(macro.body, 140)}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function initials(name = "?") {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
@@ -194,6 +271,10 @@ export function TicketConversation({
     }
   }
 
+  function insertCannedResponse(body) {
+    setDraft((current) => (isRichTextEmpty(current) ? body : `${current}${body}`));
+  }
+
   return (
     <Card className="ticket-column rounded-2xl py-0 shadow-none">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/70 px-4 py-2.5">
@@ -308,6 +389,7 @@ export function TicketConversation({
                   {isResolved || (composerMode === "INTERNAL" && canManage) ? "Somente equipe" : "Visível ao solicitante e à equipe"}
                 </p>
                 <div className="flex items-center gap-1.5">
+                  {canManage && <CannedResponsePicker onPick={insertCannedResponse} />}
                   <Button type="button" variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" onClick={() => setDraft("")} title="Limpar">
                     <X className="size-3.5" />
                   </Button>

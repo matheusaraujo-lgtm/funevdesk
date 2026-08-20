@@ -1,0 +1,50 @@
+{
+  "phase": "security",
+  "total": 6,
+  "pass": 5,
+  "fail": 1,
+  "inconclusive": 0,
+  "results": [
+    {
+      "name": "cookie de sessão é HttpOnly",
+      "status": "PASS",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.809Z",
+      "detail": "nexus_session=<redacted>; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 20 Aug 2026 07:48:12 GMT"
+    },
+    {
+      "name": "cookie de sessão tem SameSite",
+      "status": "PASS",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.810Z"
+    },
+    {
+      "name": "cookie de sessão é Secure (esperado apenas se HTTPS; ambiente atual: http)",
+      "status": "PASS",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.810Z"
+    },
+    {
+      "name": "EMPLOYEE não acessa chamado #1003 de outro solicitante (IDOR)",
+      "status": "PASS",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.855Z",
+      "httpStatus": 403
+    },
+    {
+      "name": "EMPLOYEE não acessa detalhe de usuário (módulo users) mesmo com ID inventado",
+      "status": "FAIL",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.880Z",
+      "httpStatus": 405
+    },
+    {
+      "name": "payload JSON malformado não vaza stack trace",
+      "status": "PASS",
+      "phase": "security",
+      "timestamp": "2026-08-19T23:48:12.920Z",
+      "httpStatus": 500,
+      "detail": ""
+    }
+  ]
+}

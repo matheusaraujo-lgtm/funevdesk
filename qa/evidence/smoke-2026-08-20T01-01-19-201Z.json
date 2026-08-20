@@ -1,0 +1,33 @@
+{
+  "results": [
+    {
+      "suite": "e2e-smoke",
+      "status": "PASS",
+      "pass": 27,
+      "fail": 0
+    },
+    {
+      "suite": "e2e-phase3",
+      "status": "FAIL",
+      "pass": 0,
+      "fail": 0,
+      "error": "Command failed: node scripts/e2e-phase3.mjs\nTypeError: Cannot read properties of undefined (reading 'branchId')\n    at main (file:///C:/Users/Usuario/Desktop/funevdesk/scripts/e2e-phase3.mjs:16:37)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\nAssertion failed: !"
+    },
+    {
+      "suite": "e2e-roadmap",
+      "status": "FAIL",
+      "pass": 0,
+      "fail": 0,
+      "error": "Command failed: node scripts/e2e-roadmap.mjs\nTypeError: Cannot read properties of undefined (reading 'organizationSlug')\n    at main (file:///C:/Users/Usuario/Desktop/funevdesk/scripts/e2e-roadmap.mjs:19:36)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\nAssertion"
+    },
+    {
+      "suite": "test-profiles",
+      "status": "FAIL",
+      "pass": 0,
+      "fail": 13,
+      "error": "Command failed: node scripts/test-profiles.mjs\nfile:///C:/Users/Usuario/Desktop/funevdesk/scripts/test-profiles.mjs:83\r\nconst afterPut = (await putRes.json()).profiles.find((p) => p.id === qaProfileId);\r\n                                                ^\r\n\r\nTypeError: Cannot read properties of undefi"
+    }
+  ],
+  "totalPass": 27,
+  "totalFail": 13
+}

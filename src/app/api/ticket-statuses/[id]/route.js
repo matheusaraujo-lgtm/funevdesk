@@ -11,6 +11,7 @@ const patchSchema = z.object({
   isTerminal: z.boolean().optional(),
   pausesSla: z.boolean().optional(),
   allowsMessages: z.boolean().optional(),
+  requiresReason: z.boolean().optional(),
   color: z.string().max(20).optional(),
   active: z.boolean().optional(),
 });
@@ -35,6 +36,7 @@ export async function PATCH(request, { params }) {
       is_terminal = COALESCE(?, is_terminal),
       pauses_sla = COALESCE(?, pauses_sla),
       allows_messages = COALESCE(?, allows_messages),
+      requires_reason = COALESCE(?, requires_reason),
       color = COALESCE(?, color),
       active = COALESCE(?, active)
     WHERE id=?
@@ -44,6 +46,7 @@ export async function PATCH(request, { params }) {
     parsed.data.isTerminal !== undefined ? (parsed.data.isTerminal ? 1 : 0) : null,
     parsed.data.pausesSla !== undefined ? (parsed.data.pausesSla ? 1 : 0) : null,
     parsed.data.allowsMessages !== undefined ? (parsed.data.allowsMessages ? 1 : 0) : null,
+    parsed.data.requiresReason !== undefined ? (parsed.data.requiresReason ? 1 : 0) : null,
     parsed.data.color ?? null,
     parsed.data.active !== undefined ? (parsed.data.active ? 1 : 0) : null,
     id,

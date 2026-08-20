@@ -1,0 +1,35 @@
+{
+  "phase": "browser",
+  "total": 4,
+  "pass": 0,
+  "fail": 4,
+  "inconclusive": 0,
+  "results": [
+    {
+      "name": "login via UI retorna 200",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:54:02.391Z",
+      "httpStatus": 429
+    },
+    {
+      "name": "formulário de novo chamado tem campo de título após escolher o tipo",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:54:22.414Z"
+    },
+    {
+      "name": "nenhum erro de console durante login + navegação",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:54:22.414Z",
+      "detail": "Failed to load resource: the server responded with a status of 401 (Unauthorized) | Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "name": "sessão persiste após reload (F5)",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:54:22.513Z"
+    }
+  ]
+}

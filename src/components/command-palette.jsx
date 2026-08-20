@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, Bug, Building2, ClipboardList, FileCheck2, FileText, GitBranchPlus, KeyRound,
-  Layers, LayoutDashboard, MapPin, MonitorCog, Network, Package, Plus, Printer, Search,
+  Layers, LayoutDashboard, MapPin, MessageSquareText, MonitorCog, Network, Package, Plus, Printer, Repeat, Search,
   Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, Users, Webhook, Workflow,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -26,6 +26,7 @@ const COMMANDS = [
   { id: "teams", label: "Equipes", group: "Ir para", icon: Users, module: "teams" },
   { id: "reports", label: "Relatórios", group: "Ir para", icon: LayoutDashboard, requires: (p) => p.canViewReports },
   { id: "audit", label: "Auditoria", group: "Ir para", icon: ClipboardList, requires: (p) => p.canViewAudit },
+  { id: "recurring-tickets", label: "Chamados recorrentes", group: "Ir para", icon: Repeat, module: "recurring_tickets" },
   { id: "settings", label: "Configurações gerais", group: "Configurações", icon: Settings2, module: "settings" },
   { id: "settings-branches", label: "Unidades", group: "Configurações", icon: Building2, module: "branches" },
   { id: "settings-locations", label: "Localizações", group: "Configurações", icon: MapPin, module: "locations" },
@@ -35,6 +36,7 @@ const COMMANDS = [
   { id: "settings-categories", label: "Categorias", group: "Configurações", icon: Layers, module: "categories" },
   { id: "settings-statuses", label: "Situações", group: "Configurações", icon: Tags, module: "statuses" },
   { id: "term-templates", label: "Modelos de termo", group: "Configurações", icon: FileCheck2, module: "term_templates" },
+  { id: "settings-canned-responses", label: "Respostas prontas", group: "Configurações", icon: MessageSquareText, module: "canned_responses" },
   { id: "automations", label: "Automações", group: "Configurações", icon: Workflow, requires: (p) => p.canConfigure },
   { id: "webhooks", label: "Webhooks", group: "Configurações", icon: Webhook, module: "webhooks" },
 ];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, CircleSlash, Flag, ListChecks, MessageSquare, PauseCircle, Plus, Save, Tags, Trash2 } from "lucide-react";
+import { Check, CircleSlash, Flag, HelpCircle, ListChecks, MessageSquare, PauseCircle, Plus, Save, Tags, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ListEmptyState } from "@/components/list-empty-state";
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const EDITABLE = ["label", "is_terminal", "pauses_sla", "allows_messages", "color"];
+const EDITABLE = ["label", "is_terminal", "pauses_sla", "allows_messages", "requires_reason", "color"];
 
 function snapshot(list) {
   return Object.fromEntries(list.map((s) => [s.id, EDITABLE.reduce((acc, key) => ({ ...acc, [key]: s[key] }), {})]));
@@ -69,6 +69,7 @@ export function SettingsStatusesView() {
     total: statuses.length,
     terminal: statuses.filter((s) => s.is_terminal).length,
     paused: statuses.filter((s) => s.pauses_sla).length,
+    requiresReason: statuses.filter((s) => s.requires_reason).length,
   }), [statuses]);
 
   function isDirty(status) {
@@ -118,6 +119,7 @@ export function SettingsStatusesView() {
         isTerminal: status.is_terminal,
         pausesSla: status.pauses_sla,
         allowsMessages: status.allows_messages,
+        requiresReason: status.requires_reason,
         color: status.color,
       }),
     });
@@ -137,10 +139,11 @@ export function SettingsStatusesView() {
         actions={<Button onClick={() => setCreateOpen(true)}><Plus /> Nova situação</Button>}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={ListChecks} label="Situações configuradas" value={stats.total} tone="blue" />
         <MetricCard icon={CircleSlash} label="Encerram o chamado" value={stats.terminal} tone="gray" />
         <MetricCard icon={PauseCircle} label="Pausam o SLA" value={stats.paused} tone="amber" />
+        <MetricCard icon={HelpCircle} label="Exigem motivo" value={stats.requiresReason} tone="amber" />
       </div>
 
       {/* Legenda dos comportamentos */}
@@ -148,6 +151,7 @@ export function SettingsStatusesView() {
         <span className="inline-flex items-center gap-1.5"><Flag className="size-3.5 text-primary" /> <strong className="font-medium text-foreground">Finaliza:</strong> encerra o chamado (status terminal).</span>
         <span className="inline-flex items-center gap-1.5"><PauseCircle className="size-3.5 text-amber-600" /> <strong className="font-medium text-foreground">Pausa SLA:</strong> congela o prazo (ex.: aguardando terceiros).</span>
         <span className="inline-flex items-center gap-1.5"><MessageSquare className="size-3.5 text-primary" /> <strong className="font-medium text-foreground">Mensagens:</strong> permite respostas neste status.</span>
+        <span className="inline-flex items-center gap-1.5"><HelpCircle className="size-3.5 text-amber-600" /> <strong className="font-medium text-foreground">Exige motivo:</strong> o técnico precisa justificar ao mudar para esta situação.</span>
       </div>
 
       <Card className="gap-0 overflow-hidden rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
@@ -163,6 +167,7 @@ export function SettingsStatusesView() {
                 <TableHead className="w-[90px] text-center">Finaliza</TableHead>
                 <TableHead className="w-[90px] text-center">Pausa SLA</TableHead>
                 <TableHead className="w-[90px] text-center">Mensagens</TableHead>
+                <TableHead className="w-[90px] text-center">Exige motivo</TableHead>
                 <TableHead className="w-[110px]" />
               </TableRow>
             </TableHeader>
@@ -200,6 +205,9 @@ export function SettingsStatusesView() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Checkbox aria-label={`Permite mensagens (${status.code})`} checked={status.allows_messages} onCheckedChange={(v) => patchRow(status.id, { allows_messages: Boolean(v) })} />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox aria-label={`Exige motivo (${status.code})`} checked={status.requires_reason} onCheckedChange={(v) => patchRow(status.id, { requires_reason: Boolean(v) })} />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1.5">

@@ -1,4 +1,4 @@
-import { requireCurrentUser, getPermissions } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { assertBranchAccess, getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 import { getDb } from "@/lib/db";
 import { z } from "zod";
@@ -16,9 +16,8 @@ const schema = z.object({
 
 export async function GET(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "problems", "read");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   const problem = db.prepare("SELECT * FROM problems WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!problem) return Response.json({ error: "Problema não encontrado." }, { status: 404 });
@@ -43,9 +42,8 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "problems", "update");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const db = getDb();
@@ -69,9 +67,8 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "problems", "delete");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   const problem = db.prepare("SELECT * FROM problems WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!problem) return Response.json({ error: "Problema não encontrado." }, { status: 404 });

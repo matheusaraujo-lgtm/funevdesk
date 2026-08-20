@@ -17,6 +17,24 @@ const FALLBACK_COLUMNS = [
   { code: "RESOLVIDO", label: "Resolvido", is_terminal: true },
 ];
 
+// Resolvido sempre por último e Cancelado o penúltimo — os demais status (inclusive os
+// criados depois em Configurações) ficam entre os status ativos e esses dois, na ordem
+// configurada (sort_order).
+const END_COLUMN_WEIGHT = { CANCELADO: 1, RESOLVIDO: 2 };
+function orderColumns(list) {
+  return [...list].sort((a, b) => {
+    const weightA = END_COLUMN_WEIGHT[a.code] || 0;
+    const weightB = END_COLUMN_WEIGHT[b.code] || 0;
+    if (weightA !== weightB) return weightA - weightB;
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+  });
+}
+
+// Colunas terminais (Resolvido, Cancelado etc.) podem acumular milhares de chamados ao
+// longo do tempo — carregar tudo no quadro trava a rolagem e não ajuda o técnico, que só
+// precisa ver os mais recentes. Os cartões mais antigos continuam acessíveis pela lista.
+const TERMINAL_COLUMN_CAP = 10;
+
 function initials(name = "Usuário") {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
 }
@@ -71,7 +89,7 @@ export function TicketsKanbanBoard({ tickets, statuses, currentUser, permissions
   const [draggingId, setDraggingId] = useState(null);
   const [overCode, setOverCode] = useState(null);
   const canDrag = permissions.canManageTickets;
-  const columns = statuses.length ? statuses : FALLBACK_COLUMNS;
+  const columns = orderColumns(statuses.length ? statuses : FALLBACK_COLUMNS);
 
   function handleDragStart(event, ticket) {
     if (!canDrag) return;
@@ -97,7 +115,9 @@ export function TicketsKanbanBoard({ tickets, statuses, currentUser, permissions
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {columns.map((column) => {
-        const items = tickets.filter((ticket) => ticket.status === column.code);
+        const columnTickets = tickets.filter((ticket) => ticket.status === column.code);
+        const isCapped = column.is_terminal && columnTickets.length > TERMINAL_COLUMN_CAP;
+        const items = isCapped ? columnTickets.slice(0, TERMINAL_COLUMN_CAP) : columnTickets;
         const dotColor = statusColorHex(column.color) || "#94a3b8";
         return (
           <div
@@ -110,9 +130,14 @@ export function TicketsKanbanBoard({ tickets, statuses, currentUser, permissions
             <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2.5">
               <i className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} aria-hidden="true" />
               <p className="truncate text-xs font-semibold">{column.label}</p>
-              <Badge variant="secondary" className="ml-auto shrink-0 px-1.5 text-[10px] tabular-nums">{items.length}</Badge>
+              <Badge variant="secondary" className="ml-auto shrink-0 px-1.5 text-[10px] tabular-nums">{columnTickets.length}</Badge>
             </div>
             <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
+              {isCapped && (
+                <p className="px-1 text-center text-[10px] text-muted-foreground">
+                  Mostrando os {TERMINAL_COLUMN_CAP} mais recentes de {columnTickets.length}
+                </p>
+              )}
               {items.length === 0 ? (
                 <p className="px-2 py-6 text-center text-[11px] text-muted-foreground">Nenhum chamado</p>
               ) : items.map((ticket) => (

@@ -1,12 +1,12 @@
-import { requireCurrentUser, getPermissions } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  title: z.string().min(2).max(120),
-  body: z.string().min(2).max(4000),
+  title: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(2).max(4000),
 });
 
 export function listMacros(db, organizationId) {
@@ -16,17 +16,15 @@ export function listMacros(db, organizationId) {
 }
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "canned_responses", "read");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   return Response.json({ macros: listMacros(db, auth.user.organization_id) });
 }
 
 export async function POST(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "canned_responses", "create");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const db = getDb();

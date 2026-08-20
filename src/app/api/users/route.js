@@ -159,7 +159,10 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   const permissions = getPermissions(currentUser);
-  if (!permissions.canConfigure && !permissions.canManageTickets) {
+  // canManageTickets libera a lista pra montar seletor de responsável (comportamento já
+  // existente, mantido) — mas users:read concedido explicitamente também precisa valer,
+  // senão o checkbox da tela de Perfis não tem efeito nenhum (achado real, ver qa/bugs/BUG-003.md).
+  if (!permissions.canConfigure && !permissions.canManageTickets && !can(currentUser, "users", "read")) {
     return Response.json({ error: "Acesso restrito." }, { status: 403 });
   }
   const db = getDb();

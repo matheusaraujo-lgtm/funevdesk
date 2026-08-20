@@ -1,0 +1,35 @@
+{
+  "phase": "browser",
+  "total": 4,
+  "pass": 1,
+  "fail": 3,
+  "inconclusive": 0,
+  "results": [
+    {
+      "name": "login via UI retorna 200",
+      "status": "PASS",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:55:00.387Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "formulário de novo chamado tem campo de título após escolher o tipo",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:55:00.867Z"
+    },
+    {
+      "name": "nenhum erro de console durante login + navegação",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:55:00.867Z",
+      "detail": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "name": "sessão persiste após reload (F5)",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:55:00.929Z"
+    }
+  ]
+}

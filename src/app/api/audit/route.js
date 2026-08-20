@@ -1,4 +1,4 @@
-import { requireCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { branchFilterClause, getAllowedBranchIds } from "@/lib/branch-scope";
 import { z } from "zod";
@@ -28,9 +28,8 @@ function dayBoundary(value, edge) {
 }
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "audit", "read");
   if (auth.error) return auth.error;
-  if (auth.user.role !== "ADMIN") return Response.json({ error: "Acesso restrito." }, { status: 403 });
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams));

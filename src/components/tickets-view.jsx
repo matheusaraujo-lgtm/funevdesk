@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { timeAgo } from "@/lib/utils";
 import { ListEmptyState } from "@/components/list-empty-state";
 import { ListPagination, useListPagination } from "@/components/list-pagination";
+import { PendingTicketDialog } from "@/components/pending-ticket-dialog";
 import { ResolveTicketDialog } from "@/components/resolve-ticket-dialog";
 import { TicketsKanbanBoard } from "@/components/tickets-kanban-board";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -77,6 +78,8 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   const [showFilters, setShowFilters] = useState(false);
   const [resolveTarget, setResolveTarget] = useState(null);
   const [resolving, setResolving] = useState(false);
+  const [pendingMove, setPendingMove] = useState(null);
+  const [pendingBusy, setPendingBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -143,7 +146,9 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
   const technicians = useMemo(() => users.filter((u) => u.active && (u.role === "ADMIN" || u.role === "TECHNICIAN")), [users]);
-  const bulkStatuses = useMemo(() => ticketStatuses.filter((item) => !item.is_terminal && item.code !== terminalStatusCode), [ticketStatuses, terminalStatusCode]);
+  // Situações que exigem motivo ficam fora do seletor em massa — cada chamado precisaria
+  // de um motivo próprio, o que o fluxo de seleção múltipla não comporta.
+  const bulkStatuses = useMemo(() => ticketStatuses.filter((item) => !item.is_terminal && item.code !== terminalStatusCode && !item.requires_reason), [ticketStatuses, terminalStatusCode]);
 
   function toggleOne(id) {
     setSelectedIds((prev) => {
@@ -271,14 +276,28 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   // Arrastar um cartão no Kanban para outra coluna = mudar a situação do chamado. Situação
   // terminal exige descrição da resolução (mesma regra da lista): abre o diálogo de Resolver
   // em vez de aplicar a mudança direto, igual ao que já acontece na pílula de situação.
+  // Situação marcada como "exige motivo" (Configurações > Situações) abre o diálogo de
+  // pendência pela mesma razão. onStatusChange (page.js) já exibe o toast — não duplicar aqui.
   async function handleKanbanMove(ticket, targetColumn) {
     const isTerminalTarget = targetColumn.is_terminal || targetColumn.code === terminalStatusCode;
     if (isTerminalTarget) {
       setResolveTarget(ticket);
       return;
     }
-    const ok = await onStatusChange?.(targetColumn.code, ticket.id);
-    if (ok) toast.success(`Chamado #${ticket.number} movido para "${targetColumn.label}".`);
+    const currentMeta = ticketStatuses.find((item) => item.code === ticket.status);
+    if (targetColumn.requires_reason && !currentMeta?.requires_reason) {
+      setPendingMove({ ticket, target: targetColumn });
+      return;
+    }
+    await onStatusChange?.(targetColumn.code, ticket.id);
+  }
+
+  async function handlePendingMoveConfirm({ reason, reopenAt }) {
+    if (!pendingMove) return;
+    setPendingBusy(true);
+    const ok = await onStatusChange?.(pendingMove.target.code, pendingMove.ticket.id, { pendingReason: reason, pendingReopenAt: reopenAt });
+    setPendingBusy(false);
+    if (ok) setPendingMove(null);
   }
 
   // Visões salvas (padrão Linear/Zendesk): snapshot dos filtros, por usuário.
@@ -462,7 +481,7 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
         )}
       </div>
       {viewMode === "kanban" ? (
-        <div className="p-3">
+        <div className="min-w-0 p-3">
           <TicketsKanbanBoard
             tickets={baseFiltered}
             statuses={ticketStatuses}
@@ -574,6 +593,15 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
       onOpenChange={(open) => !open && setResolveTarget(null)}
       onConfirm={handleResolve}
       loading={resolving}
+    />
+
+    <PendingTicketDialog
+      open={Boolean(pendingMove)}
+      onOpenChange={(open) => !open && setPendingMove(null)}
+      onConfirm={handlePendingMoveConfirm}
+      loading={pendingBusy}
+      targetLabel={pendingMove?.target?.label}
+      ticketNumber={pendingMove?.ticket?.number}
     />
 
     <Dialog open={saveViewOpen} onOpenChange={setSaveViewOpen}>

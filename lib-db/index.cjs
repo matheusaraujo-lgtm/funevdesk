@@ -450,6 +450,7 @@ function ensurePerformanceIndexes(db) {
     "CREATE INDEX IF NOT EXISTS idx_network_devices_branch ON network_devices(branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_branches_org ON branches(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tickets_pending_reopen ON tickets(pending_reopen_at)",
   ];
   for (const sql of indexes) {
     try { db.exec(sql); } catch { /* coluna/tabela ainda ausente numa base antiga: ignora */ }
@@ -811,6 +812,14 @@ function ensureItilTables(db) {
   addTicketCol("origin_branch_id", "origin_branch_id TEXT");
   addTicketCol("checklist_json", "checklist_json TEXT");
   addTicketCol("first_response_due_at", "first_response_due_at TEXT");
+  // Pendência (situações que pausam o SLA, ex. "Pendente"): motivo obrigatório ao entrar —
+  // nível de gestão vê por que o chamado ficou parado e por quanto tempo (padrão GLPI).
+  addTicketCol("pending_reason", "pending_reason TEXT");
+  addTicketCol("pending_since", "pending_since TEXT");
+  // Reabertura automática (estilo GLPI "follow-up"): data opcional em que o chamado volta
+  // sozinho à situação anterior, mesmo sem ninguém mexer nele.
+  addTicketCol("pending_reopen_at", "pending_reopen_at TEXT");
+  addTicketCol("status_before_pending", "status_before_pending TEXT");
   db.prepare("UPDATE tickets SET origin_branch_id=branch_id WHERE origin_branch_id IS NULL").run();
 
   const messageColumns = db.prepare("PRAGMA table_info(ticket_messages)").all();
@@ -859,11 +868,45 @@ function ensureItilTables(db) {
   seedItilData(db);
   ensureTicketWorkflowTables(db);
   ensureExtendedCatalogTables(db);
+  ensureProductivityTables(db);
   ensureMultiTenantTables(db);
   ensureAgentEnhancementTables(db);
   ensureObservabilityTables(db);
   ensureProfilePermissionTables(db);
   migrateSecretsAtRest(db);
+}
+
+// Chamados recorrentes: modelo criado uma vez, o agendador abre o chamado sozinho no
+// intervalo configurado — ver src/lib/recurring-tickets.js. (Respostas prontas reaproveitam
+// a tabela resolution_macros já existente, só faltava a tela de gestão — ver /api/macros.)
+function ensureProductivityTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recurring_tickets (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      branch_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      ticket_type_id TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'MEDIA',
+      assignee_id TEXT,
+      team_id TEXT,
+      recurrence_unit TEXT NOT NULL DEFAULT 'MONTHS',
+      recurrence_interval INTEGER NOT NULL DEFAULT 1,
+      next_run_at TEXT NOT NULL,
+      last_run_at TEXT,
+      last_ticket_id TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id),
+      FOREIGN KEY (branch_id) REFERENCES branches(id),
+      FOREIGN KEY (ticket_type_id) REFERENCES ticket_types(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_recurring_tickets_org ON recurring_tickets(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_recurring_tickets_next_run ON recurring_tickets(active, next_run_at);
+  `);
 }
 
 // Perfis e permissões granulares (estilo GLPI 11): cada perfil tem uma matriz
@@ -930,12 +973,14 @@ function ensureProfilePermissionTables(db) {
     { key: "term_templates", actions: C },
     { key: "webhooks", actions: C },
     { key: "remote", actions: ["read"] },
+    { key: "canned_responses", actions: C },
+    { key: "recurring_tickets", actions: C },
   ];
   const LETTER = { r: "read", c: "create", u: "update", d: "delete" };
   const SEED = [
     { slug: "administrador", name: "Administrador", baseRole: "ADMIN", description: "Acesso total ao sistema e às configurações.", grants: "ALL" },
-    { slug: "supervisor", name: "Supervisor", baseRole: "ADMIN", description: "Gestão e visão ampla, sem configurar o sistema nem apagar registros.", grants: { tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r" } },
-    { slug: "tecnico", name: "Técnico", baseRole: "TECHNICIAN", description: "Operação de chamados, ativos e base de conhecimento.", grants: { tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "r", remote: "r" } },
+    { slug: "supervisor", name: "Supervisor", baseRole: "ADMIN", description: "Gestão e visão ampla, sem configurar o sistema nem apagar registros.", grants: { tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r", canned_responses: "rcu", recurring_tickets: "rcu" } },
+    { slug: "tecnico", name: "Técnico", baseRole: "TECHNICIAN", description: "Operação de chamados, ativos e base de conhecimento.", grants: { tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r", knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", projects: "rcu", services: "r", teams: "r", remote: "r", canned_responses: "r" } },
     { slug: "usuario", name: "Usuário", baseRole: "EMPLOYEE", description: "Portal do usuário final: abre chamados e consulta a base de conhecimento.", grants: { tickets: "rc", knowledge: "r" } },
   ];
   const seedBySlug = Object.fromEntries(SEED.map((s) => [s.slug, s]));
@@ -1101,6 +1146,7 @@ function ensureAgentEnhancementTables(db) {
       is_terminal INTEGER NOT NULL DEFAULT 0,
       pauses_sla INTEGER NOT NULL DEFAULT 0,
       allows_messages INTEGER NOT NULL DEFAULT 1,
+      requires_reason INTEGER NOT NULL DEFAULT 0,
       color TEXT NOT NULL DEFAULT 'blue',
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
@@ -1150,6 +1196,14 @@ function ensureAgentEnhancementTables(db) {
   if (!ticketColumns.some((c) => c.name === "location_id")) execAddColumn(db, "ALTER TABLE tickets ADD COLUMN location_id TEXT");
   if (!ticketColumns.some((c) => c.name === "sla_paused_at")) execAddColumn(db, "ALTER TABLE tickets ADD COLUMN sla_paused_at TEXT");
 
+  // Motivo obrigatório ao entrar na situação: configurável por status (Configurações >
+  // Situações), não fixo em "Pendente" — mas orgs já semeadas ganham o padrão em Pendente.
+  const statusColumns = db.prepare("PRAGMA table_info(ticket_statuses)").all();
+  if (statusColumns.length && !statusColumns.some((c) => c.name === "requires_reason")) {
+    execAddColumn(db, "ALTER TABLE ticket_statuses ADD COLUMN requires_reason INTEGER NOT NULL DEFAULT 0");
+    db.prepare("UPDATE ticket_statuses SET requires_reason=1 WHERE code='PENDENTE'").run();
+  }
+
   const settingsColumns = db.prepare("PRAGMA table_info(system_settings)").all();
   if (!settingsColumns.some((c) => c.name === "remote_provider")) {
     execAddColumn(db, "ALTER TABLE system_settings ADD COLUMN remote_provider TEXT NOT NULL DEFAULT 'NEXUS_WEBRTC'");
@@ -1164,17 +1218,17 @@ function ensureAgentEnhancementTables(db) {
     if (!count) {
       const now = new Date().toISOString();
       const defaults = [
-        ["ABERTO", "Aberto", 0, 0, 0, 1, "blue"],
-        ["EM_ATENDIMENTO", "Em atendimento", 1, 0, 0, 1, "violet"],
-        ["PENDENTE", "Pendente", 2, 0, 1, 1, "amber"],
-        ["RESOLVIDO", "Resolvido", 3, 1, 0, 0, "green"],
+        ["ABERTO", "Aberto", 0, 0, 0, 1, 0, "blue"],
+        ["EM_ATENDIMENTO", "Em atendimento", 1, 0, 0, 1, 0, "violet"],
+        ["PENDENTE", "Pendente", 2, 0, 1, 1, 1, "amber"],
+        ["RESOLVIDO", "Resolvido", 3, 1, 0, 0, 0, "green"],
       ];
       const insert = db.prepare(`
-        INSERT INTO ticket_statuses (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, color, active, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+        INSERT INTO ticket_statuses (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, requires_reason, color, active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
       `);
-      for (const [code, label, sort, terminal, pause, messages, color] of defaults) {
-        insert.run(`sts_${code.toLowerCase()}_${org.id.slice(0, 8)}`, org.id, code, label, sort, terminal, pause, messages, color, now);
+      for (const [code, label, sort, terminal, pause, messages, reason, color] of defaults) {
+        insert.run(`sts_${code.toLowerCase()}_${org.id.slice(0, 8)}`, org.id, code, label, sort, terminal, pause, messages, reason, color, now);
       }
     }
   }

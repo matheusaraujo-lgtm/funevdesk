@@ -1,0 +1,36 @@
+{
+  "phase": "browser",
+  "total": 4,
+  "pass": 2,
+  "fail": 1,
+  "inconclusive": 1,
+  "results": [
+    {
+      "name": "login via UI retorna 200",
+      "status": "PASS",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:56:04.384Z",
+      "httpStatus": 200
+    },
+    {
+      "name": "abrir tipo de chamado e chegar ao formulário",
+      "status": "INCONCLUSIVE",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:56:12.758Z",
+      "detail": "seletor não encontrou o esperado: locator.waitFor: Timeout 8000ms exceeded."
+    },
+    {
+      "name": "nenhum erro de console durante login + navegação",
+      "status": "FAIL",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:56:12.758Z",
+      "detail": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "name": "sessão persiste após reload (F5)",
+      "status": "PASS",
+      "phase": "browser",
+      "timestamp": "2026-08-19T23:56:13.009Z"
+    }
+  ]
+}

@@ -50,6 +50,8 @@ export const MODULES = [
   { key: "statuses", label: "Situações", actions: CRUD },
   { key: "term_templates", label: "Modelos de termo", actions: CRUD },
   { key: "webhooks", label: "Webhooks", actions: CRUD },
+  { key: "canned_responses", label: "Respostas prontas", actions: CRUD },
+  { key: "recurring_tickets", label: "Chamados recorrentes", actions: CRUD },
   // Outros
   { key: "remote", label: "Acesso remoto", actions: ["read"] },
 ];
@@ -63,8 +65,8 @@ export const MODULE_GROUPS = [
   { label: "ITSM", modules: ["problems", "changes", "projects"] },
   { label: "Conhecimento", modules: ["knowledge", "documentation"] },
   { label: "Monitoramento", modules: ["network", "security"] },
-  { label: "Administração", modules: ["inventory", "terms", "teams", "reports", "audit"] },
-  { label: "Configurações", modules: ["settings", "branches", "locations", "users", "profiles", "ticket_types", "categories", "statuses", "term_templates", "webhooks"] },
+  { label: "Administração", modules: ["inventory", "terms", "teams", "reports", "audit", "recurring_tickets"] },
+  { label: "Configurações", modules: ["settings", "branches", "locations", "users", "profiles", "ticket_types", "categories", "statuses", "term_templates", "webhooks", "canned_responses"] },
   { label: "Acesso remoto", modules: ["remote"] },
 ];
 
@@ -88,6 +90,7 @@ export const SEED_PROFILES = [
       tickets: "rcu", assets: "ru", inventory: "r", network: "r", printers: "r", security: "r",
       knowledge: "rcu", documentation: "rcu", terms: "r", problems: "rcu", changes: "rcu", projects: "rcu",
       teams: "ru", reports: "r", audit: "r", users: "r", profiles: "r", remote: "r",
+      canned_responses: "rcu", recurring_tickets: "rcu",
     },
   },
   {
@@ -98,7 +101,7 @@ export const SEED_PROFILES = [
     grants: {
       tickets: "rcud", assets: "rcu", inventory: "ru", network: "rcu", printers: "r", security: "r",
       knowledge: "rcu", documentation: "rcu", terms: "rc", problems: "rcu", changes: "rcu", projects: "rcu",
-      teams: "r", remote: "r",
+      teams: "r", remote: "r", canned_responses: "r",
     },
   },
   {

@@ -13,6 +13,14 @@ export function formatPercent(value, decimals = 1) {
   return `${Math.round(n * factor) / factor}%`;
 }
 
+/** Converte ISO -> valor de <input type="datetime-local"> (sem segundos/timezone). */
+export function toDatetimeLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** Tempo relativo curto em pt-BR ("Agora mesmo", "Há 5 min", "Há 3h", "Há 2d"). `fallback` para data ausente. */
 export function timeAgo(date, fallback = "Nunca") {
   if (!date) return fallback;

@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "suite": "e2e-smoke",
+      "status": "PASS",
+      "pass": 27,
+      "fail": 0
+    },
+    {
+      "suite": "e2e-phase3",
+      "status": "PASS",
+      "pass": 15,
+      "fail": 0
+    },
+    {
+      "suite": "e2e-roadmap",
+      "status": "FAIL",
+      "pass": 6,
+      "fail": 3,
+      "error": "Command failed: node scripts/e2e-roadmap.mjs\n"
+    },
+    {
+      "suite": "test-profiles",
+      "status": "PASS",
+      "pass": 25,
+      "fail": 0
+    }
+  ],
+  "totalPass": 73,
+  "totalFail": 3
+}

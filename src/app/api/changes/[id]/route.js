@@ -1,4 +1,4 @@
-import { requireCurrentUser, getPermissions } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { assertBranchAccess, getAllowedBranchIds, branchFilterClause } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 import { z } from "zod";
@@ -7,9 +7,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "changes", "read");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   const change = db.prepare("SELECT * FROM changes WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!change) return Response.json({ error: "Mudança não encontrada." }, { status: 404 });
@@ -45,9 +44,8 @@ const schema = z.object({
 
 export async function PATCH(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "changes", "update");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const db = getDb();
@@ -96,9 +94,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { id } = await params;
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "changes", "delete");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   const change = db.prepare("SELECT * FROM changes WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!change) return Response.json({ error: "Mudança não encontrada." }, { status: 404 });

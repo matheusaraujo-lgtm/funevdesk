@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { TicketStatusPills } from "@/components/ticket-status-pills";
 
-const originLabels = { PORTAL: "Portal web", AGENT: "Agente da máquina", MONITOR: "Monitoramento automático" };
+const originLabels = { PORTAL: "Portal web", AGENT: "Agente da máquina", MONITOR: "Monitoramento automático", RECURRING: "Chamado recorrente" };
 const typeLabels = { INCIDENTE: "Incidente", REQUISICAO: "Requisição" };
 const priorityLabels = { BAIXA: "Baixa", MEDIA: "Média", ALTA: "Alta", CRITICA: "Crítica" };
 
@@ -34,6 +34,7 @@ export function TicketDetailHeader({
   onBack,
   onResolve,
   onStatusChange,
+  onPending,
 }) {
   const subtitle = [
     ticket.ticket_type_name || typeLabels[ticket.kind] || ticket.kind,
@@ -67,7 +68,19 @@ export function TicketDetailHeader({
           isTerminal={isTerminal}
           onStatusChange={onStatusChange}
           onResolve={onResolve}
+          onPending={onPending}
         />
+        {ticket.pending_since && ticket.pending_reason && (
+          <div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+            <Clock3 className="mt-0.5 size-3 shrink-0" />
+            <span>
+              <strong className="font-semibold">Motivo:</strong> {ticket.pending_reason}
+              {ticket.pending_reopen_at && (
+                <> · <strong className="font-semibold">Reabre em:</strong> {formatReopenDate(ticket.pending_reopen_at)}</>
+              )}
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3">
           <InlineMetric icon={Flag} label="Prioridade" value={priorityLabels[ticket.priority] || ticket.priority} />
           <InlineMetric icon={Monitor} label="Origem" value={originLabels[ticket.source] || ticket.source} />
@@ -76,6 +89,10 @@ export function TicketDetailHeader({
       </div>
     </section>
   );
+}
+
+function formatReopenDate(date) {
+  return new Date(date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatRelativeHeader(date) {

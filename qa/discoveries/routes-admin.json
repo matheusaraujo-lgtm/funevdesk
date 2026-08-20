@@ -1,0 +1,196 @@
+{
+  "profile": "admin",
+  "base": "http://localhost:3000",
+  "routes": [
+    {
+      "label": "Visão geral",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Chamados\n3",
+      "opened": false,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Impressoras",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Problemas",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Mudanças",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Projetos",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Documentação",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Segurança",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Estoque",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Termos",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Equipes",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Relatórios",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Auditoria",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Chamados recorrentes",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Geral",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Unidades",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Localizações",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Usuários",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Perfis",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Tipos de chamado",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Situações",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Categorias",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Modelos de termo",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Tipos de documento",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Respostas prontas",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Automações",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Webhooks",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    }
+  ],
+  "totalConsoleErrors": 1
+}

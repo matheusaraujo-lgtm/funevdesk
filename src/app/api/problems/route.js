@@ -1,4 +1,4 @@
-import { requireCurrentUser, getPermissions } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { assertBranchAccess, branchFilterClause, getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
@@ -29,9 +29,8 @@ export function listProblems(db, organizationId, branchIds = null) {
 }
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "problems", "read");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const db = getDb();
   const requestedBranchId = new URL(request.url).searchParams.get("branchId");
   const scopedBranchIds = getAllowedBranchIds(auth.user, db, requestedBranchId || null);
@@ -39,9 +38,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "problems", "create");
   if (auth.error) return auth.error;
-  if (!getPermissions(auth.user).canManageTickets) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const accessError = assertBranchAccess(auth.user, parsed.data.branchId);

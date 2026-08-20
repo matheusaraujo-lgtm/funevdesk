@@ -5,6 +5,7 @@ import { CheckCircle2, PanelRightClose, PanelRightOpen, Star } from "lucide-reac
 import { toast } from "sonner";
 import { AttachmentViewer } from "@/components/attachment-viewer";
 import { CancelTicketDialog } from "@/components/cancel-ticket-dialog";
+import { PendingTicketDialog } from "@/components/pending-ticket-dialog";
 import { RemoteConsoleEmbed } from "@/components/remote-console-embed";
 import { ResolveTicketDialog } from "@/components/resolve-ticket-dialog";
 import { TicketAssignmentDialog } from "@/components/ticket-assignment-dialog";
@@ -34,6 +35,8 @@ export function TicketDetails({
   const [sending, setSending] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [pendingTarget, setPendingTarget] = useState(null);
+  const [pendingBusy, setPendingBusy] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState("");
@@ -200,9 +203,18 @@ export function TicketDetails({
     if (ok) setResolveOpen(false);
   }
 
-  // Aplica status intermediário direto pela pílula (terminal é tratado pelo diálogo de Resolver).
+  // Aplica status intermediário direto pela pílula (terminal é tratado pelo diálogo de
+  // Resolver; situações que exigem motivo são tratadas pelo diálogo de pendência abaixo).
   function handlePillStatusChange(code) {
     return onStatusChange?.(code, ticket.id);
+  }
+
+  async function handlePendingConfirm({ reason, reopenAt }) {
+    if (!pendingTarget) return;
+    setPendingBusy(true);
+    const ok = await onStatusChange?.(pendingTarget.code, ticket.id, { pendingReason: reason, pendingReopenAt: reopenAt });
+    setPendingBusy(false);
+    if (ok) setPendingTarget(null);
   }
 
   const workflow = {
@@ -238,6 +250,7 @@ export function TicketDetails({
         onResolve={() => setResolveOpen(true)}
         onViewAttachments={handleViewAttachments}
         onStatusChange={handlePillStatusChange}
+        onPending={setPendingTarget}
       />
 
       {/* SLA em destaque no topo em telas pequenas — no mobile a sidebar fica no fim da pilha. */}
@@ -264,16 +277,30 @@ export function TicketDetails({
       </div>
 
       <div className="ticket-grid" data-aside={asideCollapsed ? "collapsed" : "expanded"}>
-        <TicketConversation
-          ticket={ticket}
-          messages={messages}
-          events={events}
-          permissions={permissions}
-          currentUserId={currentUserId}
-          onSend={sendConversationMessage}
-          sending={sending}
-          isResolved={isTerminal}
-        />
+        <div className="flex flex-col gap-4">
+          <TicketConversation
+            ticket={ticket}
+            messages={messages}
+            events={events}
+            permissions={permissions}
+            currentUserId={currentUserId}
+            onSend={sendConversationMessage}
+            sending={sending}
+            isResolved={isTerminal}
+          />
+
+          {/* Avaliação logo abaixo do chat — antes ficava após toda a coluna lateral,
+              exigindo rolar a página inteira para encontrá-la. */}
+          {canRate && (
+            <CsatPanel
+              csatScore={csatScore}
+              setCsatScore={setCsatScore}
+              csatComment={csatComment}
+              setCsatComment={setCsatComment}
+              onSubmit={submitCsat}
+            />
+          )}
+        </div>
 
         {!asideCollapsed && (
           <div className="ticket-aside">
@@ -308,16 +335,6 @@ export function TicketDetails({
         )}
       </div>
 
-      {canRate && (
-        <CsatPanel
-          csatScore={csatScore}
-          setCsatScore={setCsatScore}
-          csatComment={csatComment}
-          setCsatComment={setCsatComment}
-          onSubmit={submitCsat}
-        />
-      )}
-
       <TicketAssignmentDialog
         open={assignmentOpen}
         onOpenChange={(open) => {
@@ -339,6 +356,15 @@ export function TicketDetails({
       <ResolveTicketDialog open={resolveOpen} onOpenChange={setResolveOpen} onConfirm={handleResolve} loading={resolving} stockEntries={stockEntries} branchId={ticket.branch_id} />
 
       <CancelTicketDialog open={cancelOpen} onOpenChange={setCancelOpen} onConfirm={handleCancel} loading={busy === "cancel"} ticketNumber={ticket.number} />
+
+      <PendingTicketDialog
+        open={Boolean(pendingTarget)}
+        onOpenChange={(open) => !open && setPendingTarget(null)}
+        onConfirm={handlePendingConfirm}
+        loading={pendingBusy}
+        targetLabel={pendingTarget?.label}
+        ticketNumber={ticket.number}
+      />
 
       <AttachmentViewer attachments={openableAttachments} open={attachmentsOpen} onOpenChange={setAttachmentsOpen} />
     </div>

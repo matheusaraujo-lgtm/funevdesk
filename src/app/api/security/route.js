@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { listConnectors } from "@/lib/xdr-connectors";
 
@@ -10,17 +10,13 @@ const placeholders = (values) => values.map(() => "?").join(",");
 /**
  * Central de Segurança — lista os alertas de XDR/EPP ingeridos (xdr_alerts),
  * com escopo por unidade, contadores por status/severidade e o estado dos
- * conectores configurados. Só para perfis com canViewAssets.
+ * conectores configurados.
  */
 export async function GET(request) {
   const db = getDb();
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "security", "read");
   if (auth.error) return auth.error;
   const currentUser = auth.user;
-  const permissions = getPermissions(currentUser);
-  if (!permissions.canViewAssets) {
-    return Response.json({ error: "Acesso restrito." }, { status: 403 });
-  }
 
   // Seletor de unidade global (topo do app): aceita ?branchId= e revalida contra o
   // conjunto de unidades permitidas ao usuário — mesmo padrão de reports/audit/dashboard.

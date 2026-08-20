@@ -1,4 +1,4 @@
-import { getPermissions, requireCurrentUser } from "@/lib/auth";
+import { getPermissions, requireCurrentUser, requirePermission } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { ALL_PRINTER_EVENTS, resolvePrinterEvents } from "@/lib/printer-events";
 import { z } from "zod";
@@ -9,7 +9,7 @@ const validKeys = ALL_PRINTER_EVENTS.map((event) => event.key);
 const schema = z.object({ events: z.record(z.string(), z.boolean()) });
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
+  const auth = requirePermission(request, "printers", "read");
   if (auth.error) return auth.error;
   const db = getDb();
   const row = db.prepare("SELECT printer_alert_events FROM system_settings WHERE organization_id=?").get(auth.user.organization_id);

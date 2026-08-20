@@ -1,0 +1,6 @@
+{
+  "_comment": "Credenciais seed de scripts/seed-demo.cjs — reaproveitadas dos scripts e2e-*.mjs já existentes no projeto. Rodar `npm run seed:demo` antes da campanha se o banco estiver vazio.",
+  "admin": { "email": "admin@local", "password": "Admin@123", "role": "ADMIN" },
+  "tecnico": { "email": "tecnico@local", "password": "Tecnico@123", "role": "TECHNICIAN" },
+  "usuario": { "email": "usuario@local", "password": "Usuario@123", "role": "EMPLOYEE" }
+}

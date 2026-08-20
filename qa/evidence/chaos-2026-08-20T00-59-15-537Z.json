@@ -1,0 +1,180 @@
+{
+  "phase": "chaos",
+  "total": 24,
+  "pass": 22,
+  "fail": 0,
+  "inconclusive": 2,
+  "results": [
+    {
+      "name": "macros body=\"empty\" -> 400 esperado",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.135Z",
+      "httpStatus": 400
+    },
+    {
+      "name": "macros body=\"   \" (só espaços) -> aceito pela API (achado real, não é falha deste teste)",
+      "status": "INCONCLUSIVE",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.146Z",
+      "httpStatus": 400,
+      "detail": "ver BUG-004: validação roda antes do trim()"
+    },
+    {
+      "name": "macros body=\"emoji\" -> aceito e sanitizado na leitura",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.158Z",
+      "httpStatus": 201
+    },
+    {
+      "name": "macros body=\"emoji\" persistiu sem corromper o registro",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.175Z"
+    },
+    {
+      "name": "macros body=\"html\" -> aceito e sanitizado na leitura",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.831Z",
+      "httpStatus": 201
+    },
+    {
+      "name": "macros body=\"html\" persistiu sem corromper o registro",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.858Z"
+    },
+    {
+      "name": "macros body=\"script\" -> aceito e sanitizado na leitura",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.907Z",
+      "httpStatus": 201
+    },
+    {
+      "name": "macros body=\"script\" persistiu sem corromper o registro",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.924Z"
+    },
+    {
+      "name": "macros body=\"sqlLike\" -> aceito e sanitizado na leitura",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.958Z",
+      "httpStatus": 201
+    },
+    {
+      "name": "macros body=\"sqlLike\" persistiu sem corromper o registro",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:13.974Z"
+    },
+    {
+      "name": "macros body=\"huge\" (5000 chars, max=4000) -> 400 esperado",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.006Z",
+      "httpStatus": 400
+    },
+    {
+      "name": "recurring-tickets sem branchId -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.042Z",
+      "httpStatus": 400,
+      "detail": "{\"error\":\"Dados inválidos.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"branchId\":[\"Invalid input: expected string, received undefined\"]}}}"
+    },
+    {
+      "name": "recurring-tickets intervalo negativo -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.058Z",
+      "httpStatus": 400,
+      "detail": "{\"error\":\"Dados inválidos.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"recurrenceInterval\":[\"Too small: expected number to be >=1\"]}}}"
+    },
+    {
+      "name": "recurring-tickets intervalo zero -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.069Z",
+      "httpStatus": 400,
+      "detail": "{\"error\":\"Dados inválidos.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"recurrenceInterval\":[\"Too small: expected number to be >=1\"]}}}"
+    },
+    {
+      "name": "recurring-tickets unidade de recorrência inválida -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.091Z",
+      "httpStatus": 400,
+      "detail": "{\"error\":\"Dados inválidos.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"recurrenceUnit\":[\"Invalid option: expected one of \\\"DAYS\\\"|\\\"WEEKS\\\"|\\\"MONTHS\\\""
+    },
+    {
+      "name": "recurring-tickets startAt não é data ISO -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.107Z",
+      "httpStatus": 400,
+      "detail": "{\"error\":\"Dados inválidos.\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"startAt\":[\"Invalid ISO datetime\"]}}}"
+    },
+    {
+      "name": "recurring-tickets ticketTypeId inexistente -> rejeitado (400/404)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.126Z",
+      "httpStatus": 404,
+      "detail": "{\"error\":\"Tipo de chamado não encontrado ou inativo.\"}"
+    },
+    {
+      "name": "recurring-tickets título com HTML — aceito pela API; execução como HTML precisa ser confirmada pelo Browser Agent",
+      "status": "INCONCLUSIVE",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:14.143Z",
+      "detail": "httpStatus=201"
+    },
+    {
+      "name": "tickets PATCH status=PENDENTE sem pendingReason -> 400",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.458Z",
+      "httpStatus": 400
+    },
+    {
+      "name": "tickets PATCH status=PENDENTE com motivo mas sem pendingReopenAt -> 400",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.477Z",
+      "httpStatus": 400
+    },
+    {
+      "name": "tickets PATCH pendingReopenAt inválido (não-ISO) -> 400",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.490Z",
+      "httpStatus": 400
+    },
+    {
+      "name": "GET /api/tickets/\"id-inexistente\" -> 404 (nunca 500)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.507Z",
+      "httpStatus": 404
+    },
+    {
+      "name": "GET /api/tickets/\"'; DROP TABLE tickets; --\" -> 404 (nunca 500)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.522Z",
+      "httpStatus": 404
+    },
+    {
+      "name": "GET /api/tickets/\"../../../etc/passwd\" -> 404 (nunca 500)",
+      "status": "PASS",
+      "phase": "chaos",
+      "timestamp": "2026-08-20T00:59:15.536Z",
+      "httpStatus": 404
+    }
+  ]
+}

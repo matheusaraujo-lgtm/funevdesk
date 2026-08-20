@@ -1,9 +1,9 @@
 const DEFAULT_STATUSES = [
-  { code: "ABERTO", label: "Aberto", sort_order: 0, is_terminal: 0, pauses_sla: 0, allows_messages: 1, color: "green" },
-  { code: "EM_ATENDIMENTO", label: "Em atendimento", sort_order: 1, is_terminal: 0, pauses_sla: 0, allows_messages: 1, color: "blue" },
-  { code: "PENDENTE", label: "Pendente", sort_order: 2, is_terminal: 0, pauses_sla: 1, allows_messages: 1, color: "amber" },
-  { code: "RESOLVIDO", label: "Resolvido", sort_order: 3, is_terminal: 1, pauses_sla: 0, allows_messages: 0, color: "gray" },
-  { code: "CANCELADO", label: "Cancelado", sort_order: 4, is_terminal: 1, pauses_sla: 0, allows_messages: 0, color: "gray" },
+  { code: "ABERTO", label: "Aberto", sort_order: 0, is_terminal: 0, pauses_sla: 0, allows_messages: 1, requires_reason: 0, color: "green" },
+  { code: "EM_ATENDIMENTO", label: "Em atendimento", sort_order: 1, is_terminal: 0, pauses_sla: 0, allows_messages: 1, requires_reason: 0, color: "blue" },
+  { code: "PENDENTE", label: "Pendente", sort_order: 2, is_terminal: 0, pauses_sla: 1, allows_messages: 1, requires_reason: 1, color: "amber" },
+  { code: "CANCELADO", label: "Cancelado", sort_order: 3, is_terminal: 1, pauses_sla: 0, allows_messages: 0, requires_reason: 0, color: "gray" },
+  { code: "RESOLVIDO", label: "Resolvido", sort_order: 4, is_terminal: 1, pauses_sla: 0, allows_messages: 0, requires_reason: 0, color: "gray" },
 ];
 
 export const CANCEL_STATUS_CODE = "CANCELADO";
@@ -14,8 +14,8 @@ export function seedTicketStatuses(db, organizationId) {
   const now = new Date().toISOString();
   const insert = db.prepare(`
     INSERT INTO ticket_statuses
-      (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, color, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      (id, organization_id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, requires_reason, color, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   `);
   for (const row of DEFAULT_STATUSES) {
     insert.run(
@@ -27,6 +27,7 @@ export function seedTicketStatuses(db, organizationId) {
       row.is_terminal,
       row.pauses_sla,
       row.allows_messages,
+      row.requires_reason,
       row.color,
       now,
     );
@@ -50,7 +51,7 @@ export function ensureCancelStatus(db, organizationId) {
 export function listTicketStatuses(db, organizationId) {
   seedTicketStatuses(db, organizationId);
   return db.prepare(`
-    SELECT id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, color, active
+    SELECT id, code, label, sort_order, is_terminal, pauses_sla, allows_messages, requires_reason, color, active
     FROM ticket_statuses
     WHERE organization_id=? AND active=1
     ORDER BY sort_order, label
@@ -59,6 +60,7 @@ export function listTicketStatuses(db, organizationId) {
     is_terminal: Boolean(row.is_terminal),
     pauses_sla: Boolean(row.pauses_sla),
     allows_messages: Boolean(row.allows_messages),
+    requires_reason: Boolean(row.requires_reason),
     active: Boolean(row.active),
   }));
 }
@@ -67,7 +69,7 @@ export function getTicketStatusMeta(db, organizationId, code) {
   if (!code) return null;
   seedTicketStatuses(db, organizationId);
   const row = db.prepare(`
-    SELECT code, label, is_terminal, pauses_sla, allows_messages
+    SELECT code, label, is_terminal, pauses_sla, allows_messages, requires_reason
     FROM ticket_statuses WHERE organization_id=? AND code=? AND active=1
   `).get(organizationId, code);
   if (!row) return null;
@@ -77,6 +79,7 @@ export function getTicketStatusMeta(db, organizationId, code) {
     is_terminal: Boolean(row.is_terminal),
     pauses_sla: Boolean(row.pauses_sla),
     allows_messages: Boolean(row.allows_messages),
+    requires_reason: Boolean(row.requires_reason),
   };
 }
 

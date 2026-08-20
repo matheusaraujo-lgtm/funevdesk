@@ -1,0 +1,91 @@
+{
+  "profile": "tecnico",
+  "base": "http://localhost:3000",
+  "routes": [
+    {
+      "label": "Visão geral",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Chamados\n3",
+      "opened": false,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Impressoras",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Problemas",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Mudanças",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Projetos",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": true,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Documentação",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Segurança",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Estoque",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Termos",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    },
+    {
+      "label": "Equipes",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": false
+    },
+    {
+      "label": "Respostas prontas",
+      "opened": true,
+      "newConsoleErrors": [],
+      "hasTable": false,
+      "hasCreateButton": true
+    }
+  ],
+  "totalConsoleErrors": 1
+}
