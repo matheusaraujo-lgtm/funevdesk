@@ -37,6 +37,38 @@
   --shadow-card: 0 1px 3px oklch(0.2 0.02 250 / 0.05), 0 8px 24px -12px oklch(0.2 0.02 250 / 0.10);
 }
 
+.dark {
+  /* Tema escuro: cinza-azulado suave (nunca preto puro) e cores de destaque com menos
+     saturação — dá pra ler bem sem cansar a vista nem "gritar" cor. */
+  --background: oklch(0.33 0.010 250);
+  --foreground: oklch(0.95 0.004 247);
+  --card: oklch(0.38 0.010 250);
+  --card-foreground: oklch(0.95 0.004 247);
+  --popover: oklch(0.38 0.010 250);
+  --popover-foreground: oklch(0.95 0.004 247);
+  --primary: oklch(0.7 0.075 248);
+  --primary-foreground: oklch(0.15 0.02 250);
+  --secondary: oklch(0.32 0.03 195);
+  --secondary-foreground: oklch(0.88 0.025 178);
+  --muted: oklch(0.42 0.008 250);
+  --muted-foreground: oklch(0.73 0.012 250);
+  --accent: oklch(0.35 0.032 75);
+  --accent-foreground: oklch(0.82 0.05 86);
+  --destructive: oklch(0.6 0.16 25);
+  --success: oklch(0.62 0.11 158);
+  --warning: oklch(0.72 0.12 78);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.5 0.06 248);
+  --chart-1: oklch(0.65 0.13 248);
+  --chart-2: oklch(0.62 0.11 184.704);
+  --chart-3: oklch(0.65 0.12 158);
+  --chart-4: oklch(0.78 0.15 84.429);
+  --chart-5: oklch(0.64 0.16 41.116);
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.25), 0 1px 3px oklch(0 0 0 / 0.35);
+  --shadow-card: 0 1px 3px oklch(0 0 0 / 0.25), 0 8px 24px -12px oklch(0 0 0 / 0.45);
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-heading: var(--font-manrope);

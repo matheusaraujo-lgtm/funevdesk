@@ -87,7 +87,7 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
   const [views, setViews] = useState([]);
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [viewName, setViewName] = useState("");
-  const [viewMode, setViewMode] = useState("list");
+  const [viewMode, setViewMode] = useState("kanban");
   const canBulk = permissions.canManageTickets && typeof onBulkPatch === "function";
   const terminalCodes = useMemo(
     () => ticketStatuses.filter((item) => item.is_terminal).map((item) => item.code),
@@ -452,11 +452,11 @@ export function TicketsView({ tickets, catalog = [], users = [], currentUser, pe
           </Button>
           {hasActiveFilters && <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={clearFilters}><X className="size-3.5" /> Limpar</Button>}
           <div className="flex shrink-0 items-center gap-0.5 rounded-lg border bg-card p-0.5 sm:ml-auto" role="group" aria-label="Modo de exibição">
-            <Button type="button" variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-8 px-2.5" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
-              <List className="size-3.5" /> Lista
-            </Button>
             <Button type="button" variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" className="h-8 px-2.5" aria-pressed={viewMode === "kanban"} onClick={() => setViewMode("kanban")}>
               <Kanban className="size-3.5" /> Kanban
+            </Button>
+            <Button type="button" variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" className="h-8 px-2.5" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}>
+              <List className="size-3.5" /> Lista
             </Button>
           </div>
         </div>

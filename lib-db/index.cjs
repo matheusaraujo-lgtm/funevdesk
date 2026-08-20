@@ -698,13 +698,28 @@ function ensureItilTables(db) {
       FOREIGN KEY (branch_id) REFERENCES branches(id),
       FOREIGN KEY (owner_id) REFERENCES users(id)
     );
-    CREATE TABLE IF NOT EXISTS project_tasks (
+    CREATE TABLE IF NOT EXISTS project_boards (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+      name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS project_board_columns (
+      id TEXT PRIMARY KEY, board_id TEXT NOT NULL,
+      label TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'slate',
+      position INTEGER NOT NULL DEFAULT 0, is_done INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY (board_id) REFERENCES project_boards(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS project_tasks (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, board_id TEXT, column_id TEXT,
       title TEXT NOT NULL, description TEXT,
       status TEXT NOT NULL DEFAULT 'A_FAZER', priority TEXT NOT NULL DEFAULT 'MEDIA',
       assignee_id TEXT, due_date TEXT, position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (board_id) REFERENCES project_boards(id) ON DELETE CASCADE,
+      FOREIGN KEY (column_id) REFERENCES project_board_columns(id) ON DELETE SET NULL,
       FOREIGN KEY (assignee_id) REFERENCES users(id)
     );
     CREATE TABLE IF NOT EXISTS project_task_comments (
@@ -1123,6 +1138,96 @@ function migrateXdrAlertsUnique(db) {
   db.pragma("foreign_keys = ON");
 }
 
+// Backfill de quadros: até esta versão cada projeto tinha um único quadro implícito de
+// tarefas. Cria um "Quadro principal" para projetos sem nenhum quadro e move as tarefas
+// órfãs (board_id NULL) pra lá — sem isso, tarefas antigas somem do novo filtro por quadro.
+// Só faz trabalho se detectar pendência (2 queries baratas), então é seguro rodar a cada boot.
+function migrateProjectDefaultBoards(db) {
+  const orphanTasks = db.prepare("SELECT COUNT(*) count FROM project_tasks WHERE board_id IS NULL").get().count;
+  const projectsWithoutBoard = db.prepare(`
+    SELECT id FROM projects p WHERE NOT EXISTS (SELECT 1 FROM project_boards b WHERE b.project_id = p.id)
+  `).all();
+  if (!orphanTasks && !projectsWithoutBoard.length) return;
+  const now = new Date().toISOString();
+  const defaultBoardId = new Map();
+  for (const project of projectsWithoutBoard) {
+    const boardId = makeId("pjb");
+    db.prepare("INSERT INTO project_boards (id, project_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)")
+      .run(boardId, project.id, "Quadro principal", now, now);
+    defaultBoardId.set(project.id, boardId);
+  }
+  if (orphanTasks) {
+    const orphanProjectIds = db.prepare("SELECT DISTINCT project_id FROM project_tasks WHERE board_id IS NULL").all();
+    for (const { project_id } of orphanProjectIds) {
+      let boardId = defaultBoardId.get(project_id);
+      if (!boardId) {
+        const existing = db.prepare("SELECT id FROM project_boards WHERE project_id=? ORDER BY position ASC, created_at ASC LIMIT 1").get(project_id);
+        boardId = existing ? existing.id : makeId("pjb");
+        if (!existing) {
+          db.prepare("INSERT INTO project_boards (id, project_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)")
+            .run(boardId, project_id, "Quadro principal", now, now);
+        }
+      }
+      db.prepare("UPDATE project_tasks SET board_id=? WHERE project_id=? AND board_id IS NULL").run(boardId, project_id);
+    }
+  }
+}
+
+const DEFAULT_BOARD_COLUMNS = [
+  { label: "A fazer", color: "slate", isDone: 0, statusCode: "A_FAZER" },
+  { label: "Em andamento", color: "amber", isDone: 0, statusCode: "EM_ANDAMENTO" },
+  { label: "Concluído", color: "green", isDone: 1, statusCode: "CONCLUIDO" },
+];
+
+// Backfill de colunas: até esta versão o quadro de tarefas tinha 3 colunas fixas
+// (A fazer/Em andamento/Concluído) no código. Agora são configuráveis por quadro — cria
+// as 3 colunas padrão pra quadros sem nenhuma e migra as tarefas órfãs (column_id NULL)
+// mapeando pelo `status` antigo. Só faz trabalho se detectar pendência.
+function migrateProjectBoardColumns(db) {
+  const boardsWithoutColumns = db.prepare(`
+    SELECT id FROM project_boards b WHERE NOT EXISTS (SELECT 1 FROM project_board_columns c WHERE c.board_id = b.id)
+  `).all();
+  const orphanTasks = db.prepare("SELECT COUNT(*) count FROM project_tasks WHERE column_id IS NULL").get().count;
+  if (!boardsWithoutColumns.length && !orphanTasks) return;
+
+  const now = new Date().toISOString();
+  const seededByBoard = new Map();
+  for (const board of boardsWithoutColumns) {
+    const columnIds = {};
+    DEFAULT_BOARD_COLUMNS.forEach((column, index) => {
+      const columnId = makeId("pbc");
+      db.prepare("INSERT INTO project_board_columns (id, board_id, label, color, position, is_done, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(columnId, board.id, column.label, column.color, index, column.isDone, now, now);
+      columnIds[column.statusCode] = columnId;
+    });
+    seededByBoard.set(board.id, columnIds);
+  }
+
+  if (orphanTasks) {
+    const orphanBoardIds = db.prepare("SELECT DISTINCT board_id FROM project_tasks WHERE column_id IS NULL").all();
+    for (const { board_id } of orphanBoardIds) {
+      let columnIds = seededByBoard.get(board_id);
+      if (!columnIds) {
+        columnIds = {};
+        const existingColumns = db.prepare("SELECT id, label FROM project_board_columns WHERE board_id=?").all(board_id);
+        for (const column of DEFAULT_BOARD_COLUMNS) {
+          const match = existingColumns.find((c) => c.label === column.label);
+          columnIds[column.statusCode] = match ? match.id : existingColumns[0]?.id;
+        }
+      }
+      const orphanStatuses = db.prepare("SELECT DISTINCT status FROM project_tasks WHERE board_id=? AND column_id IS NULL").all(board_id);
+      for (const { status } of orphanStatuses) {
+        const columnId = columnIds[status] || Object.values(columnIds)[0];
+        if (!columnId) continue;
+        db.prepare("UPDATE project_tasks SET column_id=? WHERE board_id=? AND column_id IS NULL AND status=?").run(columnId, board_id, status);
+      }
+      // Sobra (status fora do enum conhecido): joga na primeira coluna do quadro.
+      const fallbackId = Object.values(columnIds)[0];
+      if (fallbackId) db.prepare("UPDATE project_tasks SET column_id=? WHERE board_id=? AND column_id IS NULL").run(fallbackId, board_id);
+    }
+  }
+}
+
 // Tipos de documento (para a Documentação) — lista gerenciável em Configurações.
 // Semeia padrões úteis na 1ª vez (configuração base, não dado de demonstração).
 function ensureDocumentTypeSeeds(db) {
@@ -1268,6 +1373,16 @@ function ensureMultiTenantTables(db) {
   if (projectColumns.length && !projectColumns.some((column) => column.name === "pending_reason")) {
     execAddColumn(db, "ALTER TABLE projects ADD COLUMN pending_reason TEXT");
   }
+
+  const projectTaskColumns = db.prepare("PRAGMA table_info(project_tasks)").all();
+  if (projectTaskColumns.length && !projectTaskColumns.some((column) => column.name === "board_id")) {
+    execAddColumn(db, "ALTER TABLE project_tasks ADD COLUMN board_id TEXT REFERENCES project_boards(id)");
+  }
+  if (projectTaskColumns.length && !projectTaskColumns.some((column) => column.name === "column_id")) {
+    execAddColumn(db, "ALTER TABLE project_tasks ADD COLUMN column_id TEXT REFERENCES project_board_columns(id)");
+  }
+  migrateProjectDefaultBoards(db);
+  migrateProjectBoardColumns(db);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS branch_auth_settings (

@@ -33,7 +33,7 @@ function orderColumns(list) {
 // Colunas terminais (Resolvido, Cancelado etc.) podem acumular milhares de chamados ao
 // longo do tempo — carregar tudo no quadro trava a rolagem e não ajuda o técnico, que só
 // precisa ver os mais recentes. Os cartões mais antigos continuam acessíveis pela lista.
-const TERMINAL_COLUMN_CAP = 10;
+const TERMINAL_COLUMN_CAP = 5;
 
 function initials(name = "Usuário") {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();

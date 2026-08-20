@@ -2,6 +2,7 @@ import { requireCurrentUser, can } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { assertBranchAccess, branchFilterClause, getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
+import { seedDefaultColumns } from "@/lib/project-boards";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export function listProjects(db, organizationId, branchIds = null) {
   return db.prepare(`
     SELECT p.*, u.name owner_name, b.name branch_name,
       (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id=p.id) task_count,
-      (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id=p.id AND pt.status='CONCLUIDO') done_count
+      (SELECT COUNT(*) FROM project_tasks pt JOIN project_board_columns pc ON pc.id=pt.column_id WHERE pt.project_id=p.id AND pc.is_done=1) done_count
     FROM projects p
     LEFT JOIN users u ON u.id=p.owner_id
     LEFT JOIN branches b ON b.id=p.branch_id
@@ -61,6 +62,10 @@ export async function POST(request) {
   db.prepare(`INSERT INTO projects (id, organization_id, branch_id, number, name, description, status, priority, owner_id, start_date, due_date, created_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, 'PLANEJAMENTO', ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, auth.user.organization_id, parsed.data.branchId, number, parsed.data.name, parsed.data.description || "", parsed.data.priority, parsed.data.ownerId || null, parsed.data.startDate || null, parsed.data.dueDate || null, auth.user.id, now, now);
+  const boardId = makeId("pjb");
+  db.prepare("INSERT INTO project_boards (id, project_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)")
+    .run(boardId, id, "Quadro principal", now, now);
+  seedDefaultColumns(db, boardId);
   logAudit(db, { organizationId: auth.user.organization_id, branchId: parsed.data.branchId, actorId: auth.user.id, actorName: auth.user.name, entityType: "project", entityId: id, action: "CREATE", details: parsed.data.name });
   return Response.json({ projects: listProjects(db, auth.user.organization_id, getAllowedBranchIds(auth.user, db)) }, { status: 201 });
 }

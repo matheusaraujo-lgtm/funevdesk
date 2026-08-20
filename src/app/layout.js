@@ -1,5 +1,6 @@
 import { Geist, Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -22,10 +23,12 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${manrope.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <TooltipProvider>
-          {children}
-          <Toaster richColors position="top-center" />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster richColors position="top-center" />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

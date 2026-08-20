@@ -1,25 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { GripVertical, MessageSquare } from "lucide-react";
+import { GripVertical, MessageSquare, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { statusColorHex } from "@/lib/status-colors";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const priorityLabels = { BAIXA: "Baixa", MEDIA: "Média", ALTA: "Alta", CRITICA: "Crítica" };
 const priorityHigh = new Set(["ALTA", "CRITICA"]);
-
-const COLUMNS = [
-  { code: "A_FAZER", label: "A fazer", dot: "#94a3b8" },
-  { code: "EM_ANDAMENTO", label: "Em andamento", dot: "#f59e0b" },
-  { code: "CONCLUIDO", label: "Concluído", dot: "#22c55e" },
-];
 
 function initials(name = "Tarefa") {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
 }
 
 function TaskCard({ task, draggable, dragging, onOpen, onDragStart, onDragEnd }) {
-  const overdue = task.due_date && task.due_date < new Date().toISOString().slice(0, 10) && task.status !== "CONCLUIDO";
+  const overdue = task.due_date && task.due_date < new Date().toISOString().slice(0, 10) && !task.column_is_done;
   return (
     <div
       draggable={draggable}
@@ -56,60 +53,125 @@ function TaskCard({ task, draggable, dragging, onOpen, onDragStart, onDragEnd })
   );
 }
 
-// Quadro Kanban das tarefas do projeto: 3 colunas fixas (A fazer/Em andamento/Concluído).
-// Drag-and-drop HTML5 nativo, mesmo padrão do quadro de chamados (sem dependência extra).
-export function ProjectKanbanBoard({ tasks, canDrag, onOpenTask, onMoveTask }) {
+// Quadro Kanban das tarefas do projeto: colunas configuráveis por quadro (Configurações
+// ficam embutidas aqui mesmo — sem tela separada, já que só fazem sentido no contexto do
+// quadro). Drag-and-drop HTML5 nativo, mesmo padrão do quadro de chamados. Arrastar um
+// cartão move a tarefa de coluna; arrastar pelo "grip" do cabeçalho reordena a própria
+// coluna — os dois usam o mesmo mecanismo nativo, distinguidos por qual dragging* está setado.
+export function ProjectKanbanBoard({ tasks, columns, canManage, onOpenTask, onMoveTask, onCreateColumn, onEditColumn, onDeleteColumn, onReorderColumns }) {
   const [draggingId, setDraggingId] = useState(null);
-  const [overCode, setOverCode] = useState(null);
+  const [overId, setOverId] = useState(null);
+  const [draggingColumnId, setDraggingColumnId] = useState(null);
+  const [overColumnId, setOverColumnId] = useState(null);
 
   function handleDragStart(event, task) {
-    if (!canDrag) return;
+    if (!canManage) return;
     setDraggingId(task.id);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", task.id);
   }
   function handleDragEnd() {
     setDraggingId(null);
-    setOverCode(null);
+    setOverId(null);
+  }
+  function handleColumnDragStart(event, column) {
+    if (!canManage) return;
+    event.stopPropagation();
+    setDraggingColumnId(column.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", column.id);
+  }
+  function handleColumnDragEnd() {
+    setDraggingColumnId(null);
+    setOverColumnId(null);
+  }
+  function handleDragOver(event, column) {
+    if (!canManage) return;
+    event.preventDefault();
+    if (draggingColumnId) setOverColumnId(column.id);
+    else setOverId(column.id);
+  }
+  function handleDragLeave(column) {
+    setOverId((current) => (current === column.id ? null : current));
+    setOverColumnId((current) => (current === column.id ? null : current));
   }
   function handleDrop(event, column) {
     event.preventDefault();
-    setOverCode(null);
+    if (draggingColumnId) {
+      const sourceId = draggingColumnId;
+      setDraggingColumnId(null);
+      setOverColumnId(null);
+      if (sourceId === column.id) return;
+      const order = columns.map((c) => c.id);
+      const fromIndex = order.indexOf(sourceId);
+      const toIndex = order.indexOf(column.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+      order.splice(fromIndex, 1);
+      order.splice(toIndex, 0, sourceId);
+      onReorderColumns?.(order);
+      return;
+    }
+    setOverId(null);
     const id = event.dataTransfer.getData("text/plain") || draggingId;
     setDraggingId(null);
-    if (!id || !canDrag) return;
+    if (!id || !canManage) return;
     const task = tasks.find((item) => item.id === id);
-    if (!task || task.status === column.code) return;
+    if (!task || task.column_id === column.id) return;
     onMoveTask?.(task, column);
   }
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
-      {COLUMNS.map((column) => {
-        const items = tasks.filter((task) => task.status === column.code);
+      {columns.map((column) => {
+        const items = tasks.filter((task) => task.column_id === column.id);
+        const dotColor = statusColorHex(column.color) || "#94a3b8";
         return (
           <div
-            key={column.code}
-            onDragOver={(event) => { if (canDrag) { event.preventDefault(); setOverCode(column.code); } }}
-            onDragLeave={() => setOverCode((current) => (current === column.code ? null : current))}
+            key={column.id}
+            onDragOver={(event) => handleDragOver(event, column)}
+            onDragLeave={() => handleDragLeave(column)}
             onDrop={(event) => handleDrop(event, column)}
-            className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/20 transition-colors ${overCode === column.code ? "border-primary/50 bg-primary/5" : "border-border/60"}`}
+            className={`flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/20 transition-colors ${draggingColumnId === column.id ? "opacity-40" : ""} ${overId === column.id || overColumnId === column.id ? "border-primary/50 bg-primary/5" : "border-border/60"}`}
           >
-            <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2.5">
-              <i className="size-2 shrink-0 rounded-full" style={{ backgroundColor: column.dot }} aria-hidden="true" />
+            <div
+              draggable={canManage}
+              onDragStart={(event) => handleColumnDragStart(event, column)}
+              onDragEnd={handleColumnDragEnd}
+              className={`flex items-center gap-2 border-b border-border/60 px-3 py-2.5 ${canManage ? "cursor-grab active:cursor-grabbing" : ""}`}
+            >
+              {canManage && <GripVertical className="size-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />}
+              <i className="size-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} aria-hidden="true" />
               <p className="truncate text-xs font-semibold">{column.label}</p>
               <Badge variant="secondary" className="ml-auto shrink-0 px-1.5 text-[10px] tabular-nums">{items.length}</Badge>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="shrink-0" aria-label={`Ações da coluna ${column.label}`} />}><MoreVertical /></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEditColumn(column)}><Pencil /> Editar coluna</DropdownMenuItem>
+                    {columns.length > 1 && <DropdownMenuItem variant="destructive" onClick={() => onDeleteColumn(column)}><Trash2 /> Excluir coluna</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
               {items.length === 0 ? (
                 <p className="px-2 py-6 text-center text-[11px] text-muted-foreground">Nenhuma tarefa</p>
               ) : items.map((task) => (
-                <TaskCard key={task.id} task={task} draggable={canDrag} dragging={draggingId === task.id} onOpen={onOpenTask} onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
+                <TaskCard key={task.id} task={task} draggable={canManage} dragging={draggingId === task.id} onOpen={onOpenTask} onDragStart={handleDragStart} onDragEnd={handleDragEnd} />
               ))}
             </div>
           </div>
         );
       })}
+      {canManage && (
+        <button
+          type="button"
+          onClick={onCreateColumn}
+          className="flex h-11 w-64 shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-dashed border-border/60 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+        >
+          <Plus className="size-3.5" /> Nova coluna
+        </button>
+      )}
     </div>
   );
 }

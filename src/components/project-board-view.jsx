@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ArrowLeft, CalendarDays, MessageSquare, Pencil, Plus, Send, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
+import { statusColorHex } from "@/lib/status-colors";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ProjectKanbanBoard } from "@/components/project-kanban-board";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+
+const COLUMN_COLOR_OPTIONS = ["slate", "blue", "violet", "green", "amber", "red"];
 
 const statusLabels = { PLANEJAMENTO: "Planejamento", EM_ANDAMENTO: "Em andamento", PAUSADO: "Pausado", PENDENTE: "Pendente", CONCLUIDO: "Concluído", CANCELADO: "Cancelado" };
 const statusVariants = { PLANEJAMENTO: "secondary", EM_ANDAMENTO: "warning", PAUSADO: "muted", PENDENTE: "destructive", CONCLUIDO: "success", CANCELADO: "destructive" };
@@ -121,6 +125,7 @@ function TaskDialog({ task, users, onClose, onSaved, onDeleted, onCommentPosted 
       priority: form.priority,
       assigneeId: form.assigneeId === "none" ? null : form.assigneeId,
       dueDate: form.dueDate || null,
+      ...(isEdit ? {} : { boardId: task.boardId }),
     };
     const response = await fetch(isEdit ? `/api/projects/${task.project_id}/tasks/${task.id}` : `/api/projects/${task.projectId}/tasks`, {
       method: isEdit ? "PUT" : "POST",
@@ -176,8 +181,20 @@ function TaskDialog({ task, users, onClose, onSaved, onDeleted, onCommentPosted 
 export function ProjectBoardView({ item, users, can, onBack, onEdit, onDeleted }) {
   const [project, setProject] = useState(item);
   const [tasks, setTasks] = useState(item?.tasks || []);
+  const [boards, setBoards] = useState(item?.boards || []);
+  const [activeBoardId, setActiveBoardId] = useState(item?.boards?.[0]?.id || null);
   const [taskDraft, setTaskDraft] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [boardDialog, setBoardDialog] = useState(null);
+  const [boardName, setBoardName] = useState("");
+  const [boardSaving, setBoardSaving] = useState(false);
+  const [deleteBoardConfirm, setDeleteBoardConfirm] = useState(false);
+  const [columnDialog, setColumnDialog] = useState(null);
+  const [columnLabel, setColumnLabel] = useState("");
+  const [columnColor, setColumnColor] = useState("blue");
+  const [columnIsDone, setColumnIsDone] = useState(false);
+  const [columnSaving, setColumnSaving] = useState(false);
+  const [deleteColumnTarget, setDeleteColumnTarget] = useState(null);
 
   const { loading } = useReloadableData(useCallback(async () => {
     if (!item?.id) return;
@@ -186,22 +203,125 @@ export function ProjectBoardView({ item, users, can, onBack, onEdit, onDeleted }
       const payload = await response.json();
       setProject(payload.project);
       setTasks(payload.project.tasks || []);
+      const nextBoards = payload.project.boards || [];
+      setBoards(nextBoards);
+      setActiveBoardId((current) => (nextBoards.some((board) => board.id === current) ? current : nextBoards[0]?.id || null));
     }
   }, [item]));
 
   const canManage = can ? can("projects", "update") : false;
   const canDelete = can ? can("projects", "delete") : false;
+  const activeBoard = boards.find((board) => board.id === activeBoardId) || boards[0] || null;
+  const boardTasks = activeBoard ? tasks.filter((task) => task.board_id === activeBoard.id) : [];
+
+  function openCreateBoard() {
+    setBoardName("");
+    setBoardDialog({ mode: "create" });
+  }
+
+  function openRenameBoard() {
+    if (!activeBoard) return;
+    setBoardName(activeBoard.name);
+    setBoardDialog({ mode: "rename", board: activeBoard });
+  }
+
+  async function submitBoard(event) {
+    event.preventDefault();
+    if (boardName.trim().length < 2) return toast.error("Informe o nome do quadro.");
+    setBoardSaving(true);
+    const isRename = boardDialog.mode === "rename";
+    const response = await fetch(
+      isRename ? `/api/projects/${project.id}/boards/${boardDialog.board.id}` : `/api/projects/${project.id}/boards`,
+      { method: isRename ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: boardName }) },
+    );
+    const result = await response.json();
+    setBoardSaving(false);
+    if (!response.ok) return toast.error(result.error || "Não foi possível salvar o quadro.");
+    toast.success(isRename ? "Quadro renomeado." : "Quadro criado.");
+    setBoards(result.boards);
+    if (!isRename) setActiveBoardId(result.boards[result.boards.length - 1].id);
+    setBoardDialog(null);
+  }
+
+  async function removeBoard() {
+    const response = await fetch(`/api/projects/${project.id}/boards/${activeBoard.id}`, { method: "DELETE" });
+    const result = await response.json();
+    setDeleteBoardConfirm(false);
+    if (!response.ok) return toast.error(result.error || "Não foi possível excluir o quadro.");
+    toast.success("Quadro excluído.");
+    setBoards(result.boards);
+    setTasks(result.tasks);
+    setActiveBoardId(result.boards[0]?.id || null);
+  }
+
+  function openCreateColumn() {
+    setColumnLabel("");
+    setColumnColor("blue");
+    setColumnIsDone(false);
+    setColumnDialog({ mode: "create" });
+  }
+
+  function openEditColumn(column) {
+    setColumnLabel(column.label);
+    setColumnColor(column.color);
+    setColumnIsDone(Boolean(column.is_done));
+    setColumnDialog({ mode: "edit", column });
+  }
+
+  async function submitColumn(event) {
+    event.preventDefault();
+    if (columnLabel.trim().length < 1) return toast.error("Informe o nome da coluna.");
+    setColumnSaving(true);
+    const isEdit = columnDialog.mode === "edit";
+    const response = await fetch(
+      isEdit
+        ? `/api/projects/${project.id}/boards/${activeBoard.id}/columns/${columnDialog.column.id}`
+        : `/api/projects/${project.id}/boards/${activeBoard.id}/columns`,
+      { method: isEdit ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: columnLabel, color: columnColor, isDone: columnIsDone }) },
+    );
+    const result = await response.json();
+    setColumnSaving(false);
+    if (!response.ok) return toast.error(result.error || "Não foi possível salvar a coluna.");
+    toast.success(isEdit ? "Coluna atualizada." : "Coluna criada.");
+    setBoards(result.boards);
+    setColumnDialog(null);
+  }
+
+  async function reorderColumns(orderedIds) {
+    setBoards((current) => current.map((board) => {
+      if (board.id !== activeBoard.id) return board;
+      const byId = new Map(board.columns.map((column) => [column.id, column]));
+      return { ...board, columns: orderedIds.map((columnId, index) => ({ ...byId.get(columnId), position: index })) };
+    }));
+    const response = await fetch(`/api/projects/${project.id}/boards/${activeBoard.id}/columns/reorder`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ columnIds: orderedIds }),
+    });
+    const result = await response.json();
+    if (!response.ok) { toast.error(result.error || "Não foi possível reordenar as colunas."); return; }
+    setBoards(result.boards);
+  }
+
+  async function removeColumn(column) {
+    const response = await fetch(`/api/projects/${project.id}/boards/${activeBoard.id}/columns/${column.id}`, { method: "DELETE" });
+    const result = await response.json();
+    setDeleteColumnTarget(null);
+    if (!response.ok) return toast.error(result.error || "Não foi possível excluir a coluna.");
+    toast.success("Coluna excluída.");
+    setBoards(result.boards);
+  }
 
   function bumpTaskCommentCount(taskId) {
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, comment_count: (t.comment_count || 0) + 1 } : t)));
   }
 
   async function moveTask(task, column) {
-    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, status: column.code } : t)));
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, column_id: column.id, column_is_done: column.is_done } : t)));
     const response = await fetch(`/api/projects/${project.id}/tasks/${task.id}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: column.code }),
+      body: JSON.stringify({ columnId: column.id }),
     });
     const result = await response.json();
     if (!response.ok) { toast.error(result.error || "Não foi possível mover a tarefa."); return; }
@@ -218,7 +338,7 @@ export function ProjectBoardView({ item, users, can, onBack, onEdit, onDeleted }
   }
 
   if (!project) return null;
-  const doneCount = tasks.filter((t) => t.status === "CONCLUIDO").length;
+  const doneCount = tasks.filter((t) => t.column_is_done).length;
   const pct = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
 
   return (
@@ -261,15 +381,49 @@ export function ProjectBoardView({ item, users, can, onBack, onEdit, onDeleted }
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-muted-foreground">Quadro de tarefas</h2>
-        {canManage && <Button size="sm" onClick={() => setTaskDraft({ projectId: project.id })}><Plus /> Nova tarefa</Button>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {boards.map((board) => (
+            <button
+              key={board.id}
+              type="button"
+              onClick={() => setActiveBoardId(board.id)}
+              className={`h-8 shrink-0 rounded-full px-3 text-xs font-medium transition-colors ${board.id === activeBoard?.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground"}`}
+            >
+              {board.name}
+            </button>
+          ))}
+          {canManage && (
+            <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={openCreateBoard}>
+              <Plus /> Novo quadro
+            </Button>
+          )}
+          {canManage && activeBoard && (
+            <>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={openRenameBoard} title="Renomear quadro"><Pencil /></Button>
+              {boards.length > 1 && <Button type="button" variant="ghost" size="icon-sm" onClick={() => setDeleteBoardConfirm(true)} title="Excluir quadro"><Trash2 /></Button>}
+            </>
+          )}
+        </div>
+        {canManage && activeBoard && <Button size="sm" onClick={() => setTaskDraft({ projectId: project.id, boardId: activeBoard.id })}><Plus /> Nova tarefa</Button>}
       </div>
 
       {loading ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Carregando…</p>
+      ) : activeBoard ? (
+        <ProjectKanbanBoard
+          tasks={boardTasks}
+          columns={activeBoard.columns || []}
+          canManage={canManage}
+          onOpenTask={setTaskDraft}
+          onMoveTask={moveTask}
+          onCreateColumn={openCreateColumn}
+          onEditColumn={openEditColumn}
+          onDeleteColumn={setDeleteColumnTarget}
+          onReorderColumns={reorderColumns}
+        />
       ) : (
-        <ProjectKanbanBoard tasks={tasks} canDrag={canManage} onOpenTask={setTaskDraft} onMoveTask={moveTask} />
+        <p className="py-10 text-center text-sm text-muted-foreground">Nenhum quadro neste projeto.</p>
       )}
 
       {taskDraft && (
@@ -283,6 +437,73 @@ export function ProjectBoardView({ item, users, can, onBack, onEdit, onDeleted }
           onCommentPosted={() => bumpTaskCommentCount(taskDraft.id)}
         />
       )}
+
+      <Dialog open={Boolean(boardDialog)} onOpenChange={(open) => !open && setBoardDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>{boardDialog?.mode === "rename" ? "Renomear quadro" : "Novo quadro"}</DialogTitle></DialogHeader>
+          <form className="grid gap-4" onSubmit={submitBoard}>
+            <div>
+              <Label htmlFor="board-name" className="mb-2 block">Nome do quadro</Label>
+              <Input id="board-name" value={boardName} onChange={(e) => setBoardName(e.target.value)} placeholder="Ex.: Sprint 1" autoFocus />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setBoardDialog(null)}>Cancelar</Button>
+              <Button type="submit" disabled={boardSaving}>{boardDialog?.mode === "rename" ? "Salvar" : "Criar quadro"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteBoardConfirm}
+        onOpenChange={setDeleteBoardConfirm}
+        title="Excluir quadro"
+        description={`Excluir "${activeBoard?.name}"? As tarefas deste quadro também serão removidas.`}
+        onConfirm={removeBoard}
+      />
+
+      <Dialog open={Boolean(columnDialog)} onOpenChange={(open) => !open && setColumnDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>{columnDialog?.mode === "edit" ? "Editar coluna" : "Nova coluna"}</DialogTitle></DialogHeader>
+          <form className="grid gap-4" onSubmit={submitColumn}>
+            <div>
+              <Label htmlFor="column-label" className="mb-2 block">Nome da coluna</Label>
+              <Input id="column-label" value={columnLabel} onChange={(e) => setColumnLabel(e.target.value)} placeholder="Ex.: Em revisão" autoFocus />
+            </div>
+            <div>
+              <Label className="mb-2 block">Cor</Label>
+              <div className="flex gap-2">
+                {COLUMN_COLOR_OPTIONS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setColumnColor(color)}
+                    aria-label={color}
+                    className={`size-6 rounded-full transition-shadow ${columnColor === color ? "ring-2 ring-offset-2 ring-offset-background ring-primary" : ""}`}
+                    style={{ backgroundColor: statusColorHex(color) }}
+                  />
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={columnIsDone} onCheckedChange={setColumnIsDone} />
+              Contar tarefas desta coluna como concluídas
+            </label>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setColumnDialog(null)}>Cancelar</Button>
+              <Button type="submit" disabled={columnSaving}>{columnDialog?.mode === "edit" ? "Salvar" : "Criar coluna"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteColumnTarget)}
+        onOpenChange={(open) => !open && setDeleteColumnTarget(null)}
+        title="Excluir coluna"
+        description={`Excluir "${deleteColumnTarget?.label}"? Só é possível se não houver tarefas nela.`}
+        onConfirm={() => removeColumn(deleteColumnTarget)}
+      />
 
       <ConfirmDialog
         open={deleteConfirm}

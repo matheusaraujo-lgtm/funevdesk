@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { CheckCircle2, Layers, Plus, Tags, Trash2 } from "lucide-react";
+import { CheckCircle2, Layers, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useReloadableData } from "@/lib/use-reloadable-data";
 import { ListEmptyState } from "@/components/list-empty-state";
@@ -55,6 +55,9 @@ export function SettingsCategoriesView() {
   const [color, setColor] = useState("blue");
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("blue");
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
     const response = await fetch("/api/categories", { cache: "no-store" });
@@ -90,6 +93,26 @@ export function SettingsCategoriesView() {
       body: JSON.stringify({ active: !category.active }),
     });
     if (!response.ok) return toast.error("Não foi possível atualizar.");
+    load();
+  }
+
+  function openEdit(category) {
+    setEditTarget(category);
+    setEditName(category.name);
+    setEditColor(category.color);
+  }
+
+  async function saveEdit(event) {
+    event.preventDefault();
+    const response = await fetch(`/api/categories/${editTarget.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: editName, color: editColor }),
+    });
+    const result = await response.json();
+    if (!response.ok) return toast.error(result.error || "Não foi possível salvar.");
+    toast.success("Categoria atualizada.");
+    setEditTarget(null);
     load();
   }
 
@@ -145,6 +168,7 @@ export function SettingsCategoriesView() {
                 <TableCell>{category.type_count || 0}</TableCell>
                 <TableCell><Badge variant={category.active ? "success" : "muted"}>{category.active ? "Ativa" : "Inativa"}</Badge></TableCell>
                 <TableCell className="space-x-1">
+                  <Button size="icon-sm" variant="ghost" onClick={() => openEdit(category)} title="Editar"><Pencil /></Button>
                   <Button size="sm" variant="outline" onClick={() => toggleCategory(category)}>{category.active ? "Desativar" : "Ativar"}</Button>
                   <Button size="icon-sm" variant="ghost" onClick={() => setDeleteTarget(category)} disabled={category.type_count > 0} title={category.type_count > 0 ? "Há tipos usando esta categoria" : "Excluir"}><Trash2 /></Button>
                 </TableCell>
@@ -179,6 +203,35 @@ export function SettingsCategoriesView() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
               <Button type="submit"><Plus /> Criar categoria</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editTarget)} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Editar categoria</DialogTitle></DialogHeader>
+          <form className="grid gap-4" onSubmit={saveEdit}>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-category-name">Nome da categoria</Label>
+              <Input id="edit-category-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ex.: Redes e conectividade" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-category-color">Cor</Label>
+              <Select value={editColor} onValueChange={setEditColor}>
+                <SelectTrigger id="edit-category-color" className="bg-card">
+                  <SelectValue>{(value) => <span className="flex items-center gap-2"><ColorSwatch value={value} />{colorMap[value]?.label || value}</span>}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {colorOptions.map((c) => (
+                    <SelectItem key={c.value} value={c.value}><span className="flex items-center gap-2"><ColorSwatch value={c.value} />{c.label}</span></SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
+              <Button type="submit">Salvar alterações</Button>
             </DialogFooter>
           </form>
         </DialogContent>

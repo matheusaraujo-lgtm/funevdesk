@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Layers, LayoutDashboard, LogOut, MapPin, Menu, MessageSquareText, MonitorCog, Network, Package, Plus, Printer, Repeat, Search, Settings2, ShieldAlert, ShieldCheck, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Laptop, Layers, LayoutDashboard, LogOut, MapPin, Menu, MessageSquareText, Moon, MonitorCog, Network, Package, Plus, Printer, Repeat, Search, Settings2, ShieldAlert, ShieldCheck, Sun, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -242,6 +243,40 @@ function showNewTicketCta(view) {
   return !NEW_TICKET_HIDDEN_VIEWS.has(view) && !view.startsWith("settings") && !view.endsWith("-form");
 }
 
+const themeOptions = [
+  { value: "light", label: "Claro", icon: Sun },
+  { value: "dark", label: "Escuro", icon: Moon },
+  { value: "system", label: "Sistema", icon: Laptop },
+];
+
+// Alternância de tema: evita renderizar o ícone/estado real no servidor (next-themes só
+// sabe o tema resolvido após montar no cliente) para não gerar mismatch de hidratação.
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const current = themeOptions.find((option) => option.value === theme) || themeOptions[2];
+  const Icon = mounted ? current.icon : Laptop;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/60 text-muted-foreground transition-colors hover:bg-muted aria-expanded:bg-muted aria-expanded:text-foreground"
+        aria-label="Alternar tema">
+        <Icon className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        {themeOptions.map((option) => (
+          <DropdownMenuItem key={option.value} onClick={() => setTheme(option.value)} className="gap-2">
+            <option.icon className="size-4" />
+            <span>{option.label}</span>
+            <Check className={`ml-auto size-4 shrink-0 ${mounted && theme === option.value ? "opacity-100" : "opacity-0"}`} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppNavbar({ view, setView, ticketCount, branches, branchId, setBranchId, onNewTicket, currentUser, permissions, can = () => false, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = (nextView) => {
@@ -291,6 +326,7 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      <ThemeToggle />
       <NotificationsBell />
 
       {showNewTicketCta(view) && (

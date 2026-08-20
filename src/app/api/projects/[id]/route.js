@@ -1,6 +1,7 @@
 import { requireCurrentUser, can } from "@/lib/auth";
 import { assertBranchAccess } from "@/lib/branch-scope";
 import { getDb } from "@/lib/db";
+import { loadBoardsWithColumns } from "@/lib/project-boards";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +18,11 @@ function loadProject(db, id, organizationId) {
 
 function loadTasks(db, projectId) {
   return db.prepare(`
-    SELECT t.*, u.name assignee_name,
+    SELECT t.*, u.name assignee_name, col.is_done column_is_done,
       (SELECT COUNT(*) FROM project_task_comments c WHERE c.task_id=t.id) comment_count
     FROM project_tasks t
     LEFT JOIN users u ON u.id=t.assignee_id
+    LEFT JOIN project_board_columns col ON col.id=t.column_id
     WHERE t.project_id=?
     ORDER BY t.position ASC, t.created_at ASC
   `).all(projectId);
@@ -36,7 +38,7 @@ export async function GET(request, { params }) {
   if (!project) return Response.json({ error: "Projeto não encontrado." }, { status: 404 });
   const accessError = assertBranchAccess(auth.user, project.branch_id);
   if (accessError) return Response.json({ error: accessError.message }, { status: 403 });
-  return Response.json({ project: { ...project, tasks: loadTasks(db, id) } });
+  return Response.json({ project: { ...project, boards: loadBoardsWithColumns(db, id), tasks: loadTasks(db, id) } });
 }
 
 const updateSchema = z.object({
