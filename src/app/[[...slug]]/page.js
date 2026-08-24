@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AppNavbar } from "@/components/app-navbar";
 import { CommandPalette } from "@/components/command-palette";
@@ -64,10 +65,49 @@ import { UsersView } from "@/components/users-view";
 import { ProfilesView } from "@/components/profiles-view";
 import { ProfileView } from "@/components/profile-view";
 
+// ——— Roteamento por URL ———
+// O app é uma SPA montada num catch-all ([[...slug]]): o caminho da URL é a fonte da
+// verdade da tela ativa. Toda tela ganha link compartilhável, F5 mantém o contexto e
+// voltar/avançar do navegador funcionam. Chamado e ativo têm caminho parametrizado
+// (/tickets/{id}, /assets/{id}); as demais telas usam a própria chave da view.
+const VIEW_KEYS = new Set([
+  "dashboard", "tickets", "assets", "documentation", "documentation-form", "documentation-detail",
+  "knowledge", "knowledge-form", "knowledge-detail", "terms", "terms-form", "terms-detail",
+  "printers", "network", "network-form", "security", "users", "users-form", "profile", "profiles",
+  "settings", "settings-branches", "settings-branches-form", "settings-types", "settings-types-form",
+  "settings-types-workflow", "settings-statuses", "settings-categories", "settings-document-types",
+  "settings-canned-responses", "settings-locations", "inventory", "new-ticket", "teams", "teams-form",
+  "problems", "problems-form", "projects", "projects-form", "projects-board", "changes", "changes-form",
+  "reports", "audit", "recurring-tickets", "recurring-tickets-form", "webhooks", "automations",
+  "webhooks-form", "term-templates", "term-templates-form", "term-templates-detail", "my-tickets",
+]);
+
+function parseRoute(pathname) {
+  const segments = (pathname || "/").split("/").filter(Boolean);
+  if (!segments.length) return { view: "dashboard", ticketId: null, assetId: null };
+  if (segments[0] === "tickets" && segments[1]) return { view: "details", ticketId: decodeURIComponent(segments[1]), assetId: null };
+  if (segments[0] === "assets" && segments[1]) return { view: "asset-detail", ticketId: null, assetId: decodeURIComponent(segments[1]) };
+  if (VIEW_KEYS.has(segments[0])) return { view: segments[0], ticketId: null, assetId: null };
+  return { view: "dashboard", ticketId: null, assetId: null };
+}
+
+function pathForView(view) {
+  // "details"/"asset-detail" nunca passam por aqui (openTicket/openAsset empurram o
+  // caminho parametrizado); o fallback para a lista é só rede de segurança.
+  if (view === "dashboard") return "/";
+  if (view === "details") return "/tickets";
+  if (view === "asset-detail") return "/assets";
+  return `/${view}`;
+}
+
 export default function Home() {
   const [authStatus, setAuthStatus] = useState("loading");
   const [sessionUser, setSessionUser] = useState(null);
-  const [view, setView] = useState("dashboard");
+  const router = useRouter();
+  const pathname = usePathname();
+  const route = useMemo(() => parseRoute(pathname), [pathname]);
+  const view = route.view;
+  const setView = useCallback((nextView) => { router.push(pathForView(nextView)); }, [router]);
   const [data, setData] = useState(null);
   const [branchId, setBranchId] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -95,7 +135,7 @@ export default function Home() {
   const goToTicketsQueue = useCallback((queueTarget) => {
     setTicketsQueue(queueTarget);
     setView("tickets");
-  }, []);
+  }, [setView]);
 
   const reloadCatalog = useCallback(async () => {
     const response = await fetch("/api/catalog", { cache: "no-store" });
@@ -152,7 +192,8 @@ export default function Home() {
       setAuthStatus("change-password");
       return result;
     }
-    setView(result.user.role === "EMPLOYEE" ? "new-ticket" : "dashboard");
+    // A tela ativa vem da URL — login preserva o deep-link que o usuário abriu.
+    // (Colaborador na raiz cai em "new-ticket" via coerção do safeView no render.)
     setAuthStatus("authenticated");
     return result;
   }, [resetApplication]);
@@ -418,25 +459,24 @@ export default function Home() {
     toast.success("Configurações salvas.");
   }
 
+  // Abrir chamado = navegar para /tickets/{id}. O selectedTicket otimista dá número/título
+  // ao cabeçalho enquanto carrega; o carregamento em si é feito pelo efeito que observa a
+  // rota (caminho único tanto para clique na lista quanto para acesso direto pela URL).
   async function openTicket(ticket) {
     setSelectedTicket(ticket);
-    setTicketDetails(null);
-    setView("details");
-    await loadTicketDetails(ticket.id);
+    router.push(`/tickets/${ticket.id}`);
   }
 
   function openAsset(asset) {
     setSelectedAsset(asset);
-    setView("asset-detail");
+    router.push(`/assets/${asset.id}`);
   }
 
   const openTicketById = useCallback((ticketId) => {
     if (!ticketId) return;
     setSelectedTicket({ id: ticketId });
-    setTicketDetails(null);
-    setView("details");
-    loadTicketDetails(ticketId);
-  }, [loadTicketDetails]);
+    router.push(`/tickets/${ticketId}`);
+  }, [router]);
 
   useEffect(() => {
     function handleOpenTicket(event) {
@@ -447,27 +487,48 @@ export default function Home() {
     return () => window.removeEventListener("nexus:open-ticket", handleOpenTicket);
   }, [openTicketById]);
 
-  // Deep-linking do chamado: reflete o chamado aberto na URL (?ticket=ID) usando replaceState
-  // (não polui o histórico). Permite recarregar sem perder o contexto e abrir em nova aba.
+  // Carrega o chamado que a ROTA pede (/tickets/{id}) — caminho único para clique na
+  // lista, F5, voltar/avançar e link colado. Compat: links antigos (?ticket=ID) são
+  // migrados uma vez para o caminho novo. O ref evita fetch duplicado enquanto o
+  // polling de 30s re-dispara o efeito com o carregamento ainda em andamento.
+  const ticketLoadRef = useRef(null);
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
-    // Não mexe na URL antes do restore tentar ler o ?ticket da carga inicial (senão o apagaria).
-    if (!deepLinkRestored.current) return;
-    const openId = view === "details" ? (selectedTicket?.id || ticketDetails?.ticket?.id || null) : null;
-    const desired = openId ? `?ticket=${openId}` : "";
-    if (window.location.search !== desired) {
-      window.history.replaceState({}, "", `${window.location.pathname}${desired}`);
+    if (authStatus !== "authenticated" || !data) return;
+    if (!deepLinkRestored.current) {
+      deepLinkRestored.current = true;
+      const legacyTicketId = new URLSearchParams(window.location.search).get("ticket");
+      if (legacyTicketId) {
+        router.replace(`/tickets/${legacyTicketId}`);
+        return;
+      }
     }
-  }, [authStatus, view, selectedTicket, ticketDetails]);
+    if (route.view !== "details" || !route.ticketId) return;
+    if (ticketDetails?.ticket?.id === route.ticketId || ticketLoadRef.current === route.ticketId) return;
+    ticketLoadRef.current = route.ticketId;
+    setSelectedTicket((current) => current?.id === route.ticketId ? current : { id: route.ticketId });
+    setTicketDetails(null);
+    loadTicketDetails(route.ticketId).finally(() => {
+      if (ticketLoadRef.current === route.ticketId) ticketLoadRef.current = null;
+    });
+  }, [authStatus, data, route, router, ticketDetails, loadTicketDetails]);
 
-  // Restaura o chamado da URL na primeira carga de dados (ex.: reload com ?ticket=ID).
+  // Telas de detalhe que dependem de um item aberto a partir da lista (estado em memória):
+  // num acesso direto pela URL não há o que mostrar — volta para a lista correspondente.
   useEffect(() => {
-    if (authStatus !== "authenticated" || !data || deepLinkRestored.current) return;
-    deepLinkRestored.current = true;
-    const ticketId = new URLSearchParams(window.location.search).get("ticket");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (ticketId) openTicketById(ticketId);
-  }, [authStatus, data, openTicketById]);
+    if (authStatus !== "authenticated" || !data) return;
+    const fallbacks = {
+      "documentation-detail": "/documentation",
+      "knowledge-detail": "/knowledge",
+      "terms-detail": "/terms",
+      "projects-board": "/projects",
+      "settings-types-workflow": "/settings-types",
+      "term-templates-detail": "/term-templates",
+    };
+    if (fallbacks[view] && !formDraft) router.replace(fallbacks[view]);
+    if (view === "asset-detail" && !selectedAsset && route.assetId && !data.assets.some((asset) => asset.id === route.assetId)) {
+      router.replace("/assets");
+    }
+  }, [authStatus, data, view, formDraft, selectedAsset, route.assetId, router]);
 
   async function patchTicket(ticketId, payload) {
     const result = await requestJson(`/api/tickets/${ticketId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }, "Não foi possível atualizar o chamado.");
@@ -670,7 +731,7 @@ export default function Home() {
       {view === "dashboard" && <DashboardView data={data} currentUser={data.currentUser} openTicket={openTicket} onNavigate={setView} onNavigateQueue={goToTicketsQueue} onNewTicket={() => setView("new-ticket")} />}
       {view === "tickets" && can("tickets", "read") && <TicketsView tickets={data.tickets} catalog={catalog} users={users} currentUser={data.currentUser} permissions={data.permissions} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} initialQueue={ticketsQueue} onQueueApplied={() => setTicketsQueue(null)} onOpenTicket={openTicket} onRemoteAccess={remoteAccess} onStatusChange={changeStatus} onAssumeTicket={assumeTicket} onBulkPatch={bulkPatchTickets} />}
       {view === "assets" && data.permissions.canViewAssets && <AssetsView assets={data.assets} allAssets={data.assets} networkDevices={data.networkDevices || []} tickets={data.tickets} permissions={data.permissions} onNewTicket={() => setView("new-ticket")} onRemoteAccess={remoteAccess} onRemoteAsset={assetRemoteAccess} onOpenTicket={openTicket} onImported={loadData} onOpenMonitoring={() => setView("network")} onOpenAsset={openAsset} />}
-      {view === "asset-detail" && data.permissions.canViewAssets && <AssetDetailView asset={data.assets.find((item) => item.id === selectedAsset?.id) || selectedAsset} tickets={data.tickets} statuses={ticketStatuses} permissions={data.permissions} onBack={() => setView("assets")} onRemoteAsset={assetRemoteAccess} onNewTicket={() => setView("new-ticket")} onOpenTicket={openTicket} onReload={loadData} />}
+      {view === "asset-detail" && data.permissions.canViewAssets && <AssetDetailView asset={data.assets.find((item) => item.id === (selectedAsset?.id || route.assetId)) || selectedAsset} tickets={data.tickets} statuses={ticketStatuses} permissions={data.permissions} onBack={() => setView("assets")} onRemoteAsset={assetRemoteAccess} onNewTicket={() => setView("new-ticket")} onOpenTicket={openTicket} onReload={loadData} />}
       {view === "documentation" && can("documentation", "read") && <DocumentationView key={listRefreshKey} branches={data.branches} branchId={branchId} permissions={data.permissions} onNew={() => { setFormDraft(null); setView("documentation-form"); }} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onOpen={(item) => { setFormDraft(item); setView("documentation-detail"); }} />}
       {view === "documentation-form" && <DocumentationFormView item={formDraft} branches={data.branches} permissions={data.permissions} onCancel={() => closeDraftForm("documentation")} onSaved={refreshLists} />}
       {view === "documentation-detail" && formDraft && <DocumentationDetailView item={formDraft} permissions={data.permissions} onBack={() => closeDraftForm("documentation")} onEdit={(item) => { setFormDraft(item); setView("documentation-form"); }} onDeleted={refreshLists} onSaved={refreshLists} />}
