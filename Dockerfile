@@ -23,7 +23,6 @@ RUN npm run build && npm prune --production \
   && cp -r lib-db /db-deps/nexus-desk-db \
   && cp -r node_modules/bcryptjs /db-deps/bcryptjs \
   && cp -r node_modules/pg /db-deps/pg \
-  && cp -r node_modules/deasync /db-deps/deasync \
   && cp -r node_modules/better-sqlite3 /db-deps/better-sqlite3
 
 FROM node:20-bookworm-slim AS runner
