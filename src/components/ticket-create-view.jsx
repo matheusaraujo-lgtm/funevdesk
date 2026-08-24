@@ -64,7 +64,7 @@ function TypeCard({ option, selected, onSelect }) {
       onClick={() => onSelect(option.value)}
       aria-pressed={selected}
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-4 text-left transition",
+        "flex min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition",
         selected
           ? "border-primary bg-primary/[0.06] ring-1 ring-primary"
           : "border-foreground/10 bg-card hover:border-primary/40 hover:bg-primary/[0.03]"
@@ -77,7 +77,9 @@ function TypeCard({ option, selected, onSelect }) {
         {typeIcon(option)}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{option.label}</span>
+        {/* Título em até 2 linhas com altura fixa: nomes longos aparecem inteiros e
+            todos os cards mantêm o mesmo tamanho. */}
+        <span className="line-clamp-2 min-h-10 text-sm font-medium leading-5">{option.label}</span>
         {option.description && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{option.description}</span>}
       </span>
       {selected && <Check className="mt-0.5 size-4 shrink-0 text-primary" />}
@@ -87,6 +89,8 @@ function TypeCard({ option, selected, onSelect }) {
 
 export function TicketCreateView({
   branches, assets = [], users = [], defaultBranchId, onCreate, onCancel, currentUser, catalog,
+  // Modo do portal do usuário: sem hero (a página já traz a saudação) e visual neutro.
+  minimal = false,
 }) {
   const [ticketTypeId, setTicketTypeId] = useState("");
   // Fluxo em 2 passos: 1 = escolher o tipo, 2 = preencher o formulário.
@@ -321,8 +325,10 @@ export function TicketCreateView({
   const submitting_ = uploading || submitting;
   const submitLabel = uploading ? "Enviando arquivo..." : submitting ? "Criando chamado..." : "Abrir chamado";
 
-  return <form className="mx-auto max-w-7xl space-y-4 pb-6" onSubmit={(event) => event.preventDefault()}>
-    {/* Header em destaque, enxuto: as ações principais agora vivem na barra fixa do rodapé. */}
+  return <form className={cn("space-y-4 pb-6", !minimal && "mx-auto max-w-7xl")} onSubmit={(event) => event.preventDefault()}>
+    {/* Header em destaque, enxuto: as ações principais agora vivem na barra fixa do rodapé.
+        No modo minimal a página já exibe a saudação centralizada — sem hero aqui. */}
+    {!minimal && (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.07] via-card to-secondary/25 px-5 py-5 ring-1 ring-foreground/10 sm:px-6">
       <div className="flex items-start gap-3.5">
         {currentUser.role !== "EMPLOYEE" && <Button type="button" variant="outline" size="icon" className="mt-0.5 bg-card/70" onClick={onCancel} aria-label="Voltar para chamados"><ArrowLeft /></Button>}
@@ -333,7 +339,7 @@ export function TicketCreateView({
         </div>
       </div>
     </div>
-
+    )}
 
     {/* Passo 1 — escolha do tipo. Só aparece enquanto o formulário não foi aberto. */}
     {step === 1 && (
@@ -342,7 +348,7 @@ export function TicketCreateView({
       title="Do que você precisa?"
       hint="Escolha o tipo e toque em Criar chamado."
       complete={Boolean(selectedType)}
-      className="bg-gradient-to-br from-primary/[0.04] to-card ring-primary/15"
+      className={minimal ? "" : "bg-gradient-to-br from-primary/[0.04] to-card ring-primary/15"}
     >
       <CardContent className="px-5 py-5">
         <div className="relative mb-4">
@@ -359,7 +365,9 @@ export function TicketCreateView({
             {ticketTypeOptions.length === 0 ? "Nenhum tipo de chamado disponível." : "Nenhum tipo encontrado para a sua busca."}
           </p>
         ) : (
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          // grid-cols-1 explícito: sem ele a coluna implícita do mobile é dimensionada
+          // pelo min-content dos títulos (nowrap do truncate) e estoura a margem direita.
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredTypeOptions.map((option) => (
               <TypeCard key={option.value} option={option} selected={option.value === ticketTypeId} onSelect={changeTicketType} />
             ))}
@@ -441,13 +449,14 @@ export function TicketCreateView({
     <div className="sticky bottom-0 z-10 flex items-center gap-3 rounded-2xl border-0 bg-card/95 px-4 py-3 ring-1 ring-foreground/10 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <p className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
         {selectedType
-          ? <span className="inline-flex items-center gap-1.5"><Ticket className="size-3.5 text-primary" />{selectedType.name} · <FileUp className="size-3.5" />{attachments.length} anexo(s)</span>
+          ? <span className="inline-flex items-center gap-1.5"><Ticket className="size-3.5 text-primary" />{selectedType.name}{attachments.length > 0 && <> · <FileUp className="size-3.5" />{attachments.length} anexo(s)</>}</span>
           : "Selecione um tipo de chamado para começar"}
       </p>
       <div className="ml-auto flex gap-2">
         {step === 1 ? (
           <>
-            <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
+            {/* No portal minimal o formulário é a tela inicial — não há o que cancelar. */}
+            {!minimal && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
             <Button type="button" disabled={!selectedType} onClick={() => { setErrors({}); setStep(2); }}>
               Criar chamado <ArrowRight />
             </Button>

@@ -83,7 +83,8 @@ function ArticleCard({ article, onOpen, onEdit, onRemove, permissions }) {
   );
 }
 
-export function KnowledgeView({ permissions, branchId = "", onNew, onEdit, onOpen }) {
+// `minimal`: modo do portal do usuário — header limpo, sem gradiente.
+export function KnowledgeView({ permissions, branchId = "", onNew, onEdit, onOpen, minimal = false }) {
   const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -109,7 +110,13 @@ export function KnowledgeView({ permissions, branchId = "", onNew, onEdit, onOpe
   }
 
   return <div className="space-y-5 pb-6">
-    {/* Header em destaque, no mesmo estilo do restante do app. */}
+    {/* Header: limpo no portal do usuário; em destaque no restante do app. */}
+    {minimal ? (
+      <div>
+        <h1 className="font-heading text-2xl font-bold tracking-tight">Central de Ajuda</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Artigos para resolver dúvidas sem precisar abrir chamado.</p>
+      </div>
+    ) : (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.07] via-card to-secondary/25 px-5 py-5 ring-1 ring-foreground/10 sm:px-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-start gap-3.5">
@@ -122,6 +129,7 @@ export function KnowledgeView({ permissions, branchId = "", onNew, onEdit, onOpe
         {permissions.canManageTickets && <Button onClick={onNew}><Plus /> Novo artigo</Button>}
       </div>
     </div>
+    )}
 
     {/* Métricas só fazem sentido para quem gerencia a base. */}
     {permissions.canManageTickets && (

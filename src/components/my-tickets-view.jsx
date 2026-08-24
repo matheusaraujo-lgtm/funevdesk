@@ -19,7 +19,7 @@ const STAT_TONES = {
   gray: "bg-muted text-muted-foreground",
 };
 
-// Card de métrica que também filtra a lista ao clicar.
+// Card de métrica que também filtra a lista ao clicar — visual contido, sem relevo.
 function StatCard({ icon: Icon, label, value, tone, active, onClick }) {
   return (
     <button
@@ -27,15 +27,15 @@ function StatCard({ icon: Icon, label, value, tone, active, onClick }) {
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex items-center justify-between gap-4 rounded-2xl bg-card p-5 text-left ring-1 transition hover:-translate-y-0.5",
-        active ? "ring-2 ring-primary/40" : "ring-foreground/10 hover:ring-primary/25"
+        "flex items-center justify-between gap-4 rounded-xl border bg-card p-4 text-left transition",
+        active ? "border-primary ring-1 ring-primary" : "hover:border-primary/40"
       )}
     >
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-        <p className="mt-1 font-heading text-[32px] font-bold leading-none tracking-tight">{value}</p>
+        <p className="mt-1 font-heading text-2xl font-bold leading-none tracking-tight">{value}</p>
       </div>
-      <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl", STAT_TONES[tone])}><Icon className="size-5" /></span>
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", STAT_TONES[tone])}><Icon className="size-4" /></span>
     </button>
   );
 }
@@ -61,18 +61,13 @@ export function MyTicketsView({ tickets, statuses, onOpenTicket, onNewTicket }) 
 
   return (
     <div className="space-y-5 pb-6">
-      {/* Header em destaque */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/[0.07] via-card to-secondary/25 px-5 py-5 ring-1 ring-foreground/10 sm:px-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3.5">
-            <span className="hidden size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm sm:flex"><Ticket className="size-5" /></span>
-            <div>
-              <h1 className="page-title text-[26px]">Meus chamados</h1>
-              <p className="page-copy max-w-md">Acompanhe o andamento dos seus pedidos de suporte e o histórico de atendimento.</p>
-            </div>
-          </div>
-          <Button onClick={onNewTicket}><Plus /> Abrir chamado</Button>
+      {/* Header limpo, sem gradiente — combina com o portal minimalista. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-bold tracking-tight">Meus chamados</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Acompanhe o andamento dos seus pedidos de suporte.</p>
         </div>
+        <Button onClick={onNewTicket}><Plus /> Abrir chamado</Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -103,11 +98,8 @@ export function MyTicketsView({ tickets, statuses, onOpenTicket, onNewTicket }) 
                 aria-label={`Abrir chamado #${ticket.number} ${ticket.title}`}
                 onClick={() => onOpenTicket(ticket)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenTicket(ticket); } }}
-                className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-card px-4 py-3.5 ring-1 ring-foreground/10 transition hover:-translate-y-0.5 hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-4"
+                className="group flex cursor-pointer items-center gap-3 rounded-xl border bg-card px-4 py-3.5 transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-4"
               >
-                <span className="hidden size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground sm:grid">
-                  <Ticket className="size-5" />
-                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] text-muted-foreground">#{ticket.number}</span>

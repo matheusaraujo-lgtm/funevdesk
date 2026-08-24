@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowLeft, BookOpen, Ticket } from "lucide-react";
 import { AppNavbar } from "@/components/app-navbar";
 import { CommandPalette } from "@/components/command-palette";
 import { AssetsView } from "@/components/assets-view";
@@ -662,10 +663,52 @@ export default function Home() {
   if (data.currentUser.role === "EMPLOYEE") {
     const employeeViews = ["new-ticket", "my-tickets", "details", "knowledge", "knowledge-detail", "profile"];
     const safeView = employeeViews.includes(view) ? view : "new-ticket";
+    // Portal sem sidebar: tela única e minimalista. Saudação e atalhos centralizados,
+    // formulário largo logo abaixo. A marca na barra do topo sempre volta para
+    // "new-ticket"; as outras telas têm link de volta.
+    // Em notebooks de tela baixa (ex.: 1366x768) compacta o respiro vertical para
+    // sobrar mais espaço útil ao formulário.
+    const employeeMainClassName = "mx-auto w-full max-w-6xl px-4 py-8 md:px-6 [@media(max-height:820px)]:py-5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none";
+    const firstName = (data.currentUser.name || "").split(" ")[0];
 
     return <div className="min-h-screen" style={themeStyle}>
-      <EmployeePortalNavbar view={safeView} setView={setView} currentUser={data.currentUser} onLogout={logout} />
-      <main key={safeView} className={mainClassName}>
+      <EmployeePortalNavbar setView={setView} currentUser={data.currentUser} onLogout={logout} />
+      <main key={safeView} className={employeeMainClassName}>
+        {safeView === "new-ticket" && (
+          <>
+            <div className="mb-8 text-center [@media(max-height:820px)]:mb-5">
+              <h1 className="font-heading text-2xl font-bold tracking-tight md:text-[28px]">{firstName ? `Olá, ${firstName}. Como podemos ajudar?` : "Como podemos ajudar?"}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Abra um chamado e a equipe de suporte cuida do resto.</p>
+              <div className="mt-5 flex items-center justify-center gap-2 [@media(max-height:820px)]:mt-3">
+                <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => setView("my-tickets")}>
+                  <Ticket className="size-4" /> Meus chamados
+                  {activeTickets.length > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">{activeTickets.length}</span>}
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => setView("knowledge")}>
+                  <BookOpen className="size-4" /> Ajuda
+                </Button>
+              </div>
+            </div>
+            <TicketCreateView
+              key={createKey}
+              minimal
+              branches={data.branches}
+              assets={data.assets}
+              defaultBranchId={data.currentUser.branchId}
+              onCreate={createTicket}
+              onCancel={() => setView("my-tickets")}
+              currentUser={data.currentUser}
+              permissions={data.permissions}
+              catalog={catalog}
+              ticketStatuses={ticketStatuses}
+            />
+          </>
+        )}
+        {(safeView === "my-tickets" || safeView === "knowledge") && (
+          <Button type="button" variant="ghost" size="sm" className="-ml-2 mb-4 text-muted-foreground" onClick={() => setView("new-ticket")}>
+            <ArrowLeft className="size-4" /> Novo chamado
+          </Button>
+        )}
         {safeView === "my-tickets" && (
           // O agente já abre os chamados de incidente automaticamente — sem alerta de saúde aqui.
           <MyTicketsView
@@ -682,25 +725,12 @@ export default function Home() {
           <KnowledgeView
             key={listRefreshKey}
             permissions={data.permissions}
+            minimal
             onOpen={(item) => { setFormDraft(item); setView("knowledge-detail"); }}
           />
         )}
         {safeView === "knowledge-detail" && formDraft && (
           <KnowledgeDetailView item={formDraft} permissions={data.permissions} onBack={() => setView("knowledge")} onNewTicket={() => setView("new-ticket")} />
-        )}
-        {safeView === "new-ticket" && (
-          <TicketCreateView
-            key={createKey}
-            branches={data.branches}
-            assets={data.assets}
-            defaultBranchId={data.currentUser.branchId}
-            onCreate={createTicket}
-            onCancel={() => setView("my-tickets")}
-            currentUser={data.currentUser}
-            permissions={data.permissions}
-            catalog={catalog}
-            ticketStatuses={ticketStatuses}
-          />
         )}
         {safeView === "details" && (
           <TicketDetails
