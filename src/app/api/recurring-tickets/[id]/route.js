@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,11 @@ function listFor(db, organizationId) {
   `).all(organizationId);
 }
 
+function scopeTemplates(templates, user, db) {
+  const scopedBranchIds = getAllowedBranchIds(user, db, null);
+  return user.all_branches ? templates : templates.filter((t) => scopedBranchIds.includes(t.branch_id));
+}
+
 export async function PATCH(request, { params }) {
   const { id } = await params;
   const auth = requirePermission(request, "recurring_tickets", "update");
@@ -43,6 +49,7 @@ export async function PATCH(request, { params }) {
   const orgId = auth.user.organization_id;
   const row = db.prepare("SELECT * FROM recurring_tickets WHERE id=? AND organization_id=?").get(id, orgId);
   if (!row) return Response.json({ error: "Modelo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
 
   if (data.branchId) {
     if (!auth.user.all_branches && !auth.user.branchIds.includes(data.branchId)) {
@@ -87,7 +94,7 @@ export async function PATCH(request, { params }) {
     id,
   );
 
-  return Response.json({ templates: listFor(db, orgId) });
+  return Response.json({ templates: scopeTemplates(listFor(db, orgId), auth.user, db) });
 }
 
 export async function DELETE(request, { params }) {
@@ -95,8 +102,9 @@ export async function DELETE(request, { params }) {
   const auth = requirePermission(request, "recurring_tickets", "delete");
   if (auth.error) return auth.error;
   const db = getDb();
-  const row = db.prepare("SELECT id FROM recurring_tickets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
+  const row = db.prepare("SELECT id, branch_id FROM recurring_tickets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!row) return Response.json({ error: "Modelo não encontrado." }, { status: 404 });
+  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
   db.prepare("DELETE FROM recurring_tickets WHERE id=?").run(id);
-  return Response.json({ templates: listFor(db, auth.user.organization_id) });
+  return Response.json({ templates: scopeTemplates(listFor(db, auth.user.organization_id), auth.user, db) });
 }

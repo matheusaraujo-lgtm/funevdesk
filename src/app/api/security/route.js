@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { requirePermission } from "@/lib/auth";
+import { getPermissions, requirePermission } from "@/lib/auth";
 import { getAllowedBranchIds } from "@/lib/branch-scope";
 import { listConnectors } from "@/lib/xdr-connectors";
 
@@ -17,6 +17,7 @@ export async function GET(request) {
   const auth = requirePermission(request, "security", "read");
   if (auth.error) return auth.error;
   const currentUser = auth.user;
+  const permissions = getPermissions(currentUser);
 
   // Seletor de unidade global (topo do app): aceita ?branchId= e revalida contra o
   // conjunto de unidades permitidas ao usuário — mesmo padrão de reports/audit/dashboard.

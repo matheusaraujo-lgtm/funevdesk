@@ -1,6 +1,6 @@
 import { requireCurrentUser, can } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { getAllowedBranchIds, canAccessBranch } from "@/lib/branch-scope";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { listTeams, validateTeamRefs } from "../route";
 import { z } from "zod";
 
@@ -14,11 +14,10 @@ export async function GET(request, { params }) {
   const db = getDb();
   const team = listTeams(db, auth.user.organization_id).find((t) => t.id === id);
   if (!team) return Response.json({ error: "Equipe não encontrada." }, { status: 404 });
-  if (auth.user.role !== "ADMIN") {
-    const scopedBranchIds = getAllowedBranchIds(auth.user, db);
-    if (team.branch_id && !scopedBranchIds.includes(team.branch_id)) {
-      return Response.json({ error: "Equipe não encontrada." }, { status: 404 });
-    }
+  // Isolamento: independe do papel — um ADMIN restrito a unidades (all_branches=false)
+  // segue as mesmas regras que qualquer outro usuário, como no resto do app.
+  if (team.branch_id && !canAccessBranch(auth.user, team.branch_id)) {
+    return Response.json({ error: "Equipe não encontrada." }, { status: 404 });
   }
   return Response.json({ team });
 }
@@ -65,6 +64,7 @@ export async function DELETE(request, { params }) {
   const db = getDb();
   const team = db.prepare("SELECT * FROM teams WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!team) return Response.json({ error: "Equipe não encontrada." }, { status: 404 });
+  if (team.branch_id && !canAccessBranch(auth.user, team.branch_id)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const linked = db.prepare("SELECT COUNT(*) count FROM tickets WHERE team_id=?").get(id).count;
   if (linked > 0) return Response.json({ error: "Equipe com chamados vinculados não pode ser excluída." }, { status: 409 });
   db.transaction(() => {

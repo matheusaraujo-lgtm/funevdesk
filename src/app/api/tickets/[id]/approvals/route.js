@@ -75,14 +75,19 @@ export async function PATCH(request, { params }) {
     WHERE ta.id=? AND ta.ticket_id=?
   `).get(parsed.data.approvalId, id);
   if (!approval) return Response.json({ error: "Aprovação não encontrada." }, { status: 404 });
-  const canDecide = approval.approver_id === currentUser.id || getPermissions(currentUser).canManageTickets;
-  if (!canDecide) return Response.json({ error: "Você não pode decidir esta aprovação." }, { status: 403 });
+  // Segregação de função: a aprovação existe para pôr um segundo par de olhos — só o
+  // aprovador designado decide. ADMIN pode decidir em nome dele (ausência/desligamento),
+  // e nesse caso o evento registra explicitamente que foi uma decisão por terceiro.
+  const isDesignatedApprover = approval.approver_id === currentUser.id;
+  const canDecide = isDesignatedApprover || currentUser.role === "ADMIN";
+  if (!canDecide) return Response.json({ error: "Apenas o aprovador designado (ou um administrador) pode decidir esta aprovação." }, { status: 403 });
   const now = new Date().toISOString();
   const decide = db.transaction(() => {
     db.prepare("UPDATE ticket_approvals SET status=?, decided_at=?, comment=? WHERE id=?")
       .run(parsed.data.status, now, parsed.data.comment || null, approval.id);
+    const onBehalf = isDesignatedApprover ? "" : " (decidida por administrador em nome do aprovador designado)";
     db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'APPROVAL_DECIDED', ?, ?)")
-      .run(makeId("evt"), id, currentUser.id, currentUser.name, `Aprovação ${parsed.data.status.toLowerCase()}. ${parsed.data.comment || ""}`.trim(), now);
+      .run(makeId("evt"), id, currentUser.id, currentUser.name, `Aprovação ${parsed.data.status.toLowerCase()}${onBehalf}. ${parsed.data.comment || ""}`.trim(), now);
     if (parsed.data.status === "APROVADO") {
       const ticket = db.prepare("SELECT requester_id, organization_id, number, title, status, sla_due_at, sla_paused_at FROM tickets WHERE id=?").get(id);
       if (ticket?.status === "PENDENTE") {

@@ -1,6 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { requireCurrentUser, can } from "@/lib/auth";
-import { branchFilterClause, getAllowedBranchIds } from "@/lib/branch-scope";
+import { branchFilterClause, canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +90,7 @@ export async function POST(request) {
     const findExisting = db.prepare("SELECT id FROM assets WHERE organization_id=? AND hostname=? LIMIT 1");
     for (const row of parsed.data.rows) {
       if (!validBranches.has(row.branchId)) throw new Error(`Unidade inválida para ${row.hostname}.`);
+      if (!canAccessBranch(currentUser, row.branchId)) throw new Error(`Você não tem acesso à unidade de ${row.hostname}.`);
       const lastSeen = row.status === "OFFLINE" ? null : now;
       const existing = findExisting.get(currentUser.organization_id, row.hostname);
       if (existing) {

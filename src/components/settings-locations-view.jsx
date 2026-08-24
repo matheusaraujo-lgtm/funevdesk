@@ -35,9 +35,10 @@ function MetricCard({ icon: Icon, label, value, tone = "blue" }) {
   );
 }
 
-export function SettingsLocationsView({ branches = [] }) {
+export function SettingsLocationsView({ branches = [], branchId: globalBranchId = "" }) {
   const [locations, setLocations] = useState([]);
   const [search, setSearch] = useState("");
+  const [filterBranchId, setFilterBranchId] = useState(globalBranchId || "all");
   const [createOpen, setCreateOpen] = useState(false);
   const [branchId, setBranchId] = useState(branches[0]?.id || "");
   const [name, setName] = useState("");
@@ -50,9 +51,10 @@ export function SettingsLocationsView({ branches = [] }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const { loading, reload: load } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/locations", { cache: "no-store" });
+    const query = filterBranchId !== "all" ? `?branchId=${encodeURIComponent(filterBranchId)}` : "";
+    const response = await fetch(`/api/locations${query}`, { cache: "no-store" });
     if (response.ok) setLocations((await response.json()).locations || []);
-  }, []));
+  }, [filterBranchId]));
 
   const stats = useMemo(() => ({
     total: locations.length,
@@ -141,11 +143,18 @@ export function SettingsLocationsView({ branches = [] }) {
       </div>
 
       <Card className="gap-0 overflow-hidden rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
-        <div className="border-b p-4">
-          <div className="relative max-w-md">
+        <div className="flex flex-wrap items-center gap-2 border-b p-4">
+          <div className="relative max-w-md flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, código ou unidade..." className="h-9 pl-9" />
           </div>
+          <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger aria-label="Filtrar por unidade" className="h-9 w-[200px] bg-card"><SelectValue placeholder="Unidade">{(v) => v === "all" ? "Todas as unidades" : branches.find((b) => b.id === v)?.name}</SelectValue></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as unidades</SelectItem>
+              {branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         {loading ? <ListLoadingSkeleton /> : filtered.length === 0 ? (
           <ListEmptyState

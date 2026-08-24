@@ -138,6 +138,14 @@ function validateBranches(db, organizationId, branchIds, primaryBranchId, assetI
   return null;
 }
 
+// Isolamento em ações sobre um usuário JÁ EXISTENTE (ativar/desativar, excluir): um ator
+// restrito a unidades só pode agir sobre alvos que compartilhem ao menos uma unidade com ele.
+export function actorCanManageTargetBranches(actor, db, targetUserId) {
+  if (actor.all_branches) return true;
+  const links = db.prepare("SELECT branch_id FROM user_branches WHERE user_id=?").all(targetUserId).map((row) => row.branch_id);
+  return links.some((branchId) => actor.branchIds.includes(branchId));
+}
+
 // Isolamento na ESCRITA: um ator restrito a unidades não pode criar/mover usuários para
 // unidades fora do seu escopo, nem conceder "todas as unidades" sendo ele próprio restrito.
 function actorBranchScopeError(actor, data, existingAllBranches = false) {

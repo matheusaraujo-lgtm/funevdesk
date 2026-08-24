@@ -80,7 +80,9 @@ export async function POST(request) {
     const asset = db.prepare("SELECT branch_id FROM assets WHERE id=? AND organization_id=?").get(assetId, currentUser.organization_id);
     if (!asset || asset.branch_id !== branchId) return Response.json({ error: "O equipamento não pertence à unidade selecionada." }, { status: 403 });
   }
-  const number = db.prepare("SELECT COALESCE(MAX(number), 1000)+1 AS next FROM tickets").get().next;
+  // Sequência POR ORGANIZAÇÃO: sem o filtro, números pulavam entre empresas (vazando
+  // volume entre tenants) e o "chamado nº X" deixava de ser único por organização.
+  const number = db.prepare("SELECT COALESCE(MAX(number), 1000)+1 AS next FROM tickets WHERE organization_id=?").get(branch.organization_id).next;
   const now = new Date().toISOString();
   const id = makeId("tkt");
   const settings = db.prepare("SELECT sla_hours, sla_policy_json FROM system_settings WHERE organization_id=?").get(branch.organization_id);

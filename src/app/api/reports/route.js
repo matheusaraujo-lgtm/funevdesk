@@ -66,6 +66,13 @@ export async function GET(request) {
   // e para a quebra por status, em vez de assumir o código fixo "RESOLVIDO".
   const statuses = db.prepare("SELECT code, label, color, is_terminal FROM ticket_statuses WHERE organization_id=? AND active=1 ORDER BY sort_order ASC").all(orgId);
   const terminalCodes = new Set(statuses.filter((s) => s.is_terminal).map((s) => s.code));
+  // "Resolvido" para métricas = qualquer status TERMINAL que não seja cancelamento — assim
+  // organizações com status terminais customizados (ex.: "Fechado") não zeram MTTR/resolvidos.
+  // Fallback para o código padrão caso a organização (anômala) não tenha status terminais.
+  const resolvedCodesList = statuses.filter((s) => s.is_terminal && s.code !== "CANCELADO").map((s) => s.code);
+  if (!resolvedCodesList.length) resolvedCodesList.push("RESOLVIDO");
+  const resolvedCodes = new Set(resolvedCodesList);
+  const resolvedSqlIn = `IN (${resolvedCodesList.map(() => "?").join(",")})`;
   const openCount = tickets.filter((t) => !terminalCodes.has(t.status)).length;
   const byStatus = statuses.map((s) => ({ code: s.code, label: s.label, color: s.color, count: tickets.filter((t) => t.status === s.code).length }));
 
@@ -80,7 +87,7 @@ export async function GET(request) {
     { key: "noite", label: "Noite (18h–23h)", count: hourBuckets.slice(18, 24).reduce((a, b) => a + b, 0) },
   ];
 
-  const resolved = tickets.filter((t) => t.status === "RESOLVIDO");
+  const resolved = tickets.filter((t) => resolvedCodes.has(t.status));
   const mttrHours = resolved.length ? resolved.reduce((sum, t) => {
     const start = new Date(t.created_at).getTime();
     const end = new Date(t.resolved_at || t.updated_at).getTime();
@@ -105,9 +112,9 @@ export async function GET(request) {
   // Agregado por unidade respeitando o mesmo filtro de data (e organização) aplicado aos chamados.
   let byBranchQuery = `
     SELECT b.name, COUNT(t.id) total,
-      SUM(CASE WHEN t.status='RESOLVIDO' THEN 1 ELSE 0 END) resolved
+      SUM(CASE WHEN t.status ${resolvedSqlIn} THEN 1 ELSE 0 END) resolved
     FROM branches b LEFT JOIN tickets t ON t.branch_id=b.id AND t.organization_id=?`;
-  const byBranchParams = [orgId];
+  const byBranchParams = [...resolvedCodesList, orgId];
   if (from) { byBranchQuery += " AND t.created_at>=?"; byBranchParams.push(from); }
   if (to) { byBranchQuery += " AND t.created_at<=?"; byBranchParams.push(to); }
   byBranchQuery += ` WHERE b.organization_id=? AND ${scopeB.clause}`;
@@ -134,17 +141,17 @@ export async function GET(request) {
   if (from) {
     const dur = (to ? new Date(to).getTime() : Date.now()) - new Date(from).getTime();
     const prevFrom = new Date(new Date(from).getTime() - dur).toISOString();
-    const q = `SELECT COUNT(*) total, SUM(CASE WHEN status='RESOLVIDO' THEN 1 ELSE 0 END) resolved FROM tickets WHERE organization_id=? AND ${scopePlain.clause} AND created_at>=? AND created_at<?`;
-    const p = [orgId, ...scopePlain.params, prevFrom, from];
+    const q = `SELECT COUNT(*) total, SUM(CASE WHEN status ${resolvedSqlIn} THEN 1 ELSE 0 END) resolved FROM tickets WHERE organization_id=? AND ${scopePlain.clause} AND created_at>=? AND created_at<?`;
+    const p = [...resolvedCodesList, orgId, ...scopePlain.params, prevFrom, from];
     const row = db.prepare(q).get(...p);
     previous = { totalTickets: row.total || 0, resolved: row.resolved || 0 };
   }
 
   // Produtividade por responsável (top 8 técnicos no período).
   let agentQuery = `SELECT u.name, COUNT(t.id) total,
-      SUM(CASE WHEN t.status='RESOLVIDO' THEN 1 ELSE 0 END) resolved
+      SUM(CASE WHEN t.status ${resolvedSqlIn} THEN 1 ELSE 0 END) resolved
     FROM tickets t JOIN users u ON u.id=t.assignee_id WHERE t.organization_id=? AND ${scopeT.clause}`;
-  const agentParams = [orgId, ...scopeT.params];
+  const agentParams = [...resolvedCodesList, orgId, ...scopeT.params];
   if (from) { agentQuery += " AND t.created_at>=?"; agentParams.push(from); }
   if (to) { agentQuery += " AND t.created_at<=?"; agentParams.push(to); }
   agentQuery += " GROUP BY u.id, u.name ORDER BY total DESC LIMIT 8";
@@ -157,7 +164,7 @@ export async function GET(request) {
     const name = typeNameById[t.ticket_type_id] || "Sem tipo definido";
     const entry = typeCounts.get(name) || { name, total: 0, resolved: 0 };
     entry.total += 1;
-    if (t.status === "RESOLVIDO") entry.resolved += 1;
+    if (resolvedCodes.has(t.status)) entry.resolved += 1;
     typeCounts.set(name, entry);
   }
   const byType = [...typeCounts.values()].sort((a, b) => b.total - a.total);

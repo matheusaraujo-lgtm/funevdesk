@@ -47,7 +47,7 @@ export async function POST(request) {
   const db = getDb();
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, auth.user.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
-  const number = db.prepare("SELECT COALESCE(MAX(number), 100)+1 next FROM problems").get().next;
+  const number = db.prepare("SELECT COALESCE(MAX(number), 100)+1 next FROM problems WHERE organization_id=?").get(auth.user.organization_id).next;
   const id = makeId("prb");
   const now = new Date().toISOString();
   db.prepare(`INSERT INTO problems (id, organization_id, branch_id, number, title, description, status, workaround, assignee_id, created_at, updated_at)

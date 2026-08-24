@@ -1,5 +1,6 @@
 import { getDb, makeId } from "@/lib/db";
 import { getPermissions, requireCurrentUser, can } from "@/lib/auth";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { isValidHost } from "@/lib/security";
 import { z } from "zod";
 
@@ -115,6 +116,7 @@ export async function POST(request) {
 
       for (const row of parsed.data.rows) {
         if (!validBranches.has(row.branchId)) throw new Error(`Unidade inválida para ${row.name}.`);
+        if (!canAccessBranch(currentUser, row.branchId)) throw new Error(`Você não tem acesso à unidade de ${row.name}.`);
         const ports = parsePortList(row.checkPorts);
         const existing = findExisting.get(currentUser.organization_id, row.ipAddress);
         if (existing) {
@@ -156,6 +158,7 @@ export async function POST(request) {
   if (auth.error) return auth.error;
   const currentUser = auth.user;
   if (!getPermissions(currentUser).canConfigure) return Response.json({ error: "Apenas administradores podem cadastrar rede." }, { status: 403 });
+  if (!canAccessBranch(currentUser, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, currentUser.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
   const now = new Date().toISOString();

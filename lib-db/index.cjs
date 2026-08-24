@@ -774,6 +774,16 @@ function ensureItilTables(db) {
       secret TEXT, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL,
       FOREIGN KEY (organization_id) REFERENCES organizations(id)
     );
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id TEXT PRIMARY KEY, webhook_id TEXT NOT NULL, organization_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','DELIVERED','FAILED')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      response_status INTEGER, last_error TEXT,
+      created_at TEXT NOT NULL, completed_at TEXT,
+      FOREIGN KEY (webhook_id) REFERENCES webhooks(id),
+      FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    );
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL,
       actor_id TEXT, actor_name TEXT NOT NULL,

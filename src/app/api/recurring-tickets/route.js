@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { getDb, makeId } from "@/lib/db";
+import { getAllowedBranchIds } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,21 @@ function listFor(db, organizationId) {
   `).all(organizationId);
 }
 
+// Isolamento por unidade: só quem tem acesso a todas as unidades vê modelos de outras filiais.
+function scopeTemplates(templates, auth, db, requestedBranchId) {
+  const scopedBranchIds = getAllowedBranchIds(auth.user, db, requestedBranchId || null);
+  if (!auth.user.all_branches) return templates.filter((t) => scopedBranchIds.includes(t.branch_id));
+  if (requestedBranchId) return templates.filter((t) => t.branch_id === requestedBranchId);
+  return templates;
+}
+
 export async function GET(request) {
   const auth = requirePermission(request, "recurring_tickets", "read");
   if (auth.error) return auth.error;
   const db = getDb();
-  return Response.json({ templates: listFor(db, auth.user.organization_id) });
+  const requestedBranchId = new URL(request.url).searchParams.get("branchId");
+  const templates = scopeTemplates(listFor(db, auth.user.organization_id), auth, db, requestedBranchId);
+  return Response.json({ templates });
 }
 
 export async function POST(request) {
@@ -68,5 +79,5 @@ export async function POST(request) {
     data.active === false ? 0 : 1, auth.user.id, now, now,
   );
 
-  return Response.json({ templates: listFor(db, orgId) }, { status: 201 });
+  return Response.json({ templates: scopeTemplates(listFor(db, orgId), auth, db, null) }, { status: 201 });
 }

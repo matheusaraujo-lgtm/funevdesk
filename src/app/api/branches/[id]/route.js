@@ -8,6 +8,7 @@ import {
   validateBranchRules,
 } from "@/app/api/branches/route";
 import { getBranchAuthSettings, saveBranchAuthSettings } from "@/lib/ldap";
+import { canAccessBranch } from "@/lib/branch-scope";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export async function PUT(request, { params }) {
   const db = getDb();
   const branch = db.prepare("SELECT * FROM branches WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!branch) return Response.json({ error: "Unidade não encontrada." }, { status: 404 });
+  if (!canAccessBranch(auth.user, id)) return Response.json({ error: "Sem permissão." }, { status: 403 });
   const ruleError = validateBranchRules(db, auth.user.organization_id, parsed.data, id);
   if (ruleError) return Response.json({ error: ruleError }, { status: 400 });
   const code = normalizeBranchCode(parsed.data.code);
@@ -55,6 +57,7 @@ export async function GET(request, { params }) {
   const db = getDb();
   const branch = db.prepare("SELECT * FROM branches WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!branch) return Response.json({ error: "Unidade não encontrada." }, { status: 404 });
+  if (!canAccessBranch(auth.user, id)) return Response.json({ error: "Sem permissão." }, { status: 403 });
   const authSettings = getBranchAuthSettings(db, id);
   return Response.json({
     branch,
@@ -78,6 +81,7 @@ export async function DELETE(request, { params }) {
   const db = getDb();
   const branch = db.prepare("SELECT * FROM branches WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!branch) return Response.json({ error: "Unidade não encontrada." }, { status: 404 });
+  if (!canAccessBranch(auth.user, id)) return Response.json({ error: "Sem permissão." }, { status: 403 });
   const deps = branchDependencies(db, id);
   const total = Object.values(deps).reduce((sum, count) => sum + count, 0);
   if (total > 0) {

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const UNIT_LABELS = { DAYS: "dia(s)", WEEKS: "semana(s)", MONTHS: "mês(es)" };
@@ -21,14 +22,16 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function RecurringTicketsView({ canConfigure = false, onNew, onEdit }) {
+export function RecurringTicketsView({ branches = [], branchId = "", canConfigure = false, onNew, onEdit }) {
   const [templates, setTemplates] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [filterBranchId, setFilterBranchId] = useState(branchId || "all");
 
   const { loading } = useReloadableData(useCallback(async () => {
-    const response = await fetch("/api/recurring-tickets", { cache: "no-store" });
+    const query = filterBranchId !== "all" ? `?branchId=${encodeURIComponent(filterBranchId)}` : "";
+    const response = await fetch(`/api/recurring-tickets${query}`, { cache: "no-store" });
     if (response.ok) setTemplates((await response.json()).templates || []);
-  }, []));
+  }, [filterBranchId]));
 
   async function toggleActive(template) {
     const response = await fetch(`/api/recurring-tickets/${template.id}`, {
@@ -59,6 +62,15 @@ export function RecurringTicketsView({ canConfigure = false, onNew, onEdit }) {
       />
 
       <Card className="overflow-hidden rounded-2xl border-0 py-0 shadow-none ring-1 ring-foreground/10">
+        <div className="border-b p-4">
+          <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger aria-label="Filtrar por unidade" className="h-9 w-[200px] bg-card"><SelectValue placeholder="Unidade">{(v) => v === "all" ? "Todas as unidades" : branches.find((b) => b.id === v)?.name}</SelectValue></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as unidades</SelectItem>
+              {branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         {loading ? <ListLoadingSkeleton /> : templates.length === 0 ? (
           <ListEmptyState
             icon={Repeat}

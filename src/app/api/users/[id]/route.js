@@ -1,6 +1,6 @@
 import { requireCurrentUser, can, canManageUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { listUsers, userSchema, validateBranches, resolveProfile, actorBranchScopeError, normalizeLogin } from "@/app/api/users/route";
+import { listUsers, userSchema, validateBranches, resolveProfile, actorBranchScopeError, normalizeLogin, actorCanManageTargetBranches } from "@/app/api/users/route";
 
 export async function PUT(request, { params }) {
   const { id } = await params;
@@ -50,6 +50,7 @@ export async function PATCH(request, { params }) {
   const target = db.prepare("SELECT role FROM users WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
   if (!target) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
   if (!canManageUser(currentUser, target.role)) return Response.json({ error: "Você não pode gerenciar um usuário de igual ou maior privilégio." }, { status: 403 });
+  if (!actorCanManageTargetBranches(currentUser, db, id)) return Response.json({ error: "Você não tem acesso às unidades deste usuário." }, { status: 403 });
   const result = db.prepare("UPDATE users SET active=? WHERE id=? AND organization_id=?").run(active ? 1 : 0, id, currentUser.organization_id);
   if (!result.changes) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
   return Response.json({ users: listUsers(db, currentUser.organization_id) });
@@ -66,6 +67,7 @@ export async function DELETE(request, { params }) {
   const user = db.prepare("SELECT id, role FROM users WHERE id=? AND organization_id=?").get(id, currentUser.organization_id);
   if (!user) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
   if (!canManageUser(currentUser, user.role)) return Response.json({ error: "Você não pode excluir um usuário de igual ou maior privilégio." }, { status: 403 });
+  if (!actorCanManageTargetBranches(currentUser, db, id)) return Response.json({ error: "Você não tem acesso às unidades deste usuário." }, { status: 403 });
   const tickets = db.prepare("SELECT COUNT(*) total FROM tickets WHERE requester_id=?").get(id).total;
   const events = db.prepare("SELECT COUNT(*) total FROM ticket_events WHERE actor_id=?").get(id).total;
   if (tickets || events) return Response.json({ error: "Este usuário possui histórico. Desative-o em vez de excluir." }, { status: 409 });

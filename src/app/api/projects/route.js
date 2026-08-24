@@ -56,7 +56,7 @@ export async function POST(request) {
     const owner = db.prepare("SELECT id FROM users WHERE id=? AND organization_id=?").get(parsed.data.ownerId, auth.user.organization_id);
     if (!owner) return Response.json({ error: "Responsável inválido." }, { status: 400 });
   }
-  const number = db.prepare("SELECT COALESCE(MAX(number), 100)+1 next FROM projects").get().next;
+  const number = db.prepare("SELECT COALESCE(MAX(number), 100)+1 next FROM projects WHERE organization_id=?").get(auth.user.organization_id).next;
   const id = makeId("prj");
   const now = new Date().toISOString();
   db.prepare(`INSERT INTO projects (id, organization_id, branch_id, number, name, description, status, priority, owner_id, start_date, due_date, created_by, created_at, updated_at)

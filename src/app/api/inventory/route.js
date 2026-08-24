@@ -1,5 +1,5 @@
 import { can, requireCurrentUser } from "@/lib/auth";
-import { getAllowedBranchIds } from "@/lib/branch-scope";
+import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 import { listInventoryItems } from "@/lib/inventory";
 import { z } from "zod";
@@ -93,6 +93,7 @@ export async function POST(request) {
   if (!parsed.success) return Response.json({ error: "Dados inválidos." }, { status: 400 });
   const db = getDb();
   if (parsed.data.branchId) {
+    if (!canAccessBranch(auth.user, parsed.data.branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
     const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(parsed.data.branchId, auth.user.organization_id);
     if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });
   }

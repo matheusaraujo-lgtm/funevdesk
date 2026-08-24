@@ -4,6 +4,10 @@ const nextConfig = {
   serverExternalPackages: ["better-sqlite3", "bcryptjs", "pg", "nexus-desk-db"],
   async headers() {
     const baseSecurity = [
+      // HSTS: navegadores só honram o header quando servido via HTTPS, então é inócuo
+      // no dev local (http) e ativo em produção. Sem includeSubDomains de propósito —
+      // outros subdomínios do domínio institucional não são geridos por este app.
+      { key: "Strict-Transport-Security", value: "max-age=15552000" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "SAMEORIGIN" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
