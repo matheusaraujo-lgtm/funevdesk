@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { requirePermission } from "@/lib/auth";
+import { authorize } from "@/lib/authorize";
 import { getDb } from "@/lib/db";
-import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
+import { getAllowedBranchIds } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,7 @@ function scopeTemplates(templates, user, db) {
 
 export async function PATCH(request, { params }) {
   const { id } = await params;
-  const auth = requirePermission(request, "recurring_tickets", "update");
+  const auth = authorize(request, { module: "recurring_tickets", action: "update" });
   if (auth.error) return auth.error;
   const parsed = patchSchema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos.", details: parsed.error.flatten() }, { status: 400 });
@@ -49,12 +49,11 @@ export async function PATCH(request, { params }) {
   const orgId = auth.user.organization_id;
   const row = db.prepare("SELECT * FROM recurring_tickets WHERE id=? AND organization_id=?").get(id, orgId);
   if (!row) return Response.json({ error: "Modelo não encontrado." }, { status: 404 });
-  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
+  const denied = auth.branchGate(row.branch_id, { message: "Você não possui permissão para esta unidade." })
+    || auth.branchGate(data.branchId, { message: "Você não possui permissão para esta unidade." });
+  if (denied) return denied;
 
   if (data.branchId) {
-    if (!auth.user.all_branches && !auth.user.branchIds.includes(data.branchId)) {
-      return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
-    }
     const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(data.branchId, orgId);
     if (!branch) return Response.json({ error: "Unidade não encontrada." }, { status: 404 });
   }
@@ -99,12 +98,13 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { id } = await params;
-  const auth = requirePermission(request, "recurring_tickets", "delete");
+  const auth = authorize(request, { module: "recurring_tickets", action: "delete" });
   if (auth.error) return auth.error;
   const db = getDb();
   const row = db.prepare("SELECT id, branch_id FROM recurring_tickets WHERE id=? AND organization_id=?").get(id, auth.user.organization_id);
   if (!row) return Response.json({ error: "Modelo não encontrado." }, { status: 404 });
-  if (!canAccessBranch(auth.user, row.branch_id)) return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
+  const denied = auth.branchGate(row.branch_id, { message: "Você não possui permissão para esta unidade." });
+  if (denied) return denied;
   db.prepare("DELETE FROM recurring_tickets WHERE id=?").run(id);
   return Response.json({ templates: scopeTemplates(listFor(db, auth.user.organization_id), auth.user, db) });
 }

@@ -12,7 +12,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate de qualidade ANTES do deploy: verificador estático de autorização (toda rota
+  # precisa de gate de sessão + escopo por unidade — ver qa/scripts/authz-static.mjs)
+  # e lint. Sem instalar módulos nativos (--ignore-scripts): o eslint não precisa deles
+  # e isso mantém o job rápido e sem risco de falha de compilação no runner.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verificador estático de autorização
+        run: node qa/scripts/authz-static.mjs
+      - name: Instalar dependências (sem scripts nativos)
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npx eslint src
+
   deploy:
+    needs: checks
     runs-on: ubuntu-latest
     steps:
       - name: Conectar via SSH e reconstruir o Docker

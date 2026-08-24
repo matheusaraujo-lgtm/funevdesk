@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requirePermission } from "@/lib/auth";
+import { authorize } from "@/lib/authorize";
 import { getDb, makeId } from "@/lib/db";
 import { getAllowedBranchIds } from "@/lib/branch-scope";
 
@@ -41,7 +41,7 @@ function scopeTemplates(templates, auth, db, requestedBranchId) {
 }
 
 export async function GET(request) {
-  const auth = requirePermission(request, "recurring_tickets", "read");
+  const auth = authorize(request, { module: "recurring_tickets" });
   if (auth.error) return auth.error;
   const db = getDb();
   const requestedBranchId = new URL(request.url).searchParams.get("branchId");
@@ -50,7 +50,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = requirePermission(request, "recurring_tickets", "create");
+  const auth = authorize(request, { module: "recurring_tickets", action: "create" });
   if (auth.error) return auth.error;
   const parsed = createSchema.safeParse(await request.json());
   if (!parsed.success) return Response.json({ error: "Dados inválidos.", details: parsed.error.flatten() }, { status: 400 });
@@ -58,9 +58,8 @@ export async function POST(request) {
 
   const db = getDb();
   const orgId = auth.user.organization_id;
-  if (!auth.user.all_branches && !auth.user.branchIds.includes(data.branchId)) {
-    return Response.json({ error: "Você não possui permissão para esta unidade." }, { status: 403 });
-  }
+  const denied = auth.branchGate(data.branchId, { allowNull: false, message: "Você não possui permissão para esta unidade." });
+  if (denied) return denied;
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(data.branchId, orgId);
   if (!branch) return Response.json({ error: "Unidade não encontrada." }, { status: 404 });
   const ticketType = db.prepare("SELECT id FROM ticket_types WHERE id=? AND organization_id=? AND active=1").get(data.ticketTypeId, orgId);

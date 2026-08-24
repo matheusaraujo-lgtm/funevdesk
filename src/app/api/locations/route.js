@@ -1,5 +1,6 @@
-import { can, getPermissions, requireCurrentUser } from "@/lib/auth";
-import { canAccessBranch } from "@/lib/branch-scope";
+import { can } from "@/lib/auth";
+import { authorize } from "@/lib/authorize";
+import { canAccessBranch, getAllowedBranchIds } from "@/lib/branch-scope";
 import { getDb, makeId } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -44,14 +45,11 @@ function importLocationRows(db, organizationId, rows, user) {
 }
 
 export async function GET(request) {
-  const auth = requireCurrentUser(request);
-  if (auth.error) return auth.error;
   // Localizações alimentam telas operacionais (formulário de ativo) E o campo "Localização"
   // ao abrir chamado. Libera quem gere localizações, ativos OU pode abrir chamado — sempre
   // com escopo por unidade (a query abaixo restringe às unidades do próprio usuário).
-  if (!can(auth.user, "locations", "read") && !can(auth.user, "assets", "read") && !can(auth.user, "tickets", "create")) {
-    return Response.json({ error: "Acesso negado." }, { status: 403 });
-  }
+  const auth = authorize(request, { anyOf: [["locations"], ["assets"], ["tickets", "create"]] });
+  if (auth.error) return auth.error;
   const db = getDb();
   const url = new URL(request.url);
 
@@ -76,10 +74,7 @@ export async function GET(request) {
   }
 
   const branchId = url.searchParams.get("branchId");
-  const permissions = getPermissions(auth.user);
-  const branchIds = permissions.canViewAllBranches
-    ? db.prepare("SELECT id FROM branches WHERE organization_id=?").all(auth.user.organization_id).map((b) => b.id)
-    : auth.user.branchIds;
+  const branchIds = getAllowedBranchIds(auth.user, db);
 
   let locations;
   if (branchId && branchIds.includes(branchId)) {
@@ -104,9 +99,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = requireCurrentUser(request);
+  const auth = authorize(request, { module: "locations", action: "create" });
   if (auth.error) return auth.error;
-  if (!can(auth.user, "locations", "create")) return Response.json({ error: "Sem permissão." }, { status: 403 });
   const body = await request.json();
 
   // Importação por planilha.
@@ -126,7 +120,8 @@ export async function POST(request) {
   if (name.length < 2 || !branchId) {
     return Response.json({ error: "Nome e unidade são obrigatórios." }, { status: 400 });
   }
-  if (!canAccessBranch(auth.user, branchId)) return Response.json({ error: "Acesso negado." }, { status: 403 });
+  const denied = auth.branchGate(branchId, { allowNull: false });
+  if (denied) return denied;
   const db = getDb();
   const branch = db.prepare("SELECT id FROM branches WHERE id=? AND organization_id=?").get(branchId, auth.user.organization_id);
   if (!branch) return Response.json({ error: "Unidade inválida." }, { status: 400 });

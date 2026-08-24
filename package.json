@@ -20,6 +20,7 @@
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
+    "qa:authz": "node qa/scripts/authz-static.mjs",
     "qa:discover": "node qa/scripts/discover.mjs",
     "qa:smoke": "node qa/scripts/smoke.mjs",
     "qa:permissions": "node qa/scripts/permissions.mjs",
