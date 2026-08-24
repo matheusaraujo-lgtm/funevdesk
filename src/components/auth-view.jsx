@@ -143,8 +143,8 @@ export function AuthView({ mode = "login", user, onAuthenticated, onPasswordChan
         </div>
 
         <div className="relative my-auto max-w-md">
-          <h2 className="font-heading text-3xl font-bold leading-tight xl:text-4xl">O canal de suporte de TI da sua empresa.</h2>
-          <p className="mt-4 text-sm leading-relaxed text-primary-foreground/75">Precisa de ajuda da TI? Abra um chamado, acompanhe o andamento do atendimento e encontre respostas rápidas — direto com a nossa equipe.</p>
+          <h2 className="font-heading text-3xl font-bold leading-tight xl:text-4xl">Central de Suporte de TI</h2>
+          <p className="mt-4 text-sm leading-relaxed text-primary-foreground/75">Entre com sua conta corporativa para abrir chamados, acompanhar seus atendimentos e consultar as orientações da equipe de TI.</p>
         </div>
       </aside>
 

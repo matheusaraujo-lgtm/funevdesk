@@ -639,6 +639,24 @@ export default function Home() {
     refreshLists();
   }
 
+  // Cores da organização também na raiz do documento: modais, popovers e menus
+  // renderizam via portal fora da div do app, então o style inline dela não os
+  // alcança — sem isso, diálogos como "Mover para Pendente" ficam na cor padrão.
+  const brandPrimary = data?.currentUser?.primaryColor || "#102033";
+  const brandSecondary = data?.currentUser?.secondaryColor || "#bff2e6";
+  const brandReady = Boolean(data);
+  useEffect(() => {
+    if (!brandReady) return undefined;
+    const root = document.documentElement;
+    root.style.setProperty("--primary", brandPrimary);
+    root.style.setProperty("--primary-foreground", "#ffffff");
+    root.style.setProperty("--secondary", brandSecondary);
+    root.style.setProperty("--secondary-foreground", "#102033");
+    return () => {
+      for (const name of ["--primary", "--primary-foreground", "--secondary", "--secondary-foreground"]) root.style.removeProperty(name);
+    };
+  }, [brandReady, brandPrimary, brandSecondary]);
+
   if (authStatus === "loading") return <div className="app-container space-y-5 py-8"><Skeleton className="h-16 w-full" /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton className="h-28" key={index} />)}</div><Skeleton className="h-[420px]" /></div>;
   if (authStatus === "unauthenticated") return <AuthView onAuthenticated={(result) => result.passwordChangeRequired ? (setSessionUser(result.user), setAuthStatus("change-password")) : loadSession()} />;
   if (authStatus === "change-password") return <AuthView mode="change-password" user={sessionUser} onPasswordChanged={loadSession} />;

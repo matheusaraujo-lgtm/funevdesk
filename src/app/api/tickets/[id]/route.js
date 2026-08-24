@@ -262,6 +262,7 @@ export async function PATCH(request, { params }) {
     if (item.quantity < deduction.qty) return Response.json({ error: `Estoque insuficiente para "${item.name}".` }, { status: 400 });
   }
 
+  let autoAssigned = false;
   const update = db.transaction(() => {
     if (parsed.data.status && permissions.canManageTickets && !parsed.data.assume) {
       const allowed = listTicketStatuses(db, ticket.organization_id);
@@ -313,6 +314,19 @@ export async function PATCH(request, { params }) {
 
       db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'STATUS_CHANGED', ?, ?)")
         .run(makeId("evt"), id, currentUser.id, currentUser.name, statusEventDescription, now);
+
+      // Auto-atribuição: mudar a situação de um chamado sem responsável (ex.: arrastar
+      // no kanban) torna quem moveu o responsável — chamado não anda "órfão".
+      // Não vale quando o mesmo PATCH já define o responsável explicitamente.
+      if (!ticket.assignee_id && parsed.data.assigneeId === undefined) {
+        db.prepare("UPDATE tickets SET assignee_id=? WHERE id=?").run(currentUser.id, id);
+        db.prepare("INSERT INTO ticket_events VALUES (?, ?, ?, ?, 'ASSIGNED', ?, ?)")
+          .run(makeId("evt"), id, currentUser.id, currentUser.name, `${currentUser.name} assumiu o chamado ao alterar a situação.`, now);
+        if (ticket.requester_id && ticket.requester_id !== currentUser.id) {
+          createNotification(db, { organizationId: ticket.organization_id, userId: ticket.requester_id, eventType: "TICKET_ASSIGNED", title: `Chamado #${ticket.number} em atendimento`, body: `${currentUser.name} assumiu seu chamado.`, referenceId: id, referenceType: "TICKET" });
+        }
+        autoAssigned = true;
+      }
 
       if (newMeta.is_terminal && ticket.requester_id) {
         createNotification(db, { organizationId: ticket.organization_id, userId: ticket.requester_id, eventType: "TICKET_RESOLVED", title: `Chamado #${ticket.number} resolvido`, body: "Avalie o atendimento recebido.", referenceId: id, referenceType: "TICKET" });
@@ -380,8 +394,8 @@ export async function PATCH(request, { params }) {
       requesterId: ticket.requester_id,
     });
   }
-  if (parsed.data.assume || (parsed.data.assigneeId !== undefined && parsed.data.assigneeId !== ticket.assignee_id && parsed.data.assigneeId)) {
-    const assigneeId = parsed.data.assume ? currentUser.id : parsed.data.assigneeId;
+  if (parsed.data.assume || autoAssigned || (parsed.data.assigneeId !== undefined && parsed.data.assigneeId !== ticket.assignee_id && parsed.data.assigneeId)) {
+    const assigneeId = (parsed.data.assume || autoAssigned) ? currentUser.id : parsed.data.assigneeId;
     dispatchWebhooks(db, ticket.organization_id, "TICKET_ASSIGNED", {
       id,
       number: ticket.number,
