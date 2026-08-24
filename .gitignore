@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+# instalados por builds locais de validação; o Docker regenera os dois no build
+/lib-db/node_modules/
+/lib-db/package-lock.json
 /.pnp
 .pnp.*
 .yarn/*
