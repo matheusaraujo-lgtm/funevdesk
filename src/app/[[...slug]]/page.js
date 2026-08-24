@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, BookOpen, Ticket } from "lucide-react";
@@ -101,6 +101,42 @@ function pathForView(view) {
   return `/${view}`;
 }
 
+// —— Estado efêmero de edição que sobrevive à navegação por URL ——
+// A tela ativa agora vem da URL (setView = router.push). Um estado React setado no MESMO
+// tick de um setView() se perde na navegação: o form de destino monta antes do update
+// commitar (ou o componente remonta), e abre vazio como se fosse "novo". Era a causa de
+// "editar usuário abre em branco". Persistimos o hint de edição (id ou objeto do draft) em
+// sessionStorage e o LEMOS durante o render — como a escrita é síncrona no handler, o valor
+// já está disponível no 1º render pós-navegação, independente do mecanismo (corrida/remount).
+function readSession(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw === null ? null : JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+function writeSession(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value === null || value === undefined) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota/serialização: ignora e apenas degrada para não-persistente */
+  }
+}
+function usePersistentState(key) {
+  const [, bump] = useReducer((count) => count + 1, 0);
+  const value = readSession(key);
+  const set = useCallback((next) => {
+    const resolved = typeof next === "function" ? next(readSession(key)) : next;
+    writeSession(key, resolved);
+    bump();
+  }, [key]);
+  return [value, set];
+}
+
 export default function Home() {
   const [authStatus, setAuthStatus] = useState("loading");
   const [sessionUser, setSessionUser] = useState(null);
@@ -120,16 +156,17 @@ export default function Home() {
   const [branches, setBranches] = useState([]);
   const [settings, setSettings] = useState(null);
   const [createKey, setCreateKey] = useState(0);
-  const [formDraft, setFormDraft] = useState(null);
-  const [userEditId, setUserEditId] = useState(null);
-  const [branchEditId, setBranchEditId] = useState(null);
-  const [teamEditId, setTeamEditId] = useState(null);
+  // Persistidos em sessionStorage (ver usePersistentState): sobrevivem ao setView/router.push.
+  const [formDraft, setFormDraft] = usePersistentState("fdk:formDraft");
+  const [userEditId, setUserEditId] = usePersistentState("fdk:userEditId");
+  const [branchEditId, setBranchEditId] = usePersistentState("fdk:branchEditId");
+  const [teamEditId, setTeamEditId] = usePersistentState("fdk:teamEditId");
   const [termTemplates, setTermTemplates] = useState([]);
   const [ticketStatuses, setTicketStatuses] = useState([]);
   const [agentAssets, setAgentAssets] = useState([]);
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [remoteSession, setRemoteSession] = useState(null);
-  const [ticketsQueue, setTicketsQueue] = useState(null);
+  const [ticketsQueue, setTicketsQueue] = usePersistentState("fdk:ticketsQueue");
   const deepLinkRestored = useRef(false);
   const [createdCredential, setCreatedCredential] = useState(null);
 
