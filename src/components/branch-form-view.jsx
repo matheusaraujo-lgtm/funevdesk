@@ -44,8 +44,17 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
       if (!response.ok) return;
       const payload = await response.json();
       const auth = payload.authSettings || {};
+      const branch = payload.branch || {};
+      // Os dados básicos vêm da própria API, não só da lista `branches` do shell: se o
+      // form monta antes da lista carregar (navegação/F5 na rota), o useState inicial
+      // fica vazio e a tela parecia "Nova unidade" mesmo editando.
       setForm((current) => ({
         ...current,
+        name: branch.name ?? current.name,
+        code: branch.code ?? current.code,
+        type: branch.type ?? current.type,
+        city: branch.city ?? current.city ?? "",
+        state: branch.state ?? current.state ?? "",
         authMode: auth.authMode || "LOCAL",
         ldapEnabled: Boolean(auth.ldapEnabled),
         ldapUrl: auth.ldapUrl || "",
