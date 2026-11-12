@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { createSession, sessionCookie } from "@/lib/auth";
-import { authenticateLdap, getBranchAuthSettings } from "@/lib/ldap";
+import { authenticateLdap, getBranchAuthSettings, listAutoProvisionSettings, provisionLdapUser } from "@/lib/ldap";
 import { getDb } from "@/lib/db";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/security";
 import { z } from "zod";
@@ -27,10 +27,28 @@ export async function POST(request) {
     : db.prepare("SELECT o.id, o.name, o.slug, s.app_name, s.logo_url, s.primary_color, s.secondary_color, s.navigation_mode FROM organizations o LEFT JOIN system_settings s ON s.organization_id=o.id ORDER BY o.created_at LIMIT 1").get();
   if (!organization) return Response.json({ error: "Empresa não encontrada." }, { status: 404 });
 
-  const user = db.prepare(`
+  const findUser = () => db.prepare(`
     SELECT id, name, email, role, active, password_hash, password_reset_required, auth_provider, branch_id, organization_id
     FROM users WHERE organization_id=? AND email=?
   `).get(organization.id, email);
+  let user = findUser();
+
+  // Cadastro automático (opt-in por unidade): login inexistente no FunevDesk, mas com
+  // usuário+senha válidos no AD de uma unidade que liga "cadastrar no 1º login" — cria
+  // o colaborador nessa unidade. O bind com a senha do próprio usuário já foi feito aqui,
+  // então não repetimos a autenticação LDAP logo abaixo.
+  let preAuthenticated = null;
+  if (!user) {
+    for (const settings of listAutoProvisionSettings(db, organization.id)) {
+      const ldapResult = await authenticateLdap(settings, email, parsed.data.password);
+      if (!ldapResult.ok) continue;
+      provisionLdapUser(db, organization.id, settings.branch_id, email, ldapResult.profile);
+      console.info(`[login] ${email}: cadastrado automaticamente via LDAP (unidade ${settings.branch_id})`);
+      user = findUser();
+      preAuthenticated = ldapResult;
+      break;
+    }
+  }
 
   if (!user || !user.active) {
     // Motivo só no log do servidor — a tela mantém a mensagem genérica (anti-enumeração).
@@ -40,8 +58,8 @@ export async function POST(request) {
 
   const authProvider = user.auth_provider || "LOCAL";
   if (authProvider === "LDAP") {
-    const settings = getBranchAuthSettings(db, user.branch_id);
-    const ldapResult = await authenticateLdap(settings, email, parsed.data.password);
+    const ldapResult = preAuthenticated
+      || await authenticateLdap(getBranchAuthSettings(db, user.branch_id), email, parsed.data.password);
     if (!ldapResult.ok) return Response.json({ error: ldapResult.error || "Falha na autenticação LDAP." }, { status: 401 });
     if (ldapResult.profile?.dn) {
       db.prepare("UPDATE users SET external_id=? WHERE id=?").run(ldapResult.profile.dn, user.id);

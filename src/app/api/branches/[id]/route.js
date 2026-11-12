@@ -40,6 +40,7 @@ export async function PUT(request, { params }) {
       ldapBindDn: z.string().max(300).optional().default(""),
       ldapBindPassword: z.string().max(300).optional().default(""),
       ldapUserFilter: z.string().max(300).optional().default("(mail={{email}})"),
+      ldapAutoProvision: z.boolean().optional().default(false),
     });
     const authParsed = authSettingsSchema.safeParse(body.authSettings);
     if (!authParsed.success) return Response.json({ error: "Configuração LDAP inválida." }, { status: 400 });
@@ -69,6 +70,7 @@ export async function GET(request, { params }) {
       ldapBindDn: authSettings.ldap_bind_dn || "",
       ldapUserFilter: authSettings.ldap_user_filter || "(mail={{email}})",
       hasBindPassword: Boolean(authSettings.ldap_bind_password),
+      ldapAutoProvision: Boolean(authSettings.ldap_auto_provision),
     },
   });
 }

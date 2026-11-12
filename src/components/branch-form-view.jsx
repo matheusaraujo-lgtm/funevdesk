@@ -16,7 +16,7 @@ const brazilianStates = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "
 function emptyForm() {
   return {
     name: "", code: "", type: "FILIAL", city: "", state: "",
-    authMode: "LOCAL", ldapEnabled: false, ldapUrl: "", ldapBaseDn: "", ldapBindDn: "", ldapBindPassword: "", ldapUserFilter: "(mail={{email}})",
+    authMode: "LOCAL", ldapEnabled: false, ldapUrl: "", ldapBaseDn: "", ldapBindDn: "", ldapBindPassword: "", ldapUserFilter: "(mail={{email}})", ldapAutoProvision: false,
   };
 }
 
@@ -32,7 +32,7 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
     type: editingBranch.type,
     city: editingBranch.city || "",
     state: editingBranch.state || "",
-    authMode: "LOCAL", ldapEnabled: false, ldapUrl: "", ldapBaseDn: "", ldapBindDn: "", ldapBindPassword: "", ldapUserFilter: "(mail={{email}})",
+    authMode: "LOCAL", ldapEnabled: false, ldapUrl: "", ldapBaseDn: "", ldapBindDn: "", ldapBindPassword: "", ldapUserFilter: "(mail={{email}})", ldapAutoProvision: false,
   } : emptyForm());
   const [codeEdited, setCodeEdited] = useState(Boolean(branchId));
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +62,7 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
         ldapBindDn: auth.ldapBindDn || "",
         ldapBindPassword: "",
         ldapUserFilter: auth.ldapUserFilter || "(mail={{email}})",
+        ldapAutoProvision: Boolean(auth.ldapAutoProvision),
       }));
     });
   }, [branchId]);
@@ -117,6 +118,7 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
         ldapBindDn: form.ldapBindDn,
         ldapBindPassword: form.ldapBindPassword,
         ldapUserFilter: form.ldapUserFilter,
+        ldapAutoProvision: form.ldapAutoProvision,
       },
     };
     const success = branchId ? await onSave(branchId, payload) : await onCreate(payload);
@@ -149,6 +151,7 @@ export function BranchFormView({ branchId, branches, onCreate, onSave, onCancel 
           <Input value={form.ldapBindDn} onChange={(event) => update("ldapBindDn", event.target.value)} placeholder="Bind DN (opcional, para busca)" />
           <Input type="password" value={form.ldapBindPassword} onChange={(event) => update("ldapBindPassword", event.target.value)} placeholder="Senha do bind (deixe vazio para manter)" />
           <Input value={form.ldapUserFilter} onChange={(event) => update("ldapUserFilter", event.target.value)} placeholder="Filtro LDAP (use {{email}})" />
+          <label className="flex items-start gap-2 text-sm"><Checkbox className="mt-0.5" checked={form.ldapAutoProvision} onCheckedChange={(value) => update("ldapAutoProvision", Boolean(value))} /><span>Cadastrar automaticamente no 1º login<span className="block text-xs text-muted-foreground">Quem tiver usuário e senha válidos neste AD e ainda não existir no FunevDesk é criado como Usuário (colaborador) desta unidade.</span></span></label>
           {branchId ? (
             <Button type="button" variant="outline" size="sm" onClick={testConnection} disabled={testing}>
               <PlugZap className="size-3.5" /> {testing ? "Testando..." : "Testar conexão"}

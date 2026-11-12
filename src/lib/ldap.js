@@ -1,3 +1,4 @@
+import { makeId } from "@/lib/db";
 import { escapeLdapFilterValue } from "@/lib/security";
 
 function renderFilter(template, email) {
@@ -119,7 +120,7 @@ export async function testLdapConnection(settings) {
 export function getBranchAuthSettings(db, branchId) {
   return db.prepare(`
     SELECT branch_id, auth_mode, ldap_url, ldap_base_dn, ldap_bind_dn, ldap_bind_password,
-      ldap_user_filter, ldap_enabled
+      ldap_user_filter, ldap_enabled, ldap_auto_provision
     FROM branch_auth_settings WHERE branch_id=?
   `).get(branchId) || { branch_id: branchId, auth_mode: "LOCAL", ldap_enabled: 0 };
 }
@@ -128,8 +129,8 @@ export function saveBranchAuthSettings(db, branchId, settings) {
   const authMode = settings.authMode === "LDAP" && settings.ldapEnabled ? "LDAP" : "LOCAL";
   db.prepare(`
     INSERT INTO branch_auth_settings
-      (branch_id, auth_mode, ldap_url, ldap_base_dn, ldap_bind_dn, ldap_bind_password, ldap_user_filter, ldap_enabled)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (branch_id, auth_mode, ldap_url, ldap_base_dn, ldap_bind_dn, ldap_bind_password, ldap_user_filter, ldap_enabled, ldap_auto_provision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(branch_id) DO UPDATE SET
       auth_mode=excluded.auth_mode,
       ldap_url=excluded.ldap_url,
@@ -137,7 +138,8 @@ export function saveBranchAuthSettings(db, branchId, settings) {
       ldap_bind_dn=excluded.ldap_bind_dn,
       ldap_bind_password=CASE WHEN excluded.ldap_bind_password IS NOT NULL AND excluded.ldap_bind_password <> '' THEN excluded.ldap_bind_password ELSE branch_auth_settings.ldap_bind_password END,
       ldap_user_filter=excluded.ldap_user_filter,
-      ldap_enabled=excluded.ldap_enabled
+      ldap_enabled=excluded.ldap_enabled,
+      ldap_auto_provision=excluded.ldap_auto_provision
   `).run(
     branchId,
     authMode,
@@ -147,5 +149,34 @@ export function saveBranchAuthSettings(db, branchId, settings) {
     settings.ldapBindPassword || null,
     settings.ldapUserFilter || "(mail={{email}})",
     settings.ldapEnabled ? 1 : 0,
+    settings.ldapAutoProvision && settings.ldapEnabled ? 1 : 0,
   );
+}
+
+// Unidades com LDAP ativo e "cadastrar automaticamente no 1º login" ligado.
+export function listAutoProvisionSettings(db, organizationId) {
+  return db.prepare(`
+    SELECT s.branch_id, s.auth_mode, s.ldap_url, s.ldap_base_dn, s.ldap_bind_dn, s.ldap_bind_password,
+      s.ldap_user_filter, s.ldap_enabled, s.ldap_auto_provision
+    FROM branch_auth_settings s JOIN branches b ON b.id=s.branch_id
+    WHERE b.organization_id=? AND s.ldap_enabled=1 AND s.auth_mode='LDAP' AND s.ldap_auto_provision=1
+    ORDER BY b.name
+  `).all(organizationId);
+}
+
+// Cria o colaborador autenticado no AD: perfil "Usuário" (EMPLOYEE), unidade do AD como
+// principal e única, login = o que ele digitou (mesma chave usada na busca do login).
+export function provisionLdapUser(db, organizationId, branchId, login, profile) {
+  const seedProfile = db.prepare("SELECT id FROM profiles WHERE organization_id=? AND slug='usuario'").get(organizationId);
+  const id = makeId("usr");
+  const create = db.transaction(() => {
+    db.prepare(`INSERT INTO users
+      (id, organization_id, branch_id, name, email, role, profile_id, created_at, asset_id, active,
+       password_hash, password_reset_required, auth_provider, all_branches, external_id)
+      VALUES (?, ?, ?, ?, ?, 'EMPLOYEE', ?, ?, NULL, 1, NULL, 0, 'LDAP', 0, ?)`)
+      .run(id, organizationId, branchId, profile?.name || login, login, seedProfile?.id || null, new Date().toISOString(), profile?.dn || null);
+    db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, 1)").run(id, branchId);
+  });
+  create();
+  return id;
 }

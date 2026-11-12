@@ -1407,6 +1407,9 @@ function ensureMultiTenantTables(db) {
       FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
     );
   `);
+  // Cadastro automático no 1º login LDAP (opt-in por unidade; default desligado para não
+  // mudar o comportamento das unidades que já estão em produção).
+  execAddColumn(db, "ALTER TABLE branch_auth_settings ADD COLUMN ldap_auto_provision INTEGER NOT NULL DEFAULT 0");
 }
 
 function ensureTicketWorkflowTables(db) {
