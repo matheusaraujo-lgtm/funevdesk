@@ -33,6 +33,8 @@ export async function POST(request) {
   `).get(organization.id, email);
 
   if (!user || !user.active) {
+    // Motivo só no log do servidor — a tela mantém a mensagem genérica (anti-enumeração).
+    console.warn(`[login] ${email}: ${user ? "usuário inativo" : "login não cadastrado no FunevDesk"}`);
     return Response.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
   }
 
@@ -46,6 +48,7 @@ export async function POST(request) {
     }
   } else {
     if (!user.password_hash || !await bcrypt.compare(parsed.data.password, user.password_hash)) {
+      console.warn(`[login] ${email}: senha local incorreta (usuário com autenticação LOCAL, não LDAP)`);
       return Response.json({ error: "E-mail ou senha inválidos." }, { status: 401 });
     }
   }

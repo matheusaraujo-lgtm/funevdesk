@@ -75,7 +75,11 @@ export async function authenticateLdap(settings, email, password) {
         email: String(entry.mail || entry.userPrincipalName || email).toLowerCase(),
       },
     };
-  } catch {
+  } catch (error) {
+    // Só no log do servidor (nunca na tela): o AD devolve o motivo real no texto do erro,
+    // ex. "data 52e" senha errada, "data 773" deve trocar senha, "data 533" conta
+    // desabilitada, "data 775" bloqueada, "data 531/530" restrição de estação/horário.
+    console.warn(`[ldap] Bind do usuário recusado para ${email} (${entry.dn}): ${error.message}`);
     return { ok: false, error: "E-mail ou senha inválidos." };
   } finally {
     await userClient.unbind().catch(() => {});
