@@ -33,16 +33,18 @@ export async function authenticateLdap(settings, email, password) {
     const { searchEntries } = await client.search(settings.ldap_base_dn, {
       scope: "sub",
       filter,
-      attributes: ["dn", "mail", "cn", "displayName", "sAMAccountName"],
+      attributes: ["dn", "mail", "cn", "displayName", "sAMAccountName", "userPrincipalName"],
       sizeLimit: 5,
     });
 
     // Sem fallback para searchEntries[0]: exige correspondência exata de e-mail,
     // impedindo que um filtro manipulado faça bind no primeiro registro retornado.
-    entry = searchEntries.find((item) => {
-      const mail = String(item.mail || "").toLowerCase();
-      return mail === email.toLowerCase();
-    });
+    // Aceita `mail`, `userPrincipalName` ou `sAMAccountName` — ADs de unidade muitas vezes
+    // não preenchem `mail`, e o login é feito como nome.sobrenome (sAMAccountName) ou
+    // nome.sobrenome@dominio.local (UPN).
+    const wanted = email.toLowerCase();
+    entry = searchEntries.find((item) => [item.mail, item.userPrincipalName, item.sAMAccountName]
+      .some((value) => String(value || "").toLowerCase() === wanted));
   } catch (error) {
     // Erro de rede/bind de serviço/config (URL errada, servidor fora do ar, bind DN
     // inválido) — nunca devolve error.message cru pro login (vazaria infra interna pra
@@ -70,7 +72,7 @@ export async function authenticateLdap(settings, email, password) {
       profile: {
         dn: String(entry.dn),
         name: String(entry.displayName || entry.cn || email.split("@")[0]),
-        email: String(entry.mail || email).toLowerCase(),
+        email: String(entry.mail || entry.userPrincipalName || email).toLowerCase(),
       },
     };
   } catch {
