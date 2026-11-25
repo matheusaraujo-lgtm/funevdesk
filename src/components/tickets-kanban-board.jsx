@@ -51,7 +51,9 @@ function KanbanCard({ ticket, currentUser, draggable, dragging, onOpen, onDragSt
       className={`group cursor-pointer rounded-xl border border-border/60 bg-card p-3 shadow-xs transition hover:border-primary/40 hover:shadow-sm ${dragging ? "opacity-40" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-muted-foreground">#{ticket.number}</span>
+        <span className="min-w-0 truncate text-[11px] font-semibold text-muted-foreground">
+          #{ticket.number}{ticket.branch_name ? ` - ${ticket.branch_name}` : ""}
+        </span>
         {draggable && <GripVertical className="size-3.5 shrink-0 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />}
       </div>
       <p className="mb-2 line-clamp-2 text-[13px] font-medium leading-snug">{ticket.title}</p>
