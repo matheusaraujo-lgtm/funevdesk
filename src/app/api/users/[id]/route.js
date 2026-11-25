@@ -29,6 +29,11 @@ export async function PUT(request, { params }) {
   const save = db.transaction(() => {
     db.prepare("UPDATE users SET name=?, email=?, role=?, profile_id=?, branch_id=?, asset_id=?, auth_provider=?, all_branches=? WHERE id=?")
       .run(parsed.data.name, normalizeLogin(parsed.data.email), resolved.role, resolved.profileId, parsed.data.primaryBranchId, parsed.data.assetId || null, authProvider, parsed.data.allBranches ? 1 : 0, id);
+    // Converter conta LOCAL em LDAP restaura o invariante "senha só no diretório": sem hash
+    // local e sem troca pendente (senão o usuário cairia na tela de troca, que recusa LDAP).
+    if (authProvider === "LDAP") {
+      db.prepare("UPDATE users SET password_hash=NULL, password_reset_required=0 WHERE id=?").run(id);
+    }
     db.prepare("DELETE FROM user_branches WHERE user_id=?").run(id);
     const insertBranch = db.prepare("INSERT INTO user_branches (user_id, branch_id, is_primary) VALUES (?, ?, ?)");
     parsed.data.branchIds.forEach((branchId) => insertBranch.run(id, branchId, branchId === parsed.data.primaryBranchId ? 1 : 0));

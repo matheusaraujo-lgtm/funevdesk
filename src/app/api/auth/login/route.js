@@ -64,6 +64,11 @@ export async function POST(request) {
     if (ldapResult.profile?.dn) {
       db.prepare("UPDATE users SET external_id=? WHERE id=?").run(ldapResult.profile.dn, user.id);
     }
+    // Autocura: flag de troca de senha é exclusiva de conta LOCAL. Se uma conta LDAP ficou
+    // marcada (ex.: seed antigo de "usuário sem hash"), limpa aqui para não bloquear de novo.
+    if (user.password_reset_required) {
+      db.prepare("UPDATE users SET password_reset_required=0 WHERE id=?").run(user.id);
+    }
   } else {
     if (!user.password_hash || !await bcrypt.compare(parsed.data.password, user.password_hash)) {
       console.warn(`[login] ${email}: senha local incorreta (usuário com autenticação LOCAL, não LDAP)`);

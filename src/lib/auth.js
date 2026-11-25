@@ -65,7 +65,10 @@ export function getCurrentUser(request) {
 export function requireCurrentUser(request) {
   const user = getCurrentUser(request);
   if (!user) return { error: Response.json({ error: "Não autenticado." }, { status: 401 }) };
-  if (user.password_reset_required && !new URL(request.url).pathname.endsWith("/api/auth/change-password")) {
+  // Troca obrigatória só existe para senha LOCAL. Conta LDAP autentica no AD e não tem
+  // hash local — bloquear as rotas por essa flag a prenderia na tela de troca (que recusa
+  // LDAP), sem acesso a nada.
+  if (user.password_reset_required && (user.auth_provider || "LOCAL") === "LOCAL" && !new URL(request.url).pathname.endsWith("/api/auth/change-password")) {
     return { error: Response.json({ error: "Troca de senha obrigatória.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 }) };
   }
   return { user };

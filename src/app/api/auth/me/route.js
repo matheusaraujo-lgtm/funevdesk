@@ -23,6 +23,8 @@ export async function GET(request) {
     permissions: getPermissions(user),
     permissionMap: user.permissionMap,
     modules: MODULES,
-    passwordChangeRequired: Boolean(user.password_reset_required),
+    // A flag só vale para senha local; conta LDAP tem a senha no diretório e nunca deve
+    // ser levada à tela de troca (mesma regra já aplicada no login).
+    passwordChangeRequired: (user.auth_provider || "LOCAL") === "LOCAL" && Boolean(user.password_reset_required),
   });
 }

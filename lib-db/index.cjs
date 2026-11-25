@@ -388,13 +388,22 @@ function ensureRuntimeMigrations(db) {
   if (!branchColumns.some((column) => column.name === "enrollment_key_prefix")) {
     execAddColumn(db, "ALTER TABLE branches ADD COLUMN enrollment_key_prefix TEXT");
   }
-  const usersWithoutPassword = db.prepare("SELECT COUNT(*) total FROM users WHERE password_hash IS NULL").get().total;
+  // A coluna auth_provider é criada depois (ensureMultiTenantTables), então num banco
+  // antigo/novo ela pode não existir neste ponto — só filtra LDAP quando ela já existe.
+  const seedColumns = db.prepare("PRAGMA table_info(users)").all();
+  const seedLocalOnly = seedColumns.some((column) => column.name === "auth_provider")
+    ? " AND COALESCE(auth_provider, 'LOCAL') <> 'LDAP'"
+    : "";
+  const usersWithoutPassword = db.prepare(`SELECT COUNT(*) total FROM users WHERE password_hash IS NULL${seedLocalOnly}`).get().total;
   if (usersWithoutPassword) {
     // Sem senha padrão hardcoded. Usa NEXUS_SEED_PASSWORD se definida; senão gera
     // uma senha aleatória forte e a exibe UMA vez no console. Troca obrigatória no 1º login.
+    // Conta LDAP fica FORA: ela nasce sem hash de propósito (a senha é o AD). Sem esse
+    // filtro, cada boot semeava hash + "troca obrigatória" em todo usuário LDAP — e ele
+    // era levado à tela de troca de senha, que recusa LDAP, ficando sem acesso ao sistema.
     const seedPassword = process.env.NEXUS_SEED_PASSWORD || crypto.randomBytes(12).toString("base64url");
     const initialHash = bcrypt.hashSync(seedPassword, 12);
-    db.prepare("UPDATE users SET password_hash=?, password_reset_required=1 WHERE password_hash IS NULL").run(initialHash);
+    db.prepare(`UPDATE users SET password_hash=?, password_reset_required=1 WHERE password_hash IS NULL${seedLocalOnly}`).run(initialHash);
     if (!process.env.NEXUS_SEED_PASSWORD) {
       console.warn("\n========================================================");
       console.warn(`[FunevDesk] Senha inicial gerada para ${usersWithoutPassword} usuário(s) sem senha:`);
@@ -434,6 +443,13 @@ function ensureRuntimeMigrations(db) {
   // Público-alvo do artigo de conhecimento: ALL = todos (portal do usuário + técnicos),
   // STAFF = apenas técnicos/suporte. Default ALL preserva os artigos já existentes.
   execAddColumn(db, "ALTER TABLE knowledge_articles ADD COLUMN audience TEXT NOT NULL DEFAULT 'ALL'");
+  // Reparo de dados: versões anteriores semeavam hash + troca obrigatória em TODA conta sem
+  // senha, incluindo as LDAP (que nascem sem hash de propósito). Restaura o invariante da
+  // conta de diretório — sem hash local e sem troca pendente —, destravando quem já ficou
+  // preso na tela "Crie uma nova senha" (rota que recusa LDAP por design).
+  try {
+    db.prepare("UPDATE users SET password_hash=NULL, password_reset_required=0 WHERE auth_provider='LDAP' AND (password_hash IS NOT NULL OR password_reset_required<>0)").run();
+  } catch { /* coluna auth_provider ausente em banco muito antigo */ }
 }
 
 // Índices para as colunas filtradas/ordenadas/juntadas nas rotas quentes (dashboard, listas).
