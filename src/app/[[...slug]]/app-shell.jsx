@@ -169,6 +169,22 @@ export default function Home() {
   const [agentAssets, setAgentAssets] = useState([]);
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [remoteSession, setRemoteSession] = useState(null);
+  // Sidebar recolhível (desktop): estado no shell para o conteúdo/header acompanharem a
+  // largura. A preferência fica no sessionStorage (sobrevive a recarregar a aba); lida
+  // num efeito para não divergir do HTML do servidor na hidratação.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem("fdk:sidebarCollapsed") === "1") setSidebarCollapsed(true);
+    } catch { /* armazenamento indisponível */ }
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try { window.sessionStorage.setItem("fdk:sidebarCollapsed", next ? "1" : "0"); } catch { /* ignora */ }
+      return next;
+    });
+  }, []);
   const [ticketsQueue, setTicketsQueue] = usePersistentState("fdk:ticketsQueue");
   const deepLinkRestored = useRef(false);
   const [createdCredential, setCreatedCredential] = useState(null);
@@ -716,7 +732,7 @@ export default function Home() {
     "--secondary-foreground": "#102033",
   };
   // Transição suave: cada troca de view (via key) refaz a entrada com fade+slide leve.
-  const mainClassName = "px-4 py-6 md:px-6 md:py-8 lg:ml-72 lg:px-6 animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none";
+  const mainClassName = `px-4 py-6 md:px-6 md:py-8 ${sidebarCollapsed ? "lg:ml-0" : "lg:ml-72"} lg:px-6 transition-[margin] duration-200 motion-reduce:transition-none animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none`;
 
   if (data.currentUser.role === "EMPLOYEE") {
     const employeeViews = ["new-ticket", "my-tickets", "details", "knowledge", "knowledge-detail", "profile"];
@@ -814,7 +830,7 @@ export default function Home() {
 
   return <div className="min-h-screen" style={themeStyle}>
     <CommandPalette can={can} permissions={data.permissions} setView={setView} onNewTicket={() => setView("new-ticket")} />
-    <AppNavbar view={view} setView={setView} ticketCount={activeTickets.length} branches={data.branches} branchId={branchId} setBranchId={setBranchId} onNewTicket={() => setView("new-ticket")} currentUser={data.currentUser} permissions={data.permissions} can={can} onLogout={logout} />
+    <AppNavbar view={view} setView={setView} ticketCount={activeTickets.length} branches={data.branches} branchId={branchId} setBranchId={setBranchId} onNewTicket={() => setView("new-ticket")} currentUser={data.currentUser} permissions={data.permissions} can={can} onLogout={logout} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
     <main key={view} className={mainClassName}>
       {view === "dashboard" && <DashboardView data={data} currentUser={data.currentUser} openTicket={openTicket} onNavigate={setView} onNavigateQueue={goToTicketsQueue} onNewTicket={() => setView("new-ticket")} />}
       {view === "tickets" && can("tickets", "read") && <TicketsView tickets={data.tickets} catalog={catalog} users={users} currentUser={data.currentUser} permissions={data.permissions} ticketStatuses={ticketStatuses} terminalStatusCode={terminalStatusCode} initialQueue={ticketsQueue} onQueueApplied={() => setTicketsQueue(null)} onOpenTicket={openTicket} onRemoteAccess={remoteAccess} onStatusChange={changeStatus} onAssumeTicket={assumeTicket} onBulkPatch={bulkPatchTickets} />}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Laptop, Layers, LayoutDashboard, LogOut, MapPin, Menu, MessageSquareText, Moon, MonitorCog, Network, Package, Plus, Printer, Repeat, Search, Settings2, ShieldAlert, ShieldCheck, Sun, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
+import { Activity, BookOpen, Bug, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, FolderKanban, GitBranchPlus, Laptop, Layers, LayoutDashboard, LogOut, MapPin, Menu, MessageSquareText, Moon, MonitorCog, Network, Package, Plus, Printer, Repeat, Search, Settings2, ShieldAlert, ShieldCheck, Sun, Tags, Ticket, UserRound, Users, Webhook, Workflow, Wrench } from "lucide-react";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -277,7 +277,7 @@ function ThemeToggle() {
   );
 }
 
-export function AppNavbar({ view, setView, ticketCount, branches, branchId, setBranchId, onNewTicket, currentUser, permissions, can = () => false, onLogout }) {
+export function AppNavbar({ view, setView, ticketCount, branches, branchId, setBranchId, onNewTicket, currentUser, permissions, can = () => false, onLogout, sidebarCollapsed = false, onToggleSidebar = () => {} }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = (nextView) => {
     setView(nextView);
@@ -390,20 +390,46 @@ export function AppNavbar({ view, setView, ticketCount, branches, branchId, setB
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-72 flex-col border-r border-border/60 bg-background/80 backdrop-blur-xl lg:flex">
-        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-5">
-          <BrandMark appName={appName} logoUrl={logoUrl} />
-          <div className="min-w-0">
-            <p className="truncate font-heading text-sm font-bold leading-none">{appName}</p>
-            <p className="mt-1 truncate text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
+      {!sidebarCollapsed && (
+        <aside className="fixed inset-y-0 left-0 z-50 hidden w-72 flex-col border-r border-border/60 bg-background/80 backdrop-blur-xl lg:flex">
+          <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
+            <BrandMark appName={appName} logoUrl={logoUrl} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-heading text-sm font-bold leading-none">{appName}</p>
+              <p className="mt-1 truncate text-[10px] text-muted-foreground">{currentUser.organizationName || "Operações de TI"}</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={onToggleSidebar}
+              aria-label="Recolher menu lateral"
+              title="Recolher menu"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
           </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
-          <SidebarNav view={view} setView={setView} ticketCount={ticketCount} permissions={permissions} can={can} />
-        </div>
-      </aside>
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl lg:ml-72">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+            <SidebarNav view={view} setView={setView} ticketCount={ticketCount} permissions={permissions} can={can} />
+          </div>
+        </aside>
+      )}
+      <header className={`sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl transition-[margin] duration-200 motion-reduce:transition-none ${sidebarCollapsed ? "lg:ml-0" : "lg:ml-72"}`}>
         <div className="flex h-16 min-w-0 items-center gap-2 px-4 md:px-7 lg:px-9">
+          {sidebarCollapsed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden size-9 shrink-0 lg:inline-flex"
+              onClick={onToggleSidebar}
+              aria-label="Expandir menu lateral"
+              title="Expandir menu"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          )}
           <div className="flex min-w-0 shrink items-center gap-2.5 lg:hidden">
             <BrandMark appName={appName} logoUrl={logoUrl} />
             <div className="hidden min-w-0 sm:block">
